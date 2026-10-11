@@ -1010,8 +1010,12 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
   // handlers are reassigned to the refs each render, so the wrappers always call
   // the latest logic while keeping a constant identity. This is the H1 fix:
   // ChatPanel still re-renders per chunk, but its heavy composer subtree bails.
+  // Forwards every argument, not a listed few: naming `(content, mentions)`
+  // here once dropped the composer's staged images, and `tsc` cannot see it —
+  // a callback with fewer parameters is assignable to one with more.
   const onSendStable = useCallback(
-    (content: string, mentions: MentionData[]) => handleSendRef.current?.(content, mentions),
+    (content: string, mentions: MentionData[], attachments?: ImageAttachment[]) =>
+      handleSendRef.current?.(content, mentions, attachments),
     [],
   );
   const onStopStable = useCallback(() => handleStopRef.current?.(), []);
