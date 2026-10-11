@@ -1013,6 +1013,11 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
   // Forwards every argument, not a listed few: naming `(content, mentions)`
   // here once dropped the composer's staged images, and `tsc` cannot see it —
   // a callback with fewer parameters is assignable to one with more.
+  //
+  // A stupid one-line problem that took a full trace to find (d8cda90c): every
+  // pasted image vanished on Enter for months, and the hunt went through Rust,
+  // the ACP connection and the Claude adapter before it ended here. If images
+  // go missing again, check this wrapper first.
   const onSendStable = useCallback(
     (content: string, mentions: MentionData[], attachments?: ImageAttachment[]) =>
       handleSendRef.current?.(content, mentions, attachments),
