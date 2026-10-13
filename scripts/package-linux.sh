@@ -126,8 +126,9 @@ echo "Installing Atlas to ${PREFIX}..."
 install -d "${PREFIX}/bin" "${PREFIX}/share/applications" "${PREFIX}/share/licenses/atlas"
 install -m 755 bin/atlas "${PREFIX}/bin/atl"
 ln -sf atl "${PREFIX}/bin/tryatlas"
-if [ ! -e "${PREFIX}/bin/atlas" ]; then
-  ln -sf atl "${PREFIX}/bin/atlas"
+# `atlas` belongs to the standalone Atlas CLI; drop the alias earlier versions made
+if [ -L "${PREFIX}/bin/atlas" ] && [ "$(readlink "${PREFIX}/bin/atlas")" = "atl" ]; then
+  rm -f "${PREFIX}/bin/atlas"
 fi
 # Remove legacy desktop launcher aliases if present from earlier versions
 rm -f "${PREFIX}/share/applications/atlas.desktop" "${PREFIX}/share/applications/atl.desktop" "${PREFIX}/share/applications/tryatlas.desktop"
@@ -277,8 +278,9 @@ EOF
 cat <<'EOF' > "${DEB_STAGING}/DEBIAN/postinst"
 #!/bin/sh
 set -e
-if [ ! -e /usr/bin/atlas ]; then
-  ln -sf atl /usr/bin/atlas
+# `atlas` belongs to the standalone Atlas CLI; drop the alias earlier versions made
+if [ -L /usr/bin/atlas ] && [ "$(readlink /usr/bin/atlas)" = "atl" ]; then
+  rm -f /usr/bin/atlas
 fi
 # Remove legacy desktop launcher aliases if present from earlier versions
 rm -f /usr/share/applications/atlas.desktop /usr/share/applications/atl.desktop /usr/share/applications/tryatlas.desktop
@@ -359,8 +361,9 @@ cp -r ${STAGE_DIR}/share/icons/hicolor/* %{buildroot}/usr/share/icons/hicolor/
 cp -r ${STAGE_DIR}/share/licenses/atlas/* %{buildroot}/usr/share/licenses/tryatlas/
 
 %post
-if [ ! -e /usr/bin/atlas ]; then
-  ln -sf atl /usr/bin/atlas
+# The atlas command belongs to the standalone Atlas CLI; drop the alias earlier versions made
+if [ -L /usr/bin/atlas ] && [ "\$(readlink /usr/bin/atlas)" = "atl" ]; then
+  rm -f /usr/bin/atlas
 fi
 # Remove legacy desktop launcher aliases if present from earlier versions
 rm -f /usr/share/applications/atlas.desktop /usr/share/applications/atl.desktop /usr/share/applications/tryatlas.desktop

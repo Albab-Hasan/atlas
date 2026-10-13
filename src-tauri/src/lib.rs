@@ -140,15 +140,14 @@ pub fn run() {
 
     // Parse argv for an initial project path BEFORE tauri::Builder starts
     // so the webview boot path can read it via `cli_take_initial_project_path`.
-    // Triggered by the `atlas <path>` shell helper at ~/.local/bin/atlas.
     let initial_project = commands::cli::parse_initial_project();
 
     let builder = tauri::Builder::default();
 
-    // Single-instance — RELEASE ONLY. When the user runs `atlas <path>` while
-    // Atlas is already open, the shell helper's `open -n` spawns a fresh
-    // process; this plugin forwards that process's argv to the running
-    // instance (firing this callback) and the duplicate exits.
+    // Single-instance — RELEASE ONLY. When a launcher starts the binary with a
+    // project path while Atlas is already open, this plugin forwards that
+    // process's argv to the running instance (firing this callback) and the
+    // duplicate exits.
     //
     // It is intentionally NOT registered in debug builds: otherwise
     // `tauri dev` is killed the instant it starts whenever the installed
@@ -849,8 +848,6 @@ pub fn run() {
             commands::updater::update_state,
             commands::updater::update_ignore,
             commands::compose_prompt::compose_prompt,
-            commands::cli::cli_status,
-            commands::cli::cli_install_helper,
             commands::cli::cli_take_initial_project_path,
             commands::registry::acp_registry_list,
             commands::registry::acp_registry_refresh,

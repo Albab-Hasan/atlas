@@ -233,19 +233,10 @@ export function SettingsPanel({ initialSection }: { initialSection?: string } = 
   );
 }
 
-export interface CliStatus {
-  installed: boolean;
-  path: string | null;
-  installedVersion: string | null;
-  currentVersion: string;
-}
-
 function GeneralSettings() {
   const settings = useSettingsStore.use.settings();
   const configError = useSettingsStore.use.configError();
   const { updateSettings, clearConfigError, resetConfig } = useSettingsStore.use.actions();
-  const [cli, setCli] = useState<CliStatus | null>(null);
-  const [installing, setInstalling] = useState(false);
   const [resettingConfig, setResettingConfig] = useState(false);
   // `.atlas` in the released app, `.atlas-dev` in a dev-profile build, which
   // also keeps it out of git through `.git/info/exclude` rather than editing
@@ -284,31 +275,6 @@ function GeneralSettings() {
     toast.success(`Model pricing updated — ${n} models`);
   };
 
-  useEffect(() => {
-    let cancelled = false;
-    void invoke<CliStatus>("cli_status")
-      .then((s) => {
-        if (!cancelled) setCli(s);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const installCli = async () => {
-    setInstalling(true);
-    try {
-      const next = await invoke<CliStatus>("cli_install_helper");
-      setCli(next);
-      toast.success("Installed atlas tools");
-    } catch (e) {
-      toast.error(`Install failed: ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setInstalling(false);
-    }
-  };
-
   // The memory mirror lives outside the project; this shows the open
   // project's copy in the file manager.
   const projectPath = useAppStore.use.currentProject()?.path ?? null;
@@ -326,16 +292,6 @@ function GeneralSettings() {
       toast.error(`Couldn't open the mirror: ${e instanceof Error ? e.message : String(e)}`);
     }
   };
-
-  const cliInstalledLine = cli?.installed
-    ? cli.installedVersion === cli.currentVersion
-      ? `Installed at ${cli.path}`
-      : `Installed at ${cli.path}${
-          cli.installedVersion
-            ? ` (version ${cli.installedVersion}, current ${cli.currentVersion})`
-            : ` (version unknown, current ${cli.currentVersion})`
-        }`
-    : `Will install to ${cli?.path ?? "~/.local/bin/atlas"}`;
 
   return (
     <div className="space-y-6">
@@ -631,23 +587,6 @@ function GeneralSettings() {
             onChange={(next) => updateSettings({ memoryRepoMirror: next })}
           />
         </div>
-      </SettingRow>
-      <SettingRow
-        label="Atlas CLI"
-        description={`Adds an \`atlas\` command to your shell — type \`atlas .\` in any terminal to open the current folder as a project. Refreshed automatically on every launch so an older copy never lingers. ${cliInstalledLine}.`}
-      >
-        <button
-          type="button"
-          onClick={() => void installCli()}
-          disabled={installing}
-          className={cn(
-            "h-7 rounded-md px-2.5 text-xs font-medium border border-border bg-card",
-            "text-foreground hover:bg-element-hover transition-colors",
-            "disabled:opacity-50 disabled:cursor-not-allowed",
-          )}
-        >
-          {installing ? "Installing…" : cli?.installed ? "Reinstall" : "Install"}
-        </button>
       </SettingRow>
       <SettingRow
         label="Model pricing"

@@ -52,7 +52,6 @@ import type {
   SharedState,
 } from "@/features/memory/lib/shared-memory-api";
 import type { InstalledPack, Pack, PackComponent, PackSearchHit } from "@/features/packs/lib/types";
-import type { CliStatus } from "@/features/settings/components/settings-panel";
 import { DEFAULT_SETTINGS } from "@/features/settings/lib/app-settings";
 import type { EnvEntry, EnvKeyMeta, ProfileInfo } from "@/features/settings/lib/byok-api";
 import type {
@@ -1226,13 +1225,6 @@ let envEntries: EnvEntry[] = [
   },
 ];
 
-const CLI: CliStatus = {
-  installed: true,
-  path: `${HOME}/.local/bin/atlas`,
-  installedVersion: VERSION,
-  currentVersion: VERSION,
-};
-
 // ── Log (⌘K → Log) ────────────────────────────────────────────────────────
 
 type LogSeed = [
@@ -1591,8 +1583,6 @@ export const northwindMiscCommands: Partial<TypedHandlers<MockResponses>> = {
   },
 
   // ── settings ───────────────────────────────────────────────────────────
-  cli_status: (): CliStatus => CLI,
-  cli_install_helper: (): CliStatus => CLI,
   byok_env_list: (): EnvKeyMeta[] =>
     envEntries.map(({ provider, envVar, last4 }) => ({ provider, envVar, last4 })),
   byok_env_entries: (): EnvEntry[] => envEntries.map((entry) => ({ ...entry })),

@@ -62,9 +62,7 @@ import {
   sessionProjectPath,
 } from "@/features/chat/lib/turn-index-scheduler";
 import { isScrollHot } from "@/lib/scroll-hot";
-import { isWindows, isLinux } from "@/lib/platform";
-import { loadAppProfile, useAppProfile } from "@/lib/app-profile";
-import type { CliStatus } from "@/features/settings/components/settings-panel";
+import { useAppProfile } from "@/lib/app-profile";
 import { basename } from "@/lib/paths";
 import {
   hydrateAgentRegistry,
@@ -196,36 +194,8 @@ export function App() {
     return watchRemovedAgents();
   }, []);
 
-  // Refresh the `atlas` CLI helper at `~/.local/bin/atlas` on every
-  // launch. Fire-and-forget; an older or hand-edited copy gets
-  // replaced with the current version. Failures are non-fatal — the
-  // app still works without the helper, the user just can't type
-  // `atlas ./` in their terminal until they hit the install button
-  // in Settings → General. Not on Windows: the helper is a bash script
-  // (see `commands::cli::cli_install_helper`). On Linux, skip if a
-  // system-wide /usr/bin/atlas exists so ~/.local/bin/atlas does not shadow it.
-  // Not from the dev profile either: the helper is the released app's, and
-  // Rust refuses to install it from a dev build (`cli_install_helper`).
-  useEffect(() => {
-    if (isWindows) return;
-    void loadAppProfile()
-      .then(async (profile) => {
-        if (profile.dev) return;
-        const status = await invoke<CliStatus>("cli_status");
-        // If installed system-wide outside ~/.local/ (e.g. /usr/bin/atlas on Linux), don't shadow it
-        if (status?.installed && status.path && !status.path.includes("/.local/")) return;
-        // If already installed and up to date on Linux, skip (macOS re-runs to self-heal edited/deleted helpers)
-        if (isLinux && status?.installed && status.installedVersion === status.currentVersion)
-          return;
-        return invoke("cli_install_helper");
-      })
-      .catch((e) => {
-        console.warn("atlas CLI helper refresh failed:", e);
-      });
-  }, []);
-
-  // Warm-launch CLI: when `atlas <path>` runs while Atlas is already open, the
-  // Rust single-instance callback forwards the folder here. The app is already
+  // Warm launch with a path: when the binary is started with a folder while
+  // Atlas is already open, the Rust single-instance callback forwards it here. The app is already
   // hydrated, so we just ADD it to the project list and switch to it (no race
   // with hydration). `openProject` → `addProject` dedupes by path.
   useEffect(() => {
