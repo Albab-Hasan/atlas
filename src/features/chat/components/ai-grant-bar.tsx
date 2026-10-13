@@ -1,13 +1,13 @@
 import { useCallback, useState } from "react";
-import { Cloud, MoveUpRight, RotateCw, X } from "lucide-react";
+import { Cloud, CreditCard, RotateCw } from "lucide-react";
 import { toast } from "sonner";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { cn } from "@/lib/utils";
-import { Hint } from "@/ui/tooltip";
 import { useAuthStore } from "@/features/auth/stores/auth-store";
 import { useOrgStore } from "@/features/organisations/stores/org-store";
 import { isLocalOrg, useActiveOrganisation, useAiGrantStore } from "../stores/ai-grant-store";
 import { COMPOSER_STRIP, COMPOSER_STRIP_ACTION } from "./composer-strip";
+import { ComposerStripClose } from "./composer-strip-close";
 
 /**
  * The native agent's no-grant setup state (spec D15a, acceptance bar item 14).
@@ -15,8 +15,9 @@ import { COMPOSER_STRIP, COMPOSER_STRIP_ACTION } from "./composer-strip";
  * A signed-in user whose organisation has no AI grant is not having a failure,
  * they are having a **setup problem** — the gateway's own words. Shown as an
  * error it reads as something broken, and they go hunting for a switch to flip.
- * There is no such switch; an admin has to grant it, so the bar says that and
- * offers the two things the user *can* do: re-check, or ask to be counted.
+ * There is no such switch: a Free account has no Atlas Credits, so the bar
+ * says that and offers the two things the user *can* do: re-check, or buy
+ * credits on the billing page.
  *
  * The composer below it is disabled while this shows (see `message-input.tsx`),
  * so this bar is the explanation for a dead input — which is why the strip is
@@ -35,8 +36,23 @@ import { COMPOSER_STRIP, COMPOSER_STRIP_ACTION } from "./composer-strip";
 const STRIP = COMPOSER_STRIP;
 const ACTION = COMPOSER_STRIP_ACTION;
 
-/** Where "Request" goes. The one place that can actually issue a grant. */
-const GRANT_REQUEST_URL = "https://credits.tryatlas.cc/";
+/** Where "Purchase" goes: the account's billing page, where credits are
+ *  bought. A Free account has none to spend. */
+const BILLING_URL = "https://app.tryatlas.cc/settings/billing";
+
+/**
+ * Whether the bar is on screen — the composer's other strips step aside
+ * while it is (`message-input.tsx`): with no grant the native agent cannot
+ * run at all, and a download offer or a mode notice above a dead input is
+ * noise. Same conditions as the render below, read from the same stores.
+ */
+export function useAiGrantBarShown(turnRunning: boolean): boolean {
+  const entitlement = useAiGrantStore.use.entitlement();
+  const dismissed = useAiGrantStore.use.dismissed();
+  const local = isLocalOrg(useActiveOrganisation());
+  if (dismissed || turnRunning) return false;
+  return (entitlement?.state === "localOrg" && local) || entitlement?.state === "noGrant";
+}
 
 export function AiGrantBar({ turnRunning = false }: { turnRunning?: boolean }) {
   const snapshot = useAuthStore((s) => s.snapshot);
@@ -83,13 +99,10 @@ export function AiGrantBar({ turnRunning = false }: { turnRunning?: boolean }) {
     if (!(await refresh())) toast.error("Could not reach the gateway.");
   }, [refresh]);
 
-  // Requesting a grant is a page on the web, not a signal Atlas can send: the
-  // gateway has no access-request endpoint, and the PostHog `ai_access_requested`
-  // event this button used to fire told the user's own team nothing — it landed
-  // in Atlas's analytics, where nobody could act on it. Open the credits page
-  // and let the user ask somewhere that answers.
-  const onRequest = useCallback(() => {
-    void openUrl(GRANT_REQUEST_URL).catch((e) => toast.error(String(e)));
+  // Credits are bought on the web, not through a signal Atlas can send: the
+  // gateway has no purchase endpoint. Open the billing page.
+  const onPurchase = useCallback(() => {
+    void openUrl(BILLING_URL).catch((e) => toast.error(String(e)));
   }, []);
 
   if (dismissed) return null;
@@ -133,15 +146,7 @@ export function AiGrantBar({ turnRunning = false }: { turnRunning?: boolean }) {
             <Cloud size={11} className={cn(syncing && "animate-pulse")} />
             {syncing ? "Syncing…" : "Turn on sync"}
           </button>
-          <Hint label="Dismiss" side="top">
-            <button
-              type="button"
-              onClick={() => dismiss()}
-              className="shrink-0 cursor-pointer rounded p-0.5 text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
-            >
-              <X size={12} />
-            </button>
-          </Hint>
+          <ComposerStripClose label="Dismiss" onClick={() => dismiss()} />
         </div>
       </div>
     );
@@ -152,10 +157,8 @@ export function AiGrantBar({ turnRunning = false }: { turnRunning?: boolean }) {
   return (
     <div data-testid="ai-grant-bar" className={STRIP} title={entitlement.message}>
       <span className="min-w-0 truncate">
-        <span className="font-semibold text-[var(--foreground)]">
-          {orgName ?? "This organization"}
-        </span>
-        <span className="text-[var(--muted-foreground)]"> doesn&apos;t have AI grants</span>
+        <span className="font-semibold text-[var(--foreground)]">Atlas Credits</span>
+        <span className="text-[var(--muted-foreground)]"> are not available for Free accounts</span>
       </span>
 
       <div className="flex shrink-0 items-center gap-0.5">
@@ -172,23 +175,15 @@ export function AiGrantBar({ turnRunning = false }: { turnRunning?: boolean }) {
 
         <button
           type="button"
-          onClick={onRequest}
-          title="Request AI credits for your organization"
+          onClick={onPurchase}
+          title="Buy Atlas Credits on your account's billing page"
           className={cn(ACTION, "cursor-pointer")}
         >
-          <MoveUpRight size={11} />
-          Request
+          <CreditCard size={11} />
+          Purchase
         </button>
 
-        <Hint label="Dismiss" side="top">
-          <button
-            type="button"
-            onClick={() => dismiss()}
-            className="shrink-0 cursor-pointer rounded p-0.5 text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
-          >
-            <X size={12} />
-          </button>
-        </Hint>
+        <ComposerStripClose label="Dismiss" onClick={() => dismiss()} />
       </div>
     </div>
   );

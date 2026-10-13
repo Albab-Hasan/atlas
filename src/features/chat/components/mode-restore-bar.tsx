@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 import { useChatStore } from "../stores/chat-store";
 import { modeName } from "../lib/resume-mode";
 import { COMPOSER_STRIP, COMPOSER_STRIP_ACTION } from "./composer-strip";
+import { ComposerStripClose, useStripHidden } from "./composer-strip-close";
 
 /** Asks this tab's composer to open its mode picker (`ComposerGroupsMenu`). */
 export const OPEN_MODE_PICKER_EVENT = "atlas:composer-open-mode";
@@ -19,7 +20,8 @@ export const OPEN_MODE_PICKER_EVENT = "atlas:composer-open-mode";
 export function ModeRestoreBar({ tabId }: { tabId: string }) {
   const wantedId = useChatStore((s) => s.sessions[tabId]?.unrestoredModeId);
   const modes = useChatStore((s) => s.sessions[tabId]?.acpAvailableModes);
-  if (!wantedId) return null;
+  const [hidden, hide] = useStripHidden(wantedId);
+  if (!wantedId || hidden) return null;
 
   return (
     <div
@@ -38,16 +40,19 @@ export function ModeRestoreBar({ tabId }: { tabId: string }) {
           <span className="text-[var(--muted-foreground)]"> · choose a mode to send</span>
         </span>
       </span>
-      <button
-        type="button"
-        onClick={() =>
-          window.dispatchEvent(new CustomEvent(OPEN_MODE_PICKER_EVENT, { detail: { tabId } }))
-        }
-        title="Open the mode picker"
-        className={cn(COMPOSER_STRIP_ACTION, "cursor-pointer")}
-      >
-        Choose mode
-      </button>
+      <span className="flex shrink-0 items-center gap-0.5">
+        <button
+          type="button"
+          onClick={() =>
+            window.dispatchEvent(new CustomEvent(OPEN_MODE_PICKER_EVENT, { detail: { tabId } }))
+          }
+          title="Open the mode picker"
+          className={cn(COMPOSER_STRIP_ACTION, "cursor-pointer")}
+        >
+          Choose mode
+        </button>
+        <ComposerStripClose onClick={hide} />
+      </span>
     </div>
   );
 }

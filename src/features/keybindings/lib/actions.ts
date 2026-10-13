@@ -320,22 +320,22 @@ export const ACTIONS = [
   },
   {
     id: "modelPicker.previousProvider",
-    title: "Previous provider in model picker",
+    title: "Previous agent in model picker",
     category: "Chat",
     when: "modelPicker",
     defaults: ["cmd+shift+up"],
   },
   {
     id: "modelPicker.nextProvider",
-    title: "Next provider in model picker",
+    title: "Next agent in model picker",
     category: "Chat",
     when: "modelPicker",
     defaults: ["cmd+shift+down"],
   },
   {
-    // ⌘⇧S: "star". Unbound anywhere else, and the reference ships no default.
+    // ⌘⇧S: "stick" (pin). Unbound anywhere else, and the reference ships no default.
     id: "modelPicker.toggleFavorite",
-    title: "Star or unstar the highlighted model",
+    title: "Pin or unpin the highlighted model",
     category: "Chat",
     when: "modelPicker",
     defaults: ["cmd+shift+s"],

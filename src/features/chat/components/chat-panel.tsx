@@ -537,6 +537,20 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
             actions.setAcpModes(tabId, effectiveMode, init.available_modes, nowAt);
           }
         }
+        // A model picked before there was a session — the composer's agent +
+        // model picker switches agent and model in one pick — is applied here,
+        // for the same reason as the mode: the first prompt must run on it.
+        // `switchChatAgent` clears the model, so a set one is a pick — or, on
+        // a rebind, the model the conversation was already on.
+        const pickedModel = useChatStore.getState().sessions[tabId]?.acpCurrentModel;
+        if (pickedModel) {
+          try {
+            await agents.setModel(key, pickedModel);
+          } catch (err) {
+            console.warn("setModel at session create failed:", err);
+          }
+          if (stale()) return;
+        }
         useChatStore.getState().actions.setAcpBinding(tabId, agent.agent_id, key.session_id, cwd);
         // Bound successfully — re-arm the failure toast so a LATER breakage
         // (agent crashes, gets uninstalled) is reported again rather than

@@ -70,24 +70,32 @@ export interface SessionHandoffDetail {
  * `opts.typed` is what the user typed while the save ran: on an in-place
  * switch the first message goes out on the new bind, carrying the handoff when
  * there is one, and the rest queue behind it.
+ *
+ * `opts.model` is a model of `next` picked in the composer's agent + model
+ * picker: the new session starts on it (the bind applies it before it
+ * releases the first send), wherever the switch lands — in place, in a new
+ * tab, or after a pending `/remember`.
  */
 export function switchAgentForTab(
   tabId: string,
   next: SwitchableAgent,
-  opts: { afterRemember?: "sent" | "unsent"; typed?: string[] } = {},
+  opts: { afterRemember?: "sent" | "unsent"; typed?: string[]; model?: string } = {},
 ): void {
   const pending = pendingSwitches.get(tabId);
   if (pending && !opts.afterRemember) {
-    retargetPendingSwitch(pending, next);
+    retargetPendingSwitch(pending, next, opts.model);
     return;
   }
   const chat = useChatStore.getState();
   const sess = chat.sessions[tabId];
-  if ((sess?.agentType ?? NATIVE_AGENT) === next) return;
+  if ((sess?.agentType ?? NATIVE_AGENT) === next) {
+    if (opts.model) chat.actions.setAcpModel(tabId, opts.model);
+    return;
+  }
 
   const startingOnly = isStartingOnly(sess);
   if (!startingOnly && isBusyAgentStatus(sess?.status)) {
-    openAgentChatInNewTab(next);
+    openAgentChatInNewTab(next, { model: opts.model });
     return;
   }
   // `rememberBeforeSwitch`: the agent being left records what it learned in
@@ -103,7 +111,7 @@ export function switchAgentForTab(
     useSettingsStore.getState().settings.rememberBeforeSwitch &&
     advertisesCommand(sess, REMEMBER_COMMAND)
   ) {
-    void rememberThenSwitch(tabId, sess.agentType ?? NATIVE_AGENT, next);
+    void rememberThenSwitch(tabId, sess.agentType ?? NATIVE_AGENT, next, opts.model);
     return;
   }
   let handoff: MentionPastSession | undefined;
@@ -112,7 +120,7 @@ export function switchAgentForTab(
     // A handoff needs the transcript Atlas recorded under the bound session;
     // without one there is nothing to attach, so keep the conversation instead.
     if (behavior === "new-tab" || (behavior === "handoff" && !sess?.acpSessionId)) {
-      openAgentChatInNewTab(next);
+      openAgentChatInNewTab(next, { model: opts.model });
       return;
     }
     if (behavior === "handoff" && sess?.acpSessionId) {
@@ -142,6 +150,8 @@ export function switchAgentForTab(
     chat.actions.clearSession(tabId);
   }
   chat.actions.switchChatAgent(tabId, next);
+  // Unbound now, so this only records the pick; the bind applies it.
+  if (opts.model) chat.actions.setAcpModel(tabId, opts.model);
   if (held) {
     // Same shape as the composer's first-while-starting send: bubble first,
     // title from the text, status running, prompt held on the session.
@@ -183,6 +193,8 @@ export const REMEMBER_STOP_GRACE_MS = 10_000;
 interface PendingSwitch {
   from: string;
   next: SwitchableAgent;
+  /** The model of `next` picked with it, if one was. */
+  model?: string;
   toastId: string | number;
   /** Aborted by "Switch now", and by a pick of the agent the tab is on. */
   waiting: AbortController;
@@ -223,13 +235,18 @@ function showSavingToast(pending: PendingSwitch, id?: string | number): string |
 
 /** A pick made while a switch waits on `/remember`: retarget that switch, or
  *  call it off when the pick is the agent the tab is already on. */
-function retargetPendingSwitch(pending: PendingSwitch, next: SwitchableAgent): void {
+function retargetPendingSwitch(
+  pending: PendingSwitch,
+  next: SwitchableAgent,
+  model: string | undefined,
+): void {
   if (next === pending.from) {
     pending.cancelled = true;
     pending.waiting.abort();
     return;
   }
   pending.next = next;
+  pending.model = model;
   showSavingToast(pending, pending.toastId);
 }
 
@@ -281,10 +298,12 @@ async function rememberThenSwitch(
   tabId: string,
   from: string,
   next: SwitchableAgent,
+  model: string | undefined,
 ): Promise<void> {
   const pending: PendingSwitch = {
     from,
     next,
+    model,
     toastId: "",
     waiting: new AbortController(),
     cancelled: false,
@@ -327,6 +346,7 @@ async function rememberThenSwitch(
     switchAgentForTab(tabId, pending.next, {
       afterRemember: end === "not-started" ? "unsent" : "sent",
       typed,
+      model: pending.model,
     });
     if (stillOn(tabId, from)) {
       for (const text of typed) useChatStore.getState().actions.enqueueMessage(tabId, text);

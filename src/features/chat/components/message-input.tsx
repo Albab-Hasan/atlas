@@ -13,7 +13,6 @@ import {
   Loader2,
   Brain,
   Database,
-  Cpu,
   ChevronDown,
   Plus,
   RotateCw,
@@ -48,10 +47,8 @@ import { loadNativeEffort } from "../lib/native-model-pref";
 import { useCodebaseIndexStatus } from "../lib/use-codebase-index-status";
 import { loadCachedAcpModels } from "../lib/acp-models-cache";
 import { modelLabel } from "../lib/model-label";
-import { providerDisplay } from "../lib/model-provider";
-import { ModelPicker } from "./model-picker";
+import { ModelPicker, type PickerAgent } from "./model-picker";
 import { onModelPickerRequest } from "../lib/model-picker-events";
-import { ProviderLogo } from "@/components/provider-logo";
 // `ChatInput` pulls in CodeMirror (~870 KB) via `cm-mention-extension`.
 // We import it dynamically so the chunk is not in the initial preload set.
 // The import is kicked off at module-evaluation time (below, outside the
@@ -83,7 +80,7 @@ import { composerPillLabelClass } from "./composer-dropup";
 import { ImageAttachmentStrip } from "./image-attachments";
 import { FeaturedAgentOffers } from "./featured-agent-offers";
 import { RetryPill } from "./retry-pill";
-import { AiGrantBar } from "./ai-grant-bar";
+import { AiGrantBar, useAiGrantBarShown } from "./ai-grant-bar";
 import { RemovedAgentBar } from "./removed-agent-bar";
 import { ModeRestoreBar, OPEN_MODE_PICKER_EVENT } from "./mode-restore-bar";
 import { LiveElsewhereBar } from "./live-elsewhere-bar";
@@ -350,8 +347,8 @@ function displayModeName(name: string): string {
   return /^[a-z][a-z0-9-]*$/.test(name) ? name.charAt(0).toUpperCase() + name.slice(1) : name;
 }
 
-type ComposerGroup = "agent" | "mode" | "model";
-const GROUP_ORDER: ComposerGroup[] = ["agent", "mode", "model"];
+type ComposerGroup = "model" | "mode";
+const GROUP_ORDER: ComposerGroup[] = ["model", "mode"];
 
 /** Colour class for the Claude permission-mode dot (mirrors the old pill). */
 function claudeModeDotClass(mode: ClaudePermissionMode): string {
@@ -390,7 +387,7 @@ function ComposerGroupsMenu({
 }: {
   tabId: string;
   currentAgent: SwitchableAgent;
-  onSwitchAgent: (agent: SwitchableAgent) => void;
+  onSwitchAgent: (agent: SwitchableAgent, model?: string) => void;
 }) {
   const cycleAgentHint = useActionShortcut("chat.cycleAgent")?.label;
   const agentType = useChatStore((s) => s.sessions[tabId]?.agentType ?? "claude-code");
@@ -488,20 +485,25 @@ function ComposerGroupsMenu({
     return loadCachedAcpModels(agentType)?.availableModels ?? [];
   }, [availableModels, agentType, isNative]);
 
+  // Every switchable agent with the models it can offer: the session's own
+  // live list, and for the others what they advertised the last time they
+  // were bound. Re-read on open (and after a refresh) — the cache is
+  // localStorage, which nothing re-renders on.
+  const pickerAgents = useMemo((): PickerAgent[] => {
+    if (openGroup !== "model") return [];
+    const ids = switchableAgents.includes(agentType)
+      ? switchableAgents
+      : [agentType, ...switchableAgents];
+    return ids.map((a) => ({
+      agentType: a,
+      label: agentMeta(a).label,
+      models: a === agentType ? models : (loadCachedAcpModels(a)?.availableModels ?? []),
+    }));
+  }, [openGroup, switchableAgents, agentType, models, refreshingModels]);
+
   const isClaude = agentType === "claude-code";
   const hasAcpModes = !!availableModes && availableModes.length > 0;
   const showMode = isClaude || hasAcpModes || modesPending;
-  // The native agent shows the same model pill as everyone else. It used to be
-  // excluded here because its picker was the BYOK ProviderModelPills — a list
-  // of the user's own provider keys, which the gateway agent cannot use. The
-  // seam now publishes the gateway catalogue through the standard snapshot, so
-  // the exclusion would hide the right list to keep showing the wrong one.
-  //
-  // And shown for the native agent even when the list is EMPTY: an empty
-  // list is the gateway not having answered (ADR-0007), and the pill is where
-  // the refresh that fixes it lives. Hiding the pill would hide the fix.
-  const showModel = models.length > 0 || isNative;
-
   const toggle = (g: ComposerGroup) => {
     setOpenGroup((cur) => {
       if (cur === g) return null;
@@ -515,7 +517,6 @@ function ComposerGroupsMenu({
 
   const currentAcpMode = availableModes?.find((m) => m.id === currentMode);
   const currentModelInfo = models.find((m) => m.id === currentModel);
-  const currentProvider = providerDisplay(currentModelInfo?.provider);
 
   // Labels stay visible on every pill — the reference folds unselected tabs
   // to icon-only, but on a toolbar whose pills are real controls that reads
@@ -537,10 +538,19 @@ function ComposerGroupsMenu({
       <div
         aria-hidden={!openGroup}
         className={cn(
-          "absolute bottom-full left-0 z-popover mb-1.5 overflow-hidden rounded-lg bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10",
-          // The model group carries a provider rail beside its list, so it
+          // The app's own background (black, or white on a light theme) with
+          // a hairline ring: the grey `popover` fill read as a slab under the
+          // picker's tinted dividers.
+          //
+          // `transform-gpu`: the surface keeps its own compositing layer. The
+          // welcome cards above the composer lift on hover with a translate,
+          // which promotes THEM to a layer, and WebKit then painted that layer
+          // over the part of this panel it overlapped — the search bar and the
+          // fill vanished while the rows (painted later) stayed.
+          "absolute bottom-full left-0 z-popover mb-1.5 transform-gpu overflow-hidden rounded-lg bg-background text-foreground shadow-md ring-1 ring-foreground/10",
+          // The model group carries an agent rail beside its list, so it
           // takes more room; the width tweens with the height.
-          openGroup === "model" ? "w-85" : "w-75",
+          openGroup === "model" ? "w-99" : "w-75",
         )}
         style={{
           height: openGroup ? panelHeight : 0,
@@ -555,56 +565,6 @@ function ComposerGroupsMenu({
             key={openGroup ?? "none"}
             className={cn(dir > 0 ? "atlas-group-slide-left" : "atlas-group-slide-right")}
           >
-            {openGroup === "agent" && (
-              <div>
-                {/* What you have, and can switch to right now. */}
-                <div className="max-h-[240px] overflow-y-auto hide-scrollbar p-1">
-                  {switchableAgents.map((a) => {
-                    const active = a === currentAgent;
-                    return (
-                      <button
-                        key={a}
-                        onClick={() => {
-                          if (!active) onSwitchAgent(a as SwitchableAgent);
-                          close();
-                        }}
-                        className={cn(
-                          "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors cursor-pointer",
-                          active
-                            ? "bg-[var(--atlas-element-selected)]"
-                            : "hover:bg-[var(--atlas-element-hover)]",
-                        )}
-                      >
-                        <AgentMark agentType={a} className="!h-4 !w-4 !text-3xs !rounded" />
-                        <span className="flex-1 truncate label">{agentMeta(a).label}</span>
-                        {active && <Check size={11} className="text-[var(--primary)]" />}
-                      </button>
-                    );
-                  })}
-                </div>
-                {/* And what you could have. Atlas ships no ACP agents (ADR-0002),
-                    so without this a fresh profile's picker lists exactly one
-                    thing and reads like Atlas supports one agent. */}
-                <FeaturedAgentOffers
-                  onInstalled={(agentType) => {
-                    onSwitchAgent(agentType as SwitchableAgent);
-                    close();
-                  }}
-                />
-                <div className="h-px bg-[var(--border)]" />
-                <button
-                  onClick={() => {
-                    close();
-                    openSettingsSection("agents");
-                  }}
-                  className="flex w-full items-center gap-1.5 px-3 py-2 text-xs text-[var(--secondary-foreground)] transition-colors cursor-pointer hover:bg-[var(--atlas-element-hover)] hover:text-[var(--foreground)]"
-                >
-                  <Plus size={11} className="shrink-0" />
-                  Add more agents
-                </button>
-              </div>
-            )}
-
             {openGroup === "mode" && isClaude && (
               <div className="p-1">
                 {CLAUDE_PERMISSION_MODES.map((m) => {
@@ -681,15 +641,19 @@ function ComposerGroupsMenu({
 
             {openGroup === "model" && (
               <ModelPicker
-                agentType={agentType}
-                models={models}
+                agents={pickerAgents}
+                currentAgent={agentType}
                 currentModel={currentModel}
-                onPick={(id) => {
-                  setAcpModel(tabId, id);
+                onPick={(a, id) => {
+                  if (a === agentType) {
+                    if (id) setAcpModel(tabId, id);
+                  } else {
+                    onSwitchAgent(a as SwitchableAgent, id ?? undefined);
+                  }
                   close();
                 }}
-                toolbar={
-                  isNative && (
+                toolbar={(a) =>
+                  a === "atlas-agent" && (
                     // The gateway's list, re-fetched on demand (ADR-0007).
                     // Same icon, spin and disabled idiom as the grant bar's
                     // Refresh — no new pattern.
@@ -710,15 +674,41 @@ function ComposerGroupsMenu({
                     </Hint>
                   )
                 }
-                emptyState={
-                  <div className="px-2 py-2 text-xs text-muted-foreground">
-                    No models
-                    {isNative && (
+                emptyState={(a) =>
+                  // An empty native list is the gateway not having answered
+                  // (ADR-0007), and the Refresh beside the search is the fix.
+                  a === "atlas-agent" ? (
+                    <div className="px-2 py-2 text-xs text-muted-foreground">
+                      No models
                       <span className="mt-0.5 block caption">
                         Couldn't load the model list. Check your connection or sign in, then
                         refresh.
                       </span>
-                    )}
+                    </div>
+                  ) : undefined
+                }
+                addView={
+                  <div>
+                    {/* Atlas ships no ACP agents (ADR-0002), so without this a
+                        fresh profile's picker lists exactly one agent and reads
+                        like Atlas supports one. */}
+                    <FeaturedAgentOffers
+                      onInstalled={(installed) => {
+                        onSwitchAgent(installed as SwitchableAgent);
+                        close();
+                      }}
+                    />
+                    <div className="h-px bg-border-subtle" />
+                    <button
+                      onClick={() => {
+                        close();
+                        openSettingsSection("agents");
+                      }}
+                      className="flex w-full cursor-pointer items-center gap-1.5 px-3 py-2 text-xs text-secondary-foreground transition-colors hover:bg-element-hover hover:text-foreground"
+                    >
+                      <Plus size={11} className="shrink-0" />
+                      Add more agents
+                    </button>
                   </div>
                 }
               />
@@ -727,16 +717,27 @@ function ComposerGroupsMenu({
         </div>
       </div>
 
-      {/* Pill tab strip */}
+      {/* Pill tab strip. One pill for the agent and its model: the agent's
+          mark, then the model — or the agent's name while it has no model
+          list to pick from. */}
       <button
-        onClick={() => toggle("agent")}
-        className={pillCls(openGroup === "agent")}
+        onClick={() => toggle("model")}
+        className={pillCls(openGroup === "model")}
         title={
-          cycleAgentHint ? `Coding agent — pick here, ${cycleAgentHint} cycles` : "Coding agent"
+          cycleAgentHint
+            ? `${agentMeta(currentAgent).label} — pick an agent and model here, ${cycleAgentHint} cycles agents`
+            : `${agentMeta(currentAgent).label} — pick an agent and model`
         }
       >
         <AgentMark agentType={agentType} className="!h-4 !w-4 !text-3xs !rounded" />
-        <span className={composerPillLabelClass("late")}>{agentMeta(currentAgent).label}</span>
+        <span
+          className={cn(composerPillLabelClass(), "max-w-[96px] truncate @[460px]:max-w-[140px]")}
+        >
+          {currentModelInfo
+            ? modelLabel(currentModelInfo)
+            : (currentModel ?? agentMeta(currentAgent).label)}
+        </span>
+        <ChevronDown size={10} className="ml-0.5 shrink-0 text-[var(--muted-foreground)]" />
       </button>
 
       {showMode && (
@@ -767,28 +768,6 @@ function ComposerGroupsMenu({
                   ? "Loading…"
                   : "Mode"}
           </span>
-        </button>
-      )}
-
-      {showModel && (
-        <button
-          onClick={() => toggle("model")}
-          className={pillCls(openGroup === "model")}
-          title="Model"
-        >
-          {currentProvider ? (
-            // The provider the agent stated for this model — the same mark
-            // the picker's rail shows for it.
-            <ProviderLogo id={currentProvider.logo} size={11} className="-mx-0.75" />
-          ) : (
-            <Cpu size={11} className="shrink-0 text-muted-foreground" />
-          )}
-          <span
-            className={cn(composerPillLabelClass(), "max-w-[80px] truncate @[460px]:max-w-[120px]")}
-          >
-            {currentModelInfo ? modelLabel(currentModelInfo) : (currentModel ?? "Model")}
-          </span>
-          <ChevronDown size={10} className="ml-0.5 shrink-0 text-[var(--muted-foreground)]" />
         </button>
       )}
     </div>
@@ -903,6 +882,9 @@ export function MessageInput({
   // Never while a turn runs (`grantLocksComposer`): the lock used to disable
   // the Stop button of a turn already admitted when the answer turned to no.
   const blockedByGrant = grantLocksComposer(noAiGrant, agentType, running);
+  // While the no-grant strip shows it is the only one: the native agent cannot
+  // run at all, and any other notice above a locked input is noise beside it.
+  const grantBarShown = useAiGrantBarShown(running) && agentType === "atlas-agent";
   const disabled = disabledProp || blockedByGrant;
   // A resume could not restore the user's mode (`ModeRestoreBar`): no send
   // until they pick one. Only the send — typing and the mode picker stay live.
@@ -1463,7 +1445,7 @@ export function MessageInput({
   // "+" menu footer → agent switcher. Same helper as ⌥/ and the agent pill,
   // but jumps straight to the picked agent instead of cycling.
   const handleSwitchAgent = useCallback(
-    (next: SwitchableAgent) => switchAgentForTab(tabId, next),
+    (next: SwitchableAgent, model?: string) => switchAgentForTab(tabId, next, { model }),
     [tabId],
   );
 
@@ -1931,6 +1913,12 @@ export function MessageInput({
         {/* Transient-failure retry countdown (native agent). */}
         <RetryPill tabId={tabId} />
 
+        {/* Every agent's semantic_search is keyword-only until the code model
+            is downloaded; this is where the user can find out. First, so the
+            strips below — the ones explaining why the composer cannot send —
+            sit nearest it. */}
+        {projectPath && !grantBarShown && <CodeModelNudge />}
+
         {/* The no-grant setup state (D15a), tucked into the top of the
             composer — the explanation for the input being locked below.
             Scoped to the native agent for the same reason the lock is: the
@@ -1941,14 +1929,14 @@ export function MessageInput({
 
         {/* The tab's agent was uninstalled — same strip, same reason: the
             input below cannot send until the chat is switched. */}
-        <RemovedAgentBar tabId={tabId} />
+        {!grantBarShown && <RemovedAgentBar tabId={tabId} />}
 
         {/* A resume could not restore the user's mode: nothing sends until
             they pick one. */}
-        <ModeRestoreBar tabId={tabId} />
+        {!grantBarShown && <ModeRestoreBar tabId={tabId} />}
 
         {/* Another process is writing this session: sending would fork it. */}
-        <LiveElsewhereBar tabId={tabId} />
+        {!grantBarShown && <LiveElsewhereBar tabId={tabId} />}
 
         {/* Live plan docked on top of the input bar (JetBrains-Air style). */}
 
@@ -2190,9 +2178,8 @@ export function MessageInput({
                   published catalogue. */}
               {agentType === "atlas-agent" && <EffortPill tabId={tabId} />}
               {agentType === "atlas-agent" && <NativeMemoryPill />}
-              {/* Every agent's semantic_search is keyword-only until the code
-                  model is downloaded; this is where the user can find out. */}
-              {projectPath && <CodeModelNudge labelClassName={composerPillLabelClass("early")} />}
+              {/* The code-model nudge was a pill here; it is a strip above
+                  the composer now, with the other notices. */}
             </div>
             {/* Right side, in this order: the session's usage, the agent's own
                 knobs, then the live

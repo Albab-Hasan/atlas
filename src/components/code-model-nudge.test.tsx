@@ -93,7 +93,7 @@ describe("CodeModelNudge", () => {
 
   it("one click starts the download, and never on its own", async () => {
     renderWithCatalog();
-    const button = await screen.findByRole("button", { name: "Enable semantic search" });
+    const button = await screen.findByRole("button", { name: "Download Granite (95 MB)" });
     expect(invoke).not.toHaveBeenCalledWith("model_download", expect.anything());
 
     await act(async () => fireEvent.click(button));

@@ -256,10 +256,13 @@ export function openNewAgentChat(agent?: SwitchableAgent): void {
  * cleared out of its tab (a session is paired to one agent for its lifetime,
  * so the new agent needs a session of its own either way).
  */
-export function openAgentChatInNewTab(agent?: SwitchableAgent): void {
+export function openAgentChatInNewTab(
+  agent?: SwitchableAgent,
+  opts: { model?: string } = {},
+): void {
   if (typeof agent !== "string") agent = undefined;
   const { addTab, setActiveTab } = useLayoutStore.getState().actions;
-  const { createSession, switchChatAgent } = useChatStore.getState().actions;
+  const { createSession, switchChatAgent, setAcpModel } = useChatStore.getState().actions;
   const id = freshTabId();
   addTab({
     id,
@@ -271,6 +274,8 @@ export function openAgentChatInNewTab(agent?: SwitchableAgent): void {
   });
   createSession(id);
   if (agent) switchChatAgent(id, agent);
+  // Unbound, so this only records the pick; the bind applies it.
+  if (agent && opts.model) setAcpModel(id, opts.model);
   setActiveTab(id);
   window.dispatchEvent(new CustomEvent("atlas:chat-focus", { detail: { tabId: id } }));
 }

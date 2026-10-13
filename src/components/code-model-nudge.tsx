@@ -1,28 +1,31 @@
 import { useEffect } from "react";
 import { toast } from "sonner";
-import { Boxes, Download, Loader2, X } from "lucide-react";
+import { Boxes, Download, Loader2, Sparkles, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Hint } from "@/ui/tooltip";
 import { useModelsStore } from "@/features/settings/stores/models-store";
 import { useSettingsStore } from "@/features/settings/stores/settings-store";
 import { openSettingsSection } from "@/features/settings/lib/open-settings";
 import { codeModelToSuggest, downloadPercent } from "@/features/settings/lib/code-model-nudge";
-
-const PART =
-  "flex items-center h-full text-muted-foreground hover:bg-element-hover hover:text-foreground transition-colors cursor-pointer";
+import { COMPOSER_STRIP, COMPOSER_STRIP_ACTION } from "@/features/chat/components/composer-strip";
 
 /**
- * A composer pill that offers the code search model while it is missing:
- * one click downloads it, the gear opens Settings → Local Models, the cross
- * hides it for good (per model, in every composer at once). Never downloads
- * on its own: the model is large enough that it should be the user's call.
- * Hidden while agents get no code tools (`agentCodeTools`, ADR-0015): with
- * no `semantic_search` to serve, the model would buy nothing.
+ * A strip tucked into the top of the composer that offers the code search
+ * model while it is missing: one click downloads it, the boxes open
+ * Settings → Local Models, the cross hides it for good (per model, in every
+ * composer at once). Never downloads on its own: the model is large enough
+ * that it should be the user's call. Hidden while agents get no code tools
+ * (`agentCodeTools`, ADR-0015): with no `semantic_search` to serve, the model
+ * would buy nothing.
+ *
+ * It was a pill in the composer footer, where it competed with the controls
+ * for the turn itself; as a strip it reads as a notice about the composer,
+ * like the other bars built on `COMPOSER_STRIP`.
  *
  * Lives in `src/components` because it is a cross-feature widget: the
  * settings feature owns its state, the chat composer renders it.
  */
-export function CodeModelNudge({ labelClassName }: { labelClassName?: string }) {
+export function CodeModelNudge() {
   const list = useModelsStore.use.list();
   const downloading = useModelsStore.use.downloading();
   const actions = useModelsStore.use.actions();
@@ -37,10 +40,12 @@ export function CodeModelNudge({ labelClassName }: { labelClassName?: string }) 
   if (!model) return null;
 
   const progress = downloading[model.id];
-  const label = progress ? `Downloading ${downloadPercent(progress)}%` : "Enable semantic search";
-  const hint = progress
-    ? `Downloading ${model.name} for semantic code search`
-    : `Code search is matching keywords only. Download ${model.name} (${model.sizeMb} MB) so plain-English questions find code too.`;
+  // "Granite Embedding Small R2" → "Granite": the strip names the model, the
+  // tooltip and Local Models carry the full name.
+  const shortName = model.name.split(/\s+/)[0] || model.name;
+  const label = progress
+    ? `Downloading ${downloadPercent(progress)}%`
+    : `Download ${shortName} (${model.sizeMb} MB)`;
 
   const download = () => {
     if (progress) return;
@@ -52,49 +57,60 @@ export function CodeModelNudge({ labelClassName }: { labelClassName?: string }) 
   };
 
   return (
-    <div
-      role="group"
-      aria-label="Semantic code search"
-      className="flex items-center h-6.5 rounded-full border border-border bg-card text-2xs leading-none font-medium overflow-hidden"
-    >
-      <Hint label={hint} side="top" wrap>
+    <div role="group" aria-label="Semantic code search" className={COMPOSER_STRIP}>
+      <span className="flex min-w-0 items-center gap-1.5">
+        <Sparkles size={11} className="shrink-0 text-primary" />
+        <span className="min-w-0 truncate">
+          {progress ? (
+            <span className="text-[var(--muted-foreground)]">
+              Downloading{" "}
+              <span className="font-semibold text-[var(--foreground)]">{shortName}</span> for Code
+              Search
+            </span>
+          ) : (
+            <span className="font-semibold text-[var(--foreground)]">Enable semantic search</span>
+          )}
+        </span>
+      </span>
+      <span className="flex shrink-0 items-center gap-0.5">
         <button
           type="button"
           aria-label={label}
           onClick={download}
           disabled={!!progress}
-          className={cn(PART, "pl-2 pr-1.5 tabular-nums disabled:cursor-default")}
+          title={
+            progress
+              ? undefined
+              : `Download ${model.name} (${model.sizeMb} MB) so plain-English questions find code too`
+          }
+          className={cn(COMPOSER_STRIP_ACTION, "cursor-pointer tabular-nums")}
         >
-          {progress ? (
-            <Loader2 size={11} className="animate-spin text-primary" />
-          ) : (
-            <Download size={11} className="text-primary" />
-          )}
-          <span className={labelClassName ?? "ml-1.5 whitespace-nowrap"}>{label}</span>
+          {progress ? <Loader2 size={11} className="animate-spin" /> : <Download size={11} />}
+          {progress ? `${downloadPercent(progress)}%` : `Download · ${model.sizeMb} MB`}
         </button>
-      </Hint>
-      <Hint label="Open Local Models" side="top">
-        <button
-          type="button"
-          aria-label="Open Local Models"
-          onClick={() => openSettingsSection("models")}
-          className={cn(PART, "px-1")}
-        >
-          <Boxes size={11} />
-        </button>
-      </Hint>
-      {!progress && (
-        <Hint label="Don't suggest this again" side="top">
+        <Hint label="Open Local Models" side="top">
           <button
             type="button"
-            aria-label="Dismiss"
-            onClick={() => actions.dismissCodeNudge(model.id)}
-            className={cn(PART, "pl-1 pr-2")}
+            aria-label="Open Local Models"
+            onClick={() => openSettingsSection("models")}
+            className={cn(COMPOSER_STRIP_ACTION, "cursor-pointer")}
           >
-            <X size={11} />
+            <Boxes size={11} />
           </button>
         </Hint>
-      )}
+        {!progress && (
+          <Hint label="Don't suggest this again" side="top">
+            <button
+              type="button"
+              aria-label="Dismiss"
+              onClick={() => actions.dismissCodeNudge(model.id)}
+              className={cn(COMPOSER_STRIP_ACTION, "cursor-pointer")}
+            >
+              <X size={11} />
+            </button>
+          </Hint>
+        )}
+      </span>
     </div>
   );
 }

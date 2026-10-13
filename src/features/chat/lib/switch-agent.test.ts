@@ -60,8 +60,28 @@ describe("switchAgentForTab while starting", () => {
     actions.setAcpBinding(TAB, "agent-1", "acp-1", "/tmp");
     actions.updateSessionStatus(TAB, "running");
     switchAgentForTab(TAB, "codex");
-    expect(openAgentChatInNewTab).toHaveBeenCalledWith("codex");
+    expect(openAgentChatInNewTab).toHaveBeenCalledWith("codex", { model: undefined });
     expect(useChatStore.getState().sessions[TAB].agentType).toBe("claude-code");
+  });
+
+  it("carries a model picked with the agent, in place and into a new tab", () => {
+    switchAgentForTab(TAB, "codex", { model: "gpt-5" });
+    const sess = useChatStore.getState().sessions[TAB];
+    expect(sess.agentType).toBe("codex");
+    // Unbound: recorded for the bind to apply, nothing pushed yet.
+    expect(sess.acpCurrentModel).toBe("gpt-5");
+
+    const { actions } = useChatStore.getState();
+    actions.setAcpBinding(TAB, "agent-1", "acp-1", "/tmp");
+    actions.updateSessionStatus(TAB, "running");
+    switchAgentForTab(TAB, "claude-code", { model: "opus" });
+    expect(openAgentChatInNewTab).toHaveBeenCalledWith("claude-code", { model: "opus" });
+  });
+
+  it("a model picked on the agent the tab is already on just selects it", () => {
+    switchAgentForTab(TAB, "claude-code", { model: "opus" });
+    expect(useChatStore.getState().sessions[TAB].acpCurrentModel).toBe("opus");
+    expect(openAgentChatInNewTab).not.toHaveBeenCalled();
   });
 
   it("a chat holding a first message on an unfinished bind switches in place and carries it", () => {
@@ -140,7 +160,7 @@ describe("switchAgentForTab on an idle chat", () => {
 
     switchAgentForTab(TAB, "claude-code");
 
-    expect(openAgentChatInNewTab).toHaveBeenCalledWith("claude-code");
+    expect(openAgentChatInNewTab).toHaveBeenCalledWith("claude-code", { model: undefined });
     const sess = useChatStore.getState().sessions[TAB];
     expect(sess.agentType).toBe("codex");
     expect(sess.acpSessionId).toBe("acp-1");
@@ -183,7 +203,7 @@ describe("switchAgentForTab on an idle chat", () => {
 
     switchAgentForTab(TAB, "claude-code");
 
-    expect(openAgentChatInNewTab).toHaveBeenCalledWith("claude-code");
+    expect(openAgentChatInNewTab).toHaveBeenCalledWith("claude-code", { model: undefined });
     expect(useChatStore.getState().sessions[TAB].agentType).toBe("codex");
     expect(handoffs).toEqual([]);
   });
@@ -220,7 +240,7 @@ describe("switchAgentForTab on an idle chat", () => {
 
       switchAgentForTab(TAB, "claude-code");
 
-      expect(openAgentChatInNewTab).toHaveBeenCalledWith("claude-code");
+      expect(openAgentChatInNewTab).toHaveBeenCalledWith("claude-code", { model: undefined });
       expect(useChatStore.getState().sessions[TAB].agentType).toBe("codex");
       expect(handoffs).toEqual([]);
     },
@@ -401,7 +421,9 @@ describe("switchAgentForTab with rememberBeforeSwitch", () => {
     status("running");
     clickSwitchNow();
 
-    await vi.waitFor(() => expect(openAgentChatInNewTab).toHaveBeenCalledWith("claude-code"));
+    await vi.waitFor(() =>
+      expect(openAgentChatInNewTab).toHaveBeenCalledWith("claude-code", { model: undefined }),
+    );
     expect(stops).toEqual([]);
     expect(agent()).toBe("codex");
   });
@@ -470,7 +492,7 @@ describe("switchAgentForTab with rememberBeforeSwitch", () => {
     await vi.advanceTimersByTimeAsync(REMEMBER_STOP_GRACE_MS);
 
     expect(stops).toEqual([TAB]);
-    expect(openAgentChatInNewTab).toHaveBeenCalledWith("claude-code");
+    expect(openAgentChatInNewTab).toHaveBeenCalledWith("claude-code", { model: undefined });
     expect(agent()).toBe("codex");
     expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("new tab"));
   });
@@ -589,7 +611,9 @@ describe("switchAgentForTab with rememberBeforeSwitch", () => {
     status("running");
     useChatStore.getState().actions.enqueueMessage(TAB, "now add a retry");
     status("idle");
-    await vi.waitFor(() => expect(openAgentChatInNewTab).toHaveBeenCalledWith("claude-code"));
+    await vi.waitFor(() =>
+      expect(openAgentChatInNewTab).toHaveBeenCalledWith("claude-code", { model: undefined }),
+    );
 
     expect(agent()).toBe("codex");
     expect(sends).toEqual([

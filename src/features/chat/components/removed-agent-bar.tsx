@@ -6,6 +6,7 @@ import { useAgentRegistryStore } from "@/features/agents/stores/agent-registry-s
 import { useChatStore } from "../stores/chat-store";
 import { cycleChatAgent } from "../lib/switch-agent";
 import { COMPOSER_STRIP, COMPOSER_STRIP_ACTION } from "./composer-strip";
+import { ComposerStripClose, useStripHidden } from "./composer-strip-close";
 
 /**
  * The tab's agent was uninstalled. Tucked into the top of the composer like
@@ -21,7 +22,8 @@ export function RemovedAgentBar({ tabId }: { tabId: string }) {
   const agentType = useChatStore((s) => s.sessions[tabId]?.agentType);
   // Re-render on install/uninstall so a reinstall clears the bar.
   useAgentRegistryStore((s) => s.signature);
-  if (!disconnected) return null;
+  const [hidden, hide] = useStripHidden(agentType);
+  if (!disconnected || hidden) return null;
   // By plugin id, not `meta.external`: a `claude*` registry agent wears
   // first-party branding while still being uninstallable.
   const pluginId = pluginIdForAgent(agentType);
@@ -41,15 +43,18 @@ export function RemovedAgentBar({ tabId }: { tabId: string }) {
         <span className="font-semibold text-[var(--foreground)]">{agentMeta(agentType).label}</span>
         <span className="text-[var(--muted-foreground)]"> is no longer installed</span>
       </span>
-      <button
-        type="button"
-        onClick={() => cycleChatAgent(tabId)}
-        title="Switch this chat to another agent"
-        className={cn(COMPOSER_STRIP_ACTION, "cursor-pointer")}
-      >
-        <ArrowLeftRight size={11} />
-        Switch agent
-      </button>
+      <span className="flex shrink-0 items-center gap-0.5">
+        <button
+          type="button"
+          onClick={() => cycleChatAgent(tabId)}
+          title="Switch this chat to another agent"
+          className={cn(COMPOSER_STRIP_ACTION, "cursor-pointer")}
+        >
+          <ArrowLeftRight size={11} />
+          Switch agent
+        </button>
+        <ComposerStripClose onClick={hide} />
+      </span>
     </div>
   );
 }
