@@ -1,11 +1,12 @@
 /**
- * Who else is here — a row of faces, each with the online dot,
- * in the Timeline's header.
+ * Who else is here — the Timeline's "Active now" strip: a row of round faces,
+ * each with the online dot and a first name under it, the way a messenger
+ * shows who is around. It sits at the top of the Timeline column, above the
+ * first day, because it answers the question the list raises — whose work is
+ * this, and who can I ask about it right now.
  *
- * The web Timeline shows the same thing on every face it draws; the desktop
- * received the roster and dropped it. Sits beside the "Timeline" label because
- * it answers the question that label raises — whose work is this, and who can
- * I ask about it right now.
+ * It replaced a 16px facepile beside the header's "Timeline" label, which
+ * capped at four faces and folded the rest into a "+3" nobody could read.
  */
 
 import { memo } from "react";
@@ -17,9 +18,9 @@ import { Hint } from "@/ui/tooltip";
 
 import { avatarUser } from "./comment-thread";
 
-/** Faces before the stack becomes a count. Four reads as a group at 16px. */
-export const MAX_ONLINE_FACES = 4;
-const FACE_PX = 16;
+/** The face, and the dot cut into its corner. */
+const FACE_PX = 32;
+const DOT_PX = 9;
 
 /**
  * The green dot, ringed in the surface it sits on so it reads as cut out of
@@ -50,48 +51,46 @@ export function onlineLabel(members: OrgMember[]): string {
   return `${names.slice(0, 2).join(", ")} and ${names.length - 2} others are online`;
 }
 
-export const OnlineTeammates = memo(function OnlineTeammates({
-  members,
-}: {
-  members: OrgMember[];
-}) {
-  if (members.length === 0) return null;
-  const shown = members.slice(0, MAX_ONLINE_FACES);
-  const extra = members.length - shown.length;
-  const label = onlineLabel(members);
+/** The name under a face: the first word of the display name, else the
+ *  email's local part. "Aham…" is still a person; "aham@atlas.dev" is a
+ *  column of text. */
+export function shortName(m: OrgMember): string {
+  const name = m.name?.trim();
+  if (name) return name.split(/\s+/)[0]!;
+  return m.email.split("@")[0] ?? m.email;
+}
 
+export const ActiveNow = memo(function ActiveNow({ members }: { members: OrgMember[] }) {
+  if (members.length === 0) return null;
   return (
-    <Hint
-      label={
-        <span className="flex flex-col gap-0.5">
-          <span className="text-muted-foreground">Online now</span>
-          {members.map((m) => (
-            <span key={m.userId}>{m.name || m.email}</span>
-          ))}
-        </span>
-      }
-    >
-      <span
-        role="img"
-        aria-label={label}
-        tabIndex={0}
-        className="flex shrink-0 items-center gap-1 rounded-full outline-none focus-visible:ring-1 focus-visible:ring-[var(--ring)]"
-      >
-        {/* Side by side, not overlapped: every face carries its dot in the
-         *  bottom-right corner, and an overlapping stack would bury each dot
-         *  under the next face — the one thing this row exists to show. */}
-        <span className="flex items-center gap-0.5">
-          {shown.map((m) => (
-            <span key={m.userId} className="relative inline-flex rounded-full">
-              <AccountAvatar user={avatarUser(m)} size={FACE_PX} />
-              <OnlineDot px={6} />
-            </span>
-          ))}
-        </span>
-        {extra > 0 && (
-          <span className="text-2xs tabular-nums text-[var(--muted-foreground)]">+{extra}</span>
-        )}
-      </span>
-    </Hint>
+    <section aria-label={onlineLabel(members)} className="shrink-0 pt-2.5 pb-1.5">
+      <h3 className="px-3 caption">Active now</h3>
+      {/* Every face, scrolled sideways past the column's width — no "+N":
+          a count is the one thing a row of faces exists to replace. */}
+      <ul className="hide-scrollbar mt-2 flex gap-1 overflow-x-auto px-2">
+        {members.map((m) => {
+          const full = m.name || m.email;
+          return (
+            <li key={m.userId} className="shrink-0">
+              <Hint label={m.name && m.email ? `${m.name} · ${m.email}` : full} side="bottom">
+                <span
+                  tabIndex={0}
+                  aria-label={full}
+                  className="flex w-12 flex-col items-center gap-1 rounded-md py-0.5 outline-none focus-visible:ring-1 focus-visible:ring-[var(--ring)]"
+                >
+                  <span className="relative inline-flex rounded-full">
+                    <AccountAvatar user={avatarUser(m)} size={FACE_PX} />
+                    <OnlineDot px={DOT_PX} className="ring-2" />
+                  </span>
+                  <span className="w-full truncate text-center text-2xs text-secondary-foreground">
+                    {shortName(m)}
+                  </span>
+                </span>
+              </Hint>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 });

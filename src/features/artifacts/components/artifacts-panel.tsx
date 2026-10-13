@@ -41,7 +41,7 @@ import { readSessionDetail } from "../lib/read-session-detail";
 import { DockButton, DOCK_ACTIVE, DOCK_TRIGGER, HeaderDock } from "./header-dock";
 import { CheckpointsPicker } from "./checkpoints-picker";
 import { ExportButton } from "./export-button";
-import { OnlineTeammates } from "./online-teammates";
+import { ActiveNow } from "./online-teammates";
 import { SessionChatPanel } from "./session-chat-panel";
 import { SessionCommentsPanel } from "./session-comments-panel";
 import { SessionDetail } from "./session-detail";
@@ -253,7 +253,7 @@ export function ArtifactsPanel() {
   // hook resolves the Organisation's roster itself, so the account no longer
   // has to be plumbed through here.
   const comments = useSessionComments(open?.remoteProjectId ?? null, open?.sessionId ?? null);
-  // Who else is here, for the header's facepile. The roster is the same
+  // Who else is here, for the "Active now" strip atop the nav. The roster is the same
   // cached one the bylines read; the online set is one subscription here.
   const directory = useOrgDirectory();
   const onlineSet = useOnlineIds();
@@ -759,7 +759,6 @@ export function ArtifactsPanel() {
                 <span className="min-w-0 truncate text-sm font-semibold text-[var(--foreground)]">
                   Timeline
                 </span>
-                <OnlineTeammates members={teammatesOnline} />
                 <span className="flex-1" />
                 {/* Grain. It changes what the rows under it are grouped INTO,
                     which is the one control that belongs to the list itself;
@@ -853,26 +852,30 @@ export function ArtifactsPanel() {
               className="flex h-full min-h-0 shrink-0 flex-col overflow-hidden"
               style={{ width: sidebarWidth }}
             >
+              <ActiveNow members={teammatesOnline} />
               {/* The nav owns its own scroller — it is virtualized, and the
                   virtualizer needs the scrolling element to be the one it
-                  measures. */}
-              <TimelineSidebar
-                sessions={scoped}
-                // Still loading while the remote half is outstanding *and*
-                // there is nothing to show. Rows already on screen keep
-                // rendering through a refresh rather than flashing back to a
-                // skeleton.
-                // A synced Organisation waits for BOTH halves — the local rows
-                // alone are a partial board, and showing them first meant the
-                // list visibly rewrote itself a moment later. An Organisation
-                // with no cloud half is never pending, so it still paints as
-                // soon as the store answers.
-                loading={!loaded || cloudPending}
-                filtered={activeFacetCount(selection) > 0 || projectFilter !== null}
-                openKey={open ? openKeyOf(open) : null}
-                period={period}
-                onOpen={onOpenRow}
-              />
+                  measures. The strip above stays put; the list scrolls under
+                  it in what height is left. */}
+              <div className="min-h-0 flex-1">
+                <TimelineSidebar
+                  sessions={scoped}
+                  // Still loading while the remote half is outstanding *and*
+                  // there is nothing to show. Rows already on screen keep
+                  // rendering through a refresh rather than flashing back to a
+                  // skeleton.
+                  // A synced Organisation waits for BOTH halves — the local rows
+                  // alone are a partial board, and showing them first meant the
+                  // list visibly rewrote itself a moment later. An Organisation
+                  // with no cloud half is never pending, so it still paints as
+                  // soon as the store answers.
+                  loading={!loaded || cloudPending}
+                  filtered={activeFacetCount(selection) > 0 || projectFilter !== null}
+                  openKey={open ? openKeyOf(open) : null}
+                  period={period}
+                  onOpen={onOpenRow}
+                />
+              </div>
               {/* Say what is being left out. A nav that silently stops at the
                *  newest few hundred reads as "this is everything". */}
               {capped && (
