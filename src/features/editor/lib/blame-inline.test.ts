@@ -1,5 +1,8 @@
+// @vitest-environment happy-dom
 import { describe, expect, it } from "vitest";
-import { relativeTime } from "./blame-inline";
+import { EditorView } from "@codemirror/view";
+import { EditorState } from "@codemirror/state";
+import { blameInline, relativeTime } from "./blame-inline";
 
 const NOW = Date.UTC(2026, 9, 9, 12, 0, 0);
 const ago = (seconds: number) => relativeTime(NOW - seconds * 1000, NOW);
@@ -34,5 +37,24 @@ describe("relativeTime matches git's %cr", () => {
 
   it("is empty for a line with no commit time", () => {
     expect(relativeTime(0, NOW)).toBe("");
+  });
+});
+
+describe("the inline blame widget", () => {
+  it("keeps its gap inside its box, so the caret is not pushed past it", () => {
+    // The widget sits at the end of the active line, and CodeMirror draws a
+    // caret there at the widget's box. A `margin-left` lies outside that box:
+    // the caret was drawn 2em past the text — an "indent" on every empty line.
+    const view = new EditorView({
+      parent: document.body,
+      state: EditorState.create({ doc: "", extensions: [blameInline()] }),
+    });
+    const css = Array.from(document.querySelectorAll("style"))
+      .map((s) => s.textContent ?? "")
+      .join("\n");
+    const rule = css.match(/\.cm-blame-inline[^{]*\{([^}]*)\}/)?.[1] ?? "";
+    expect(rule).toContain("padding-left");
+    expect(rule).not.toContain("margin");
+    view.destroy();
   });
 });

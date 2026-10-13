@@ -188,7 +188,13 @@ const blameDecorations = ViewPlugin.fromClass(
 
 const blameTheme = EditorView.baseTheme({
   ".cm-blame-inline": {
-    marginLeft: "2em",
+    // PADDING, never margin. With the cursor at the end of the line (the
+    // widget sits at `line.to`), CodeMirror draws the caret at the widget's
+    // box — and a margin lies outside that box, so the caret was drawn 2em
+    // past the end of the text, which on an empty line looked like an indent
+    // nobody typed. Padding keeps the gap inside the box, so its left edge is
+    // the end of the text and the caret stays there.
+    paddingLeft: "2em",
     color: "var(--muted-foreground)",
     // Higher than a plain grey annotation would need: the parts are told apart
     // by hue, and at 0.65 the syntax colours wash into one another.
