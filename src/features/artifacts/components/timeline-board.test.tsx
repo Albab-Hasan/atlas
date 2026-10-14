@@ -46,6 +46,30 @@ vi.mock("motion/react", () => ({
   ),
 }));
 
+// The list is virtualized. A virtualizer renders nothing when its scroll
+// element measures zero, which is every element in happy-dom — so these cases
+// would assert against an empty board. Windowing is not what they are about:
+// they test the grouping and the open contract, so the window is made total.
+vi.mock("@tanstack/react-virtual", () => ({
+  useVirtualizer: ({
+    count,
+    getItemKey,
+  }: {
+    count: number;
+    getItemKey: (i: number) => string;
+  }) => ({
+    getVirtualItems: () =>
+      Array.from({ length: count }, (_, index) => ({
+        index,
+        key: getItemKey(index),
+        start: index * 80,
+        size: 80,
+      })),
+    getTotalSize: () => count * 80,
+    measureElement: () => {},
+  }),
+}));
+
 const { TimelineBoard } = await import("./timeline-board");
 
 const DAY_MS = 86_400_000;

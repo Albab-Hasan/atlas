@@ -20,7 +20,12 @@ import {
   type FacetSelection,
 } from "../lib/board";
 import { boardKey, rowForCheckout } from "../lib/board-key";
-import { clearDetailCache, readCachedDetail, writeCachedDetail } from "../lib/detail-cache";
+import {
+  clearDetailCache,
+  invalidateCachedDetail,
+  readCachedDetail,
+  writeCachedDetail,
+} from "../lib/detail-cache";
 import { readSessionDetail } from "../lib/read-session-detail";
 import { ExportButton } from "./export-button";
 import { SessionChatPanel } from "./session-chat-panel";
@@ -443,7 +448,26 @@ export function ArtifactsPanel() {
     // project-scoped view this no longer filters the git event by path.
     const unlisten = Promise.all([
       listen("atlas:git-changed", () => void refresh()),
-      listen("atlas:capture-changed", () => void refresh()),
+      listen("atlas:capture-changed", (e) => {
+        // A local write to one Session. Its cached timeline is now a snapshot
+        // of a Session that has since moved, and the cache is served
+        // SYNCHRONOUSLY on the next open — so a stale entry is a wrong panel,
+        // not a slow one.
+        const id = (e.payload as { sessionId?: string } | null)?.sessionId;
+        if (id) invalidateCachedDetail(id);
+        void refresh();
+      }),
+      // The cloud half of the same story: a teammate's Session grew, or a
+      // resync says everything we hold may be behind.
+      listen("atlas:artifacts-cloud", (e) => {
+        const frame = e.payload as { kind?: string; sessionId?: string } | null;
+        if (!frame) return;
+        if (frame.kind === "entryUpsert" && frame.sessionId) {
+          invalidateCachedDetail(frame.sessionId);
+        } else if (frame.kind === "resync") {
+          clearDetailCache();
+        }
+      }),
     ]);
     // No poll: the two events above cover every write path (they are why a
     // fresh session appears immediately), and the visibility handler below

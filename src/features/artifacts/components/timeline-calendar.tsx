@@ -2,22 +2,25 @@
  * The timeline calendar: the board grouped by day under one sticky date that
  * changes as you scroll into the next day.
  *
- * Each day has its own header in the flow. A single sticky header sits over
- * the top of the list and always names the day you are reading — it is pulled
- * up over the first day's own header (`-mt-12` on the list, the header's own
- * height) so at rest there is one date on screen, not two. As a day crosses a
- * line just under the sticky header, that day becomes current and its date
- * slides in from the left.
+ * **Virtualized**, because the board holds up to five hundred Sessions and a
+ * row is three lines, an avatar and two marks. Rendering all of them cost 4.5
+ * seconds on mount and left a 45,000px-tall layer for the compositor to
+ * rasterise — which is what the blank bands during a fast scroll were. Only
+ * the rows near the viewport exist at any moment.
  *
- * That slide is the only movement here, and it is what tells you the date
- * changed under a list that is otherwise scrolling smoothly — a date that
- * simply swapped its text would go unnoticed.
+ * Days are items in the same flat list as the rows rather than sections
+ * wrapping them. A virtualizer measures one sequence; nesting a list per day
+ * would mean one virtualizer per day, each wanting its own scroll element.
  *
- * Needs the scroll container as `root`: in this shell the window never
- * scrolls, a panel does, and an observer on the viewport would never fire.
+ * Over that list sits one sticky header naming the day you are reading. It is
+ * pulled up over the first day's own header (`-mt-12`, the header's height)
+ * so at rest there is one date on screen, not two, and the date slides in
+ * when it changes — that movement is what tells you the day changed under a
+ * list that is otherwise scrolling smoothly.
  */
 
-import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useEffect, useMemo, useState, type ReactNode, type RefObject } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
 import { EASE_PANEL } from "@/lib/motion";
@@ -30,73 +33,87 @@ export interface CalendarDay {
   day: string;
   /** Right-aligned summary of the day — totals, a face stack. */
   meta?: ReactNode;
-  children: ReactNode;
 }
+
+/** One line of the flattened list: a day's header, or a row under it. */
+export type CalendarItem<T> =
+  | ({ kind: "day"; key: string } & CalendarDay)
+  | { kind: "row"; key: string; dayId: string; data: T };
 
 /** Header height; the sticky header and each day's header share it. */
 const HEADER = "h-12";
-/** The same height in pixels, for the scroll maths. */
-const HEADER_PX = 48;
 
-export function TimelineCalendar({
-  days,
+/** Starting guesses, corrected by measurement as items mount. A day header
+ *  after the first also carries the gap that separates it from the day above. */
+const FIRST_DAY_SIZE = 48;
+const DAY_SIZE = 88;
+const ROW_SIZE = 86;
+
+export function TimelineCalendar<T>({
+  items,
   root,
+  renderRow,
   className,
 }: {
-  days: CalendarDay[];
+  items: CalendarItem<T>[];
+  /** The scroll container. In this shell the window never scrolls, a panel
+   *  does, and a virtualizer measuring the viewport would never fire. */
   root: RefObject<HTMLElement | null>;
+  renderRow: (data: T) => ReactNode;
   className?: string;
 }) {
-  const [currentId, setCurrentId] = useState(days[0]?.id);
-  const current = days.find((d) => d.id === currentId) ?? days[0];
-  const list = useRef<HTMLDivElement>(null);
-
-  /**
-   * Which day the reader is in: the last one whose own header has reached the
-   * sticky header's line.
-   *
-   * Measured from scroll position rather than observed per day. The obvious
-   * `IntersectionObserver` for this is a 1px band at the top of the scroller
-   * — `rootMargin: "-1px 0px -100% 0px"` — and that margin is degenerate: the
-   * bottom inset takes the root's full height, so the band ends up 1px ABOVE
-   * where it starts and nothing can ever intersect it. The date sat on the
-   * first day forever.
-   */
-  const sync = useCallback(() => {
-    const scroller = root.current;
-    const el = list.current;
-    if (!scroller || !el) return;
-    const line = scroller.getBoundingClientRect().top + HEADER_PX;
-    let found: string | undefined = days[0]?.id;
-    for (const section of el.querySelectorAll<HTMLElement>("[data-day]")) {
-      if (section.getBoundingClientRect().top > line) break;
-      found = section.dataset.day ?? found;
-    }
-    if (found) setCurrentId(found);
-  }, [root, days]);
-
+  // The scroller is a ref owned by the board, so it is null on this
+  // component's first render. One flip once it exists gets the virtualizer
+  // measuring instead of silently sizing against nothing.
+  const [, setScrollerReady] = useState(false);
   useEffect(() => {
-    const scroller = root.current;
-    if (!scroller) return;
-    // One rAF per scroll burst: `getBoundingClientRect` in a scroll handler is
-    // a layout read, and the list can hold five hundred rows.
-    let frame = 0;
-    const onScroll = () => {
-      if (frame) return;
-      frame = requestAnimationFrame(() => {
-        frame = 0;
-        sync();
-      });
-    };
-    sync();
-    scroller.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      scroller.removeEventListener("scroll", onScroll);
-      if (frame) cancelAnimationFrame(frame);
-    };
-  }, [root, sync]);
+    if (root.current) setScrollerReady(true);
+  }, [root]);
 
-  if (!current) return null;
+  const virtualizer = useVirtualizer({
+    count: items.length,
+    getScrollElement: () => root.current,
+    estimateSize: (i) =>
+      items[i]?.kind === "day" ? (i === 0 ? FIRST_DAY_SIZE : DAY_SIZE) : ROW_SIZE,
+    getItemKey: (i) => items[i]?.key ?? i,
+    overscan: 10,
+    // A viewport's worth before the scroller has been measured. Without it
+    // the first paint has a measured height of zero, so the virtualizer picks
+    // no rows and the board flashes empty before its own content.
+    initialRect: { width: 0, height: 900 },
+  });
+
+  const virtualRows = virtualizer.getVirtualItems();
+
+  /** Which day each item belongs to, so the topmost visible one names the
+   *  header. Reading it from the list is exact, where measuring scroll
+   *  position against day offsets is a second source of truth that can
+   *  disagree with what is on screen. */
+  const dayOfItem = useMemo(() => {
+    const byKey = new Map<string, string>();
+    let currentDay: string | null = null;
+    for (const item of items) {
+      if (item.kind === "day") currentDay = item.id;
+      if (currentDay) byKey.set(item.key, currentDay);
+    }
+    return byKey;
+  }, [items]);
+
+  const days = useMemo(
+    () =>
+      new Map(
+        items
+          .filter((i): i is Extract<CalendarItem<T>, { kind: "day" }> => i.kind === "day")
+          .map((d) => [d.id, d]),
+      ),
+    [items],
+  );
+
+  const firstKey = virtualRows[0]?.key as string | undefined;
+  const currentId = (firstKey ? dayOfItem.get(firstKey) : undefined) ?? [...days.keys()][0];
+  const current = currentId ? days.get(currentId) : undefined;
+
+  if (items.length === 0 || !current) return null;
 
   return (
     <div data-slot="timeline-calendar" className={className}>
@@ -133,33 +150,47 @@ export function TimelineCalendar({
 
       {/* `isolate`: rows raise their own hover background, and this keeps
           those layers inside the list, under the sticky date. */}
-      <div ref={list} className="isolate -mt-12">
-        {days.map((day) => (
-          <section
-            key={day.id}
-            data-day={day.id}
-            aria-label={`${day.date}, ${day.day}`}
-            className="pb-10"
-          >
-            <h2
-              className={cn(
-                HEADER,
-                "flex items-end justify-between gap-3 border-b border-border pb-2.5",
-              )}
+      <div className="isolate relative -mt-12" style={{ height: virtualizer.getTotalSize() }}>
+        {virtualRows.map((v) => {
+          const item = items[v.index];
+          if (!item) return null;
+          return (
+            <div
+              key={v.key}
+              data-index={v.index}
+              data-day={item.kind === "day" ? item.id : undefined}
+              ref={virtualizer.measureElement}
+              className="absolute inset-x-0 top-0"
+              style={{ transform: `translateY(${v.start}px)` }}
             >
-              <span className="text-lg tracking-tight">
-                <span className="font-medium text-foreground">{day.date}</span>
-                <span className="text-muted-foreground">&nbsp;/ {day.day}</span>
-              </span>
-              {day.meta}
-            </h2>
-            {day.children}
-          </section>
-        ))}
-        {/* Room for the last day to reach the top and become current; without
-            it the final days could never be the sticky date. */}
-        <div aria-hidden className="h-[80vh]" />
+              {item.kind === "day" ? (
+                <DayHeader day={item} first={v.index === 0} />
+              ) : (
+                <div className="border-b border-border-subtle">{renderRow(item.data)}</div>
+              )}
+            </div>
+          );
+        })}
       </div>
+    </div>
+  );
+}
+
+/** A day's own header, in the flow of the list. The first sits under the
+ *  sticky header that is pulled over it; the rest carry the gap that
+ *  separates them from the day above. */
+function DayHeader({ day, first }: { day: CalendarDay; first: boolean }) {
+  return (
+    <div className={cn(!first && "pt-10")}>
+      <h2
+        className={cn(HEADER, "flex items-end justify-between gap-3 border-b border-border pb-2.5")}
+      >
+        <span className="text-lg tracking-tight">
+          <span className="font-medium text-foreground">{day.date}</span>
+          <span className="text-muted-foreground">&nbsp;/ {day.day}</span>
+        </span>
+        {day.meta}
+      </h2>
     </div>
   );
 }

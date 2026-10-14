@@ -14,7 +14,7 @@
  * than competing with the filters at the top.
  */
 
-import { useMemo, useRef, type ReactNode, type RefObject } from "react";
+import { useCallback, useMemo, useRef, type ReactNode, type RefObject } from "react";
 import { Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { BoardSession } from "../types";
@@ -22,7 +22,8 @@ import { boardKey } from "../lib/board-key";
 import { dayHeading, startOfDay } from "../lib/board";
 import type { AuthorDirectory } from "../lib/author-directory";
 import { DayMeta, SessionRow } from "./session-row";
-import { TimelineCalendar, type CalendarDay } from "./timeline-calendar";
+import { BoardSkeleton } from "./timeline-skeleton";
+import { TimelineCalendar, type CalendarItem } from "./timeline-calendar";
 
 export function TimelineBoard({
   sessions,
@@ -55,7 +56,8 @@ export function TimelineBoard({
   const scroller = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
-  const days = useMemo<CalendarDay[]>(() => {
+  /** The flat list the calendar virtualizes: a day's header, then its rows. */
+  const items = useMemo<CalendarItem<BoardSession>[]>(() => {
     // Insertion order is the store's order — newest first — so grouping needs
     // no second sort.
     const byDay = new Map<number, BoardSession[]>();
@@ -65,29 +67,34 @@ export function TimelineBoard({
       if (bucket) bucket.push(s);
       else byDay.set(key, [s]);
     }
-    return [...byDay.entries()].map(([key, list]) => ({
-      id: String(key),
-      ...dayHeading(new Date(key)),
-      meta: <DayMeta sessions={list} directory={directory} />,
-      children: (
-        <ul className="divide-y divide-border-subtle">
-          {list.map((s) => {
-            const rowKey = boardKey(s);
-            return (
-              <li key={rowKey}>
-                <SessionRow
-                  session={s}
-                  directory={directory}
-                  selected={rowKey === openKey}
-                  onOpen={() => onOpen(s)}
-                />
-              </li>
-            );
-          })}
-        </ul>
-      ),
-    }));
-  }, [sessions, directory, openKey, onOpen]);
+    const out: CalendarItem<BoardSession>[] = [];
+    for (const [key, list] of byDay) {
+      const id = String(key);
+      out.push({
+        kind: "day",
+        key: `day:${id}`,
+        id,
+        ...dayHeading(new Date(key)),
+        meta: <DayMeta sessions={list} directory={directory} />,
+      });
+      for (const s of list) out.push({ kind: "row", key: boardKey(s), dayId: id, data: s });
+    }
+    return out;
+  }, [sessions, directory]);
+
+  // Stable across renders so the virtualizer's rows do not all re-render when
+  // an unrelated piece of board state changes.
+  const renderRow = useCallback(
+    (s: BoardSession) => (
+      <SessionRow
+        session={s}
+        directory={directory}
+        selected={boardKey(s) === openKey}
+        onOpen={() => onOpen(s)}
+      />
+    ),
+    [directory, openKey, onOpen],
+  );
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
@@ -99,15 +106,20 @@ export function TimelineBoard({
               <div className="flex flex-wrap items-center gap-2">{filters}</div>
             </header>
 
-            {days.length > 0 ? (
-              <TimelineCalendar days={days} root={scroller as RefObject<HTMLElement | null>} />
+            {items.length > 0 ? (
+              <TimelineCalendar
+                items={items}
+                renderRow={renderRow}
+                root={scroller as RefObject<HTMLElement | null>}
+              />
+            ) : loading ? (
+              // Geometry-matched rows rather than a spinner: the shape of what
+              // is coming is itself information, and a list that fades in at
+              // the size it will be does not shift the page when it lands.
+              <BoardSkeleton />
             ) : (
               <p className="py-20 text-center text-xs text-muted-foreground">
-                {loading
-                  ? "Loading sessions…"
-                  : narrowed
-                    ? "No sessions match."
-                    : "No sessions captured yet."}
+                {narrowed ? "No sessions match." : "No sessions captured yet."}
               </p>
             )}
 
