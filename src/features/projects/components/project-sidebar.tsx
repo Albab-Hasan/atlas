@@ -950,7 +950,17 @@ export function ProjectSidebar() {
       <div
         // Same reasoning as CommsSurface: on a near-black panel the shadow has
         // almost nothing to darken, so the ring carries the edge.
-        className="relative mx-1.5 mb-1.5 flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg bg-background shadow-lg ring-1 ring-border"
+        //
+        // And NO `shadow-lg`, which is what that reasoning was always heading
+        // towards. In this theme it resolves to two black drop shadows at 82%
+        // and 90%, blurred 36px and 48px and offset 12px and 16px DOWN. The
+        // card's right edge sits six pixels from the rail's divider, so the
+        // blur fell straight across it — barely at the top where the offset
+        // has not taken effect, fully below it. That read as a divider with a
+        // gradient down the window, which is a thing nobody drew. A shadow
+        // with nothing to darken inside the card was only ever darkening what
+        // was outside it.
+        className="relative mx-1.5 mb-1.5 flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg bg-background ring-1 ring-border"
       >
         {/* ONE scroller for everything below the org row (see `RailScroll`).
             The navigation used to be pinned above it, which cost ~200px of

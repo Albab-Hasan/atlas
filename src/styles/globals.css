@@ -2318,6 +2318,28 @@
    lights and the org row, and drew the org name dark-on-black. The sheen is
    the theme's foreground at a few percent, so it lifts on dark and shades on
    light. */
+/* The rail's divider.
+ *
+ * `border.strong` held back toward the surface on the far side of it, so the
+ * line reads as a boundary without reading as a rule. The strong token alone
+ * is the right weight for a control's focused edge; across the full height of
+ * a window it is louder than the thing it separates.
+ *
+ * Mixed toward `--background` rather than given an alpha: a translucent
+ * divider picks up whatever passes behind it, and this one has already been
+ * the subject of one bug where something behind it changed its value down the
+ * window. One value, every row.
+ */
+@property --atlas-rail-divider {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+
+:root {
+  --atlas-rail-divider: color-mix(in srgb, var(--atlas-border-strong) 65%, var(--background));
+}
+
 .atlas-project-rail {
   background:
     linear-gradient(
@@ -2328,6 +2350,13 @@
       transparent 100%
     ),
     var(--sidebar);
+  /* The gradient stops at the padding edge, so it never paints inside the
+     1px border strip. `border-box` is the default, and under it this vertical
+     fade tints the rail's own right border — brightest at the top, gone by
+     the bottom — which reads as a divider that fades down the window rather
+     than a line. The divider is a boundary; it has to be one value. */
+  background-clip: padding-box;
+  border-right-color: var(--atlas-rail-divider);
   box-shadow: var(--inset-highlight);
 }
 .atlas-project-rail--glass {
@@ -2340,6 +2369,10 @@
       transparent 100%
     ),
     color-mix(in srgb, var(--sidebar) 66%, transparent);
+  /* As above, and it matters more here: this fill is translucent, so under
+     `border-box` both it and the gradient sit behind the border. */
+  background-clip: padding-box;
+  border-right-color: var(--atlas-rail-divider);
   box-shadow: var(--inset-highlight), var(--elevation-menu);
 }
 
