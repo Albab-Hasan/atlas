@@ -236,6 +236,56 @@ function shortDate(date: Date): string {
   return date.toLocaleDateString(undefined, { day: "numeric", month: "short" });
 }
 
+/**
+ * A Session id, short enough to read.
+ *
+ * Ids on the wire are `as-5db94a5afb7c4caead736ba8df2ca0f2` or a bare UUID —
+ * 32 hex characters that say nothing and crowd out everything beside them in
+ * a header. Only the first few digits are ever used by a person, for the same
+ * reason a commit is quoted as `5db94a5`: enough to tell two apart, short
+ * enough to read in one glance.
+ *
+ * The prefix is kept when there is one, because it says what KIND of thing
+ * the id names. Anything already short is returned untouched — a server
+ * Session is `ses-983` and shortening that would be vandalism.
+ */
+export function shortSessionId(id: string): string {
+  const SHORT = 8;
+  const dash = id.indexOf("-");
+  // A prefix is a short leading run of letters, not the first dash in a UUID.
+  const prefix = dash > 0 && dash <= 4 && /^[a-z]+$/i.test(id.slice(0, dash)) ? dash + 1 : 0;
+  const body = id.slice(prefix);
+  if (body.length <= SHORT + 2) return id;
+  return id.slice(0, prefix) + body.slice(0, SHORT);
+}
+
+/**
+ * A day header in two parts: `October 13` and `Today`.
+ *
+ * The board prints them either side of a slash, bright then quiet, so the
+ * calendar date and the word for it are both readable at a glance — the date
+ * is what you scan for, the word is what orients you. Distinct from
+ * {@link dayLabel}, which folds both into one string for the narrower nav.
+ */
+export function dayHeading(date: Date, now = new Date()): { date: string; day: string } {
+  const days = Math.round((startOfDay(now) - startOfDay(date)) / 86_400_000);
+  const sameYear = date.getFullYear() === now.getFullYear();
+  return {
+    date: date.toLocaleDateString(undefined, {
+      month: "long",
+      day: "numeric",
+      // The year only earns its space once it is ambiguous.
+      year: sameYear ? undefined : "numeric",
+    }),
+    day:
+      days === 0
+        ? "Today"
+        : days === 1
+          ? "Yesterday"
+          : date.toLocaleDateString(undefined, { weekday: "long" }),
+  };
+}
+
 /** Local Monday midnight of the week `d` falls in. */
 export function startOfWeek(d: Date): number {
   const day = new Date(d.getFullYear(), d.getMonth(), d.getDate());

@@ -43,6 +43,7 @@ import {
   type TokenSpend,
 } from "@/features/settings/stores/model-pricing-store";
 import { cn } from "@/lib/utils";
+import { ContextMeter } from "./context-meter";
 import { Hint } from "@/ui/tooltip";
 import { HintGroup, HintItem } from "@/ui/hint-group";
 
@@ -120,10 +121,13 @@ const NODE_CENTRE = 16;
 /**
  * The reading measure. Prose past ~90 characters is measurably harder to scan.
  *
- * The 56px horizontal padding is symmetric on purpose, so the column reads as a
- * measure rather than an indent.
+ * The horizontal padding is symmetric on purpose, so the column reads as a
+ * measure rather than an indent — and it is sized against the CONTAINER, not
+ * the window. This view now opens in a dock beside the board as well as at
+ * full width, and 56px either side of a 600px panel is a third of it spent on
+ * margin.
  */
-const MEASURE = "mx-auto w-full max-w-[920px] px-14";
+const MEASURE = "mx-auto w-full max-w-[920px] px-5 @2xl:px-8 @4xl:px-14";
 
 /**
  * Everything the comment surfaces need, or `null` on a Session that is not
@@ -840,8 +844,16 @@ function Masthead({ detail, comments }: { detail: Detail; comments: RowComments 
 
       <div
         className={cn(
-          "mt-[22px] grid grid-cols-4 overflow-hidden rounded-md border border-[var(--border)]",
-          "[&>*+*]:border-l [&>*+*]:border-[var(--border)]",
+          // 2×2 in the dock, four across when there is room. Four cells over a
+          // 620px panel left each one too narrow for its own figure, and the
+          // Context bar in particular stopped being readable as a bar.
+          //
+          // `@4xl` is 728px here, not the 896 it would be on a 16px root —
+          // this app's root is 13px, so every container step is proportionally
+          // smaller and the breakpoint has to be read in pixels, not in `rem`.
+          "mt-[22px] grid grid-cols-2 overflow-hidden rounded-md border border-[var(--border)] @4xl:grid-cols-4",
+          "[&>*]:border-[var(--border)] [&>*:nth-child(even)]:border-l [&>*:nth-child(n+3)]:border-t",
+          "@4xl:[&>*+*]:border-l @4xl:[&>*:nth-child(n+3)]:border-t-0",
         )}
       >
         <Metric label="Active" value={formatDuration(s.activeSeconds)} sub={clock(s)} />
@@ -850,7 +862,18 @@ function Masthead({ detail, comments }: { detail: Detail; comments: RowComments 
           value={tokens ?? "—"}
           sub={tokenBreakdown(s) ?? (s.contextUsed != null ? "context window" : "not reported")}
         />
-        <TokenMix spend={spend} total={spent} />
+        {/* Context, not the token mix. The mix answered "where did the spend
+            go", which the Tokens cell beside it already says in its caption;
+            this answers "how close to the window's edge did the run get",
+            which nothing else here says and which is the figure that decides
+            whether a Session could have continued. */}
+        {s.contextUsed != null && s.contextSize ? (
+          <Cell label="Context">
+            <ContextMeter used={s.contextUsed} size={s.contextSize} />
+          </Cell>
+        ) : (
+          <Metric label="Context" value="—" sub="not reported" absent />
+        )}
         {cost == null ? (
           <Metric
             label="Est. cost"
@@ -911,95 +934,6 @@ function Metric({
       <p className="mt-0.5 truncate font-mono text-2xs text-[var(--atlas-text-disabled)]">{sub}</p>
     </Cell>
   );
-}
-
-/**
- * Where the tokens went, as one stacked bar.
- *
- * Monochrome, like every other mark in this view: four classes on a white
- * opacity ladder rather than four hues, because the cell sits inside a header
- * that is already carrying a title and a row of chips and colour here would
- * outrank all of it. The ladder runs cheap-to-dear — cache reads are the
- * faintest, output the brightest — so the bright end is also the expensive end.
- * Its floor is 0.22 rather than lower: the cheap end is usually ~99% of the
- * bar, and below that it stopped reading as a filled bar at all.
- *
- * Fixed order rather than sorted by size: a bar that reorders itself between
- * Sessions cannot be compared across them at a glance.
- *
- * Segments are NOT given a minimum width. A session of this project runs about
- * 99.5% cache, and padding the two-token input slice up to a visible sliver
- * would draw a bar that disagrees with its own caption.
- *
- * With nothing to draw it draws the empty track, which is the honest shape of
- * "no split was reported" — a gauge at zero rather than a gap in the row.
- */
-function TokenMix({ spend, total }: { spend: TokenSpend; total: number }) {
-  if (total <= 0) {
-    return (
-      <Cell label="Token mix">
-        <div className="mt-3.5 h-1.5 w-full rounded-full bg-[var(--atlas-element-hover)]" />
-        <p className="mt-2.5 truncate font-mono text-2xs text-[var(--atlas-text-disabled)]">
-          not reported
-        </p>
-      </Cell>
-    );
-  }
-
-  const segments = [
-    { label: "cache read", short: "read", value: spend.cacheRead, tint: 0.22 },
-    { label: "cache write", short: "write", value: spend.cacheWrite, tint: 0.4 },
-    { label: "input", short: "in", value: spend.input, tint: 0.66 },
-    { label: "output", short: "out", value: spend.output, tint: 0.95 },
-  ].filter((segment) => segment.value > 0);
-
-  // The caption names the two that actually account for the bar; the tooltip
-  // carries the exact counts, which is the only place four numbers fit.
-  //
-  // Short names in the caption, full ones in the tooltip: `cache read 99% ·
-  // cache write 1%` is 31 monospace characters and the cell is about 28 wide,
-  // so the second figure — the one that makes the first mean something — was
-  // the part that got clipped.
-  const ranked = [...segments].sort((a, b) => b.value - a.value);
-  const caption = ranked
-    .slice(0, 2)
-    .map((segment) => `${segment.short} ${share(segment.value, total)}`)
-    .join(" · ");
-  const exact = segments
-    .map((segment) => `${segment.label}: ${segment.value.toLocaleString()}`)
-    .join("\n");
-
-  return (
-    <Cell label="Token mix">
-      <div
-        title={exact}
-        className="mt-3.5 flex h-1.5 w-full overflow-hidden rounded-full bg-[var(--atlas-element-hover)]"
-      >
-        {segments.map((segment) => (
-          <div
-            key={segment.label}
-            style={{
-              width: `${(segment.value / total) * 100}%`,
-              background: `color-mix(in srgb, var(--foreground) ${segment.tint * 100}%, transparent)`,
-            }}
-          />
-        ))}
-      </div>
-      <p
-        className="mt-2.5 truncate font-mono text-2xs text-[var(--atlas-text-disabled)]"
-        title={exact}
-      >
-        {caption}
-      </p>
-    </Cell>
-  );
-}
-
-/** `78%`, or `<1%` for a slice that rounds away to nothing. */
-function share(value: number, total: number): string {
-  const pct = (value / total) * 100;
-  if (pct >= 1) return `${Math.round(pct)}%`;
-  return pct > 0 ? "<1%" : "0%";
 }
 
 /**

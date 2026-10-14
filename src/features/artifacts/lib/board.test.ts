@@ -19,6 +19,8 @@ import {
   startOfMonth,
   startOfWeek,
   tokenLabel,
+  dayHeading,
+  shortSessionId,
 } from "./board";
 import type { BoardSession } from "../types";
 
@@ -223,5 +225,41 @@ describe("sessionTitle", () => {
     expect(sessionTitle("convert Vec<String> to a slice")).toBe("convert Vec<String> to a slice");
     expect(sessionTitle("why is a < b but <div> renders")).toBe("why is a < b but <div> renders");
     expect(sessionTitle(null)).toBeNull();
+  });
+});
+
+describe("dayHeading", () => {
+  const at = (iso: string) => new Date(iso);
+  const now = at("2026-10-14T12:00:00");
+
+  it("splits the heading into a date and the word for it", () => {
+    expect(dayHeading(at("2026-10-14T09:00:00"), now)).toEqual({
+      date: "October 14",
+      day: "Today",
+    });
+    expect(dayHeading(at("2026-10-13T09:00:00"), now).day).toBe("Yesterday");
+    // Further back the weekday is what orients you, not "11 days ago".
+    expect(dayHeading(at("2026-10-03T09:00:00"), now).day).toBe("Saturday");
+  });
+
+  it("spends the year only once it is ambiguous", () => {
+    expect(dayHeading(at("2026-03-02T09:00:00"), now).date).toBe("March 2");
+    expect(dayHeading(at("2025-03-02T09:00:00"), now).date).toBe("March 2, 2025");
+  });
+});
+
+describe("shortSessionId", () => {
+  it("keeps the prefix and shortens the digits, like a commit sha", () => {
+    expect(shortSessionId("as-5db94a5afb7c4caead736ba8df2ca0f2")).toBe("as-5db94a5a");
+  });
+
+  it("shortens a bare uuid without mistaking its first dash for a prefix", () => {
+    expect(shortSessionId("5db94a5a-fb7c-4cae-ad73-6ba8df2ca0f2")).toBe("5db94a5a");
+  });
+
+  it("leaves an already-short id alone", () => {
+    // A server Session is `ses-983`; shortening that would be vandalism.
+    expect(shortSessionId("ses-983")).toBe("ses-983");
+    expect(shortSessionId("abc")).toBe("abc");
   });
 });
