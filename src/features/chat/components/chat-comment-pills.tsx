@@ -14,7 +14,7 @@
 
 import { memo, useMemo } from "react";
 
-import { AccountAvatar } from "@/features/auth/components/account-avatar";
+import { CommenterAvatar } from "@/components/commenter-avatar";
 import { CommentButton, facesOf } from "@/features/artifacts/components/comment-thread";
 import { visibleCount, type Comment } from "@/features/artifacts/lib/comments-api";
 import { cn } from "@/lib/utils";
@@ -124,9 +124,9 @@ export const GroupCommentPill = memo(function GroupCommentPill({
     >
       {faces.length > 0 && (
         <span className="flex shrink-0 items-center -space-x-1.5">
-          {faces.map((user) => (
-            <span key={user.id} className="rounded-full ring-1 ring-[var(--card)]">
-              <AccountAvatar user={user} size={14} />
+          {faces.map((face) => (
+            <span key={face.authorId} className="rounded-full ring-1 ring-[var(--card)]">
+              <CommenterAvatar commenter={face} directory={directory} size={14} />
             </span>
           ))}
         </span>

@@ -430,6 +430,47 @@ pub struct InboxPage {
     pub next_cursor: Option<String>,
 }
 
+/// A public share link, as its owner sees it.
+///
+/// The password is never among the fields — only whether there is one. A share
+/// is created with its slug and then only revoked: the slug, the password, the
+/// scope and the expiry are what somebody was *given*, and editing any of them
+/// would turn the link in their hand into a link to somewhere else.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ArtifactShare {
+    pub id: String,
+    /// `session` for one run, `workspace` for a whole Project's worth.
+    pub scope: String,
+    pub workspace_id: String,
+    /// The Session, for a `session` scope; `None` for a Project-wide link.
+    #[serde(default)]
+    pub session_id: Option<String>,
+    /// The unguessable part of the public address. 128 bits of entropy.
+    pub slug: String,
+    #[serde(default)]
+    pub has_password: bool,
+    #[serde(default)]
+    pub comments_enabled: bool,
+    #[serde(default)]
+    pub expires_at: Option<String>,
+    /// Set once revoked. A revoked share is refused immediately rather than
+    /// waiting for any token already issued against it to expire.
+    #[serde(default)]
+    pub revoked_at: Option<String>,
+    #[serde(default)]
+    pub created_by: String,
+    #[serde(default)]
+    pub created_at: String,
+}
+
+impl ArtifactShare {
+    /// Whether this link still opens.
+    pub fn is_live(&self) -> bool {
+        self.revoked_at.is_none()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

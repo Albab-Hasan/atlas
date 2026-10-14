@@ -13,6 +13,20 @@ const STYLE_ID = "atlas-resolved-theme";
  * selector makes the resolved theme win wherever the element sits.
  */
 const THEME_SELECTOR = "html:root";
+
+/**
+ * The selector a surface sets on itself to be drawn in the OTHER appearance.
+ *
+ * A panel over the record — the session reader's share sheet, its comments —
+ * reads as a layer rather than as more of the page when it is the opposite
+ * colour. The web does this with `data-theme="light"` on the element; here the
+ * active theme is written at runtime rather than declared per appearance in
+ * CSS, so the inverted block is emitted alongside it from the same resolve.
+ *
+ * Its own attribute rather than reusing `data-theme`, which already carries
+ * the theme's ID on `<html>` — one attribute, one meaning.
+ */
+const INVERT_SELECTOR = "[data-theme-invert]";
 /**
  * Where `index.html` looks for the last theme at launch. Read by an inline
  * script before any module — and before `tokens.css` — so the first frame
@@ -49,10 +63,30 @@ function launchCache(resolved: ResolvedTheme) {
 /** The resolved block's stylesheet text. `index.html` builds the identical
  *  string from the cached `vars`, so the two never disagree about a frame. */
 export function resolvedThemeCss(cssVars: Record<string, string>): string {
-  const declarations = Object.entries(cssVars)
+  return `${THEME_SELECTOR}{${declarations(cssVars)}}`;
+}
+
+function declarations(cssVars: Record<string, string>): string {
+  return Object.entries(cssVars)
     .map(([name, value]) => `${name}:${value}`)
     .join(";");
-  return `${THEME_SELECTOR}{${declarations}}`;
+}
+
+/**
+ * The same theme resolved the other way round, scoped to anything carrying
+ * `data-theme-invert`.
+ *
+ * Every variable is re-declared inside the scope, not only the ones that
+ * differ: `var(--x)` resolves where it is DECLARED and is inherited already
+ * resolved, so a half-declared scope would inherit the page's answers for
+ * everything it left out — white text on a white panel.
+ *
+ * A theme with only one variant resolves to that variant both times, so the
+ * panel simply does not invert. That is `resolveTheme`'s documented fallback
+ * and is better than inventing a palette the theme's author never chose.
+ */
+export function invertedThemeCss(cssVars: Record<string, string>): string {
+  return `${INVERT_SELECTOR}{${declarations(cssVars)}}`;
 }
 
 /**
@@ -140,7 +174,13 @@ export function applyTheme(
     style.id = STYLE_ID;
     document.head.append(style);
   }
-  style.textContent = resolvedThemeCss(resolved.cssVars);
+  // The page's own appearance, then the other one for any surface that asks.
+  const inverted = resolveTheme(
+    theme,
+    resolved.appearance === "dark" ? "light" : "dark",
+    themeOverride,
+  );
+  style.textContent = resolvedThemeCss(resolved.cssVars) + invertedThemeCss(inverted.cssVars);
   const cache = launchCache(resolved);
   applyBootVars(root, cache);
   cacheLaunchTheme(cache);

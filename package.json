@@ -105,6 +105,7 @@
     "motion": "^14.2.0",
     "pdfjs-dist": "5.4.296",
     "pixi.js": "^8.20.1",
+    "playwright": "1.63.0",
     "posthog-js": "^1.426.3",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",

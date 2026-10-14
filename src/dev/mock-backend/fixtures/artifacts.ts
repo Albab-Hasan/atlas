@@ -33,6 +33,7 @@ import type {
   BoardPage,
 } from "@/features/artifacts/types";
 import type { Comment, CommentThreads } from "@/features/artifacts/lib/comments-api";
+import type { ArtifactShare } from "@/features/artifacts/lib/shares-api";
 import type { CommentTarget } from "@/features/chat/components/chat-comments-controller";
 import type {
   RetrieveResult,
@@ -114,6 +115,10 @@ function cachedOnly(read: number): Spend {
     contextSize: null,
   };
 }
+
+/** Public share links made this session, by Session id. In memory only: a
+ *  slug is a credential, and the mock has no business persisting one. */
+const mockShares = new Map<string, ArtifactShare>();
 
 interface Seed {
   id: string;
@@ -1097,6 +1102,10 @@ export interface ArtifactsResponses {
   artifacts_cloud_session: SessionDetail;
   artifacts_cloud_payload: ArtifactPayload;
   artifacts_cloud_session_url: string | null;
+  artifacts_cloud_session_share: ArtifactShare | null;
+  artifacts_cloud_share_create: ArtifactShare;
+  artifacts_cloud_share_revoke: void;
+  artifacts_cloud_share_url: string;
   artifacts_cloud_comments: CommentThreads;
   artifacts_cloud_comment_create: Comment;
   artifacts_cloud_comment_update: Comment;
@@ -1372,6 +1381,40 @@ export const artifactsHandlers: TypedHandlers<ArtifactsResponses> = {
 
   artifacts_cloud_session_url: ({ projectId, sessionId }): string =>
     `https://app.tryatlas.cc/timeline?org=org_demo&workspace=${String(projectId)}&session=${String(sessionId)}`,
+
+  // Public shares, in memory for the life of the page: create one and the
+  // sheet shows the link; revoke it and the sheet goes back to offering the
+  // button. Enough to exercise every state the panel has.
+  artifacts_cloud_session_share: ({ sessionId }): ArtifactShare | null =>
+    mockShares.get(String(sessionId)) ?? null,
+
+  artifacts_cloud_share_create: ({ projectId, sessionId, comments }): ArtifactShare => {
+    const share: ArtifactShare = {
+      id: `shr_${String(sessionId).slice(0, 8)}`,
+      scope: "session",
+      workspaceId: String(projectId),
+      sessionId: String(sessionId),
+      slug: `mock${String(sessionId)
+        .replace(/[^a-z0-9]/gi, "")
+        .slice(0, 10)}`,
+      hasPassword: false,
+      commentsEnabled: Boolean(comments),
+      expiresAt: null,
+      revokedAt: null,
+      createdBy: "u_me",
+      createdAt: new Date().toISOString(),
+    };
+    mockShares.set(String(sessionId), share);
+    return share;
+  },
+
+  artifacts_cloud_share_revoke: ({ shareId }): void => {
+    for (const [key, share] of mockShares) {
+      if (share.id === String(shareId)) mockShares.delete(key);
+    }
+  },
+
+  artifacts_cloud_share_url: ({ slug }): string => `https://app.tryatlas.cc/s/${String(slug)}`,
 
   artifacts_cloud_payload: ({ part }): ArtifactPayload => ({
     text: `[mock] the full ${String(part)} of this entry, fetched from the server.`,

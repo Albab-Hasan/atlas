@@ -17,9 +17,7 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
-  ChevronsDown,
   MessageSquare,
-  Filter,
   Download,
   GitCommitHorizontal,
   Loader2,
@@ -44,8 +42,10 @@ import {
 } from "@/features/settings/stores/model-pricing-store";
 import { cn } from "@/lib/utils";
 import { ContextMeter } from "./context-meter";
+import { CommentsMorph } from "./comments-morph";
+import { ShareMorph } from "./share-morph";
+import { EMPTY_DIRECTORY } from "../lib/author-directory";
 import { Hint } from "@/ui/tooltip";
-import { HintGroup, HintItem } from "@/ui/hint-group";
 
 import {
   DEFAULT_FILTERS,
@@ -165,14 +165,19 @@ interface Props {
   entriesPending?: boolean;
   /** Set only for a Session with no local copy — see [`RemoteSourceContext`]. */
   remote?: RemoteSource | null;
+  /**
+   * The server Project this Session belongs to, when it has one.
+   *
+   * NOT the same question as `remote` above, which is only set when there is
+   * no LOCAL copy to read payloads from. A Session of your own that has been
+   * pushed is on both sides: `remote` is null for it and it is still shared,
+   * which is why sharing cannot be driven off that flag.
+   */
+  remoteProjectId?: string | null;
   /** Opened from a commit: land on that Checkpoint rather than at the top. */
   focusCommitSha?: string;
   /** Whether the grounded chat occupies the other half of the split. */
-  chatOpen?: boolean;
-  onToggleChat?: () => void;
   /** Whether the comments panel does. The two share one slot. */
-  commentsOpen?: boolean;
-  onToggleComments?: () => void;
 }
 
 /**
@@ -192,17 +197,32 @@ export interface RemoteSource {
 
 const RemoteSourceContext = createContext<RemoteSource | null>(null);
 
+/**
+ * Which entry's comment thread the all-comments panel has asked to open.
+ *
+ * A counter rather than a flag, so the same thread can be asked for twice —
+ * close the popover, click the same row again, and `n` moves even though
+ * `anchorId` did not. It travels by context because the rows that need it are
+ * memoised components several levels down (`Row`, `CallRow`); threading a prop
+ * through every level would re-render the whole reader on each jump, and the
+ * levels in between have no business knowing about comments.
+ */
+const FocusThreadContext = createContext<{ anchorId: string; n: number } | null>(null);
+
+/** The open signal for one anchor: a new number each time it is asked for. */
+function useOpenSignal(anchorId: string) {
+  const focus = useContext(FocusThreadContext);
+  return focus?.anchorId === anchorId ? focus.n : undefined;
+}
+
 export function SessionDetail({
   detail,
   projectPath,
   comments = null,
   entriesPending = false,
   remote = null,
+  remoteProjectId = null,
   focusCommitSha,
-  chatOpen,
-  onToggleChat,
-  commentsOpen,
-  onToggleComments,
 }: Props) {
   const [filters, setFilters] = useState<TimelineFilters>(DEFAULT_FILTERS);
   /** Narrow tool calls to failed ones — the "which calls failed" question. */
@@ -245,23 +265,12 @@ export function SessionDetail({
   const [pendingJump, setPendingJump] = useState<string | null>(null);
   /** The entry a jump just landed on, highlighted briefly. */
   const [landed, setLanded] = useState<string | null>(null);
+  /** Which entry's comment thread to open, from the comments panel. The
+   *  counter is what lets the same thread be asked for twice. */
+  const [focusThread, setFocusThread] = useState<{ anchorId: string; n: number } | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
 
   const s = detail.summary;
-
-  /**
-   * How many comments the Session carries — the dock's badge.
-   *
-   * Comments, not commented nodes: two people each opening a thread on the
-   * same response are two comments, and a reply is one more. The badge says
-   * how much has been said; the panel's rows say where.
-   */
-  const commentCount = useMemo(() => {
-    if (!comments) return 0;
-    let n = visibleCount(comments.session);
-    for (const rowId in comments.byAnchor) n += visibleCount(comments.byAnchor[rowId]);
-    return n;
-  }, [comments]);
 
   /**
    * Entries with identity carried across detail re-reads.
@@ -406,7 +415,7 @@ export function SessionDetail({
     }
   }, []);
 
-  const { more, activeAnchor, onScroll, invalidate } = useTimelineScroll({
+  const { more, onScroll, invalidate } = useTimelineScroll({
     scrollRef,
     contentRef,
     anchorRefs,
@@ -417,23 +426,6 @@ export function SessionDetail({
       [groups.length],
     ),
   });
-
-  /** The next prompt below the reader — the action bar's forward jump. */
-  const nextAnchor = anchors[Math.min(activeAnchor + 1, anchors.length - 1)];
-
-  /** Scroll to a rail tick, growing the window first if it is past the fold. */
-  const jumpToAnchor = useCallback(
-    (anchor: { id: string; index: number }) => {
-      if (anchor.index >= renderCount) {
-        setRenderCount(Math.min(anchor.index + WINDOW_CHUNK, groups.length));
-        setPendingJump(anchor.id);
-        return;
-      }
-      const node = entryRefs.current.get(anchor.id);
-      if (node) jumpTo(node, "start");
-    },
-    [renderCount, groups.length, jumpTo],
-  );
 
   // A new Session or a filter change restarts the window from the top.
   // Keyed to the DEFERRED search so the reset lands with the results it belongs
@@ -509,9 +501,23 @@ export function SessionDetail({
 
   useEffect(() => {
     if (!landed) return;
-    const timer = setTimeout(() => setLanded(null), 2000);
+    const timer = setTimeout(() => {
+      setLanded(null);
+      // The jump has settled and the thread it was for is open, so the request
+      // is spent. Clearing it matters because the render window restarts from
+      // the top whenever the filters or the Session change, re-mounting every
+      // row — and a `focusThread` still set would pop a thread open on the way
+      // past, long after the click that asked for it.
+      setFocusThread(null);
+    }, 2000);
     return () => clearTimeout(timer);
   }, [landed]);
+
+  // A request that never settled — its entry is not in this record at all —
+  // must not outlive the Session it was made on.
+  useEffect(() => {
+    setFocusThread(null);
+  }, [detail.summary.id]);
 
   // Arrived from a commit in the git panel. That commit is the only part of the
   // Session the developer asked about, and a Session can produce several — so
@@ -567,179 +573,136 @@ export function SessionDetail({
 
   return (
     <RemoteSourceContext.Provider value={remote}>
-      <div className="relative flex h-full min-h-0">
-        <div
-          ref={scrollRef}
-          onScroll={onScroll}
-          className="hide-scrollbar min-h-0 flex-1 overflow-y-auto"
-        >
-          <div ref={contentRef} className={cn(MEASURE, "pb-28 pt-14")}>
-            <Masthead detail={detail} comments={comments} />
+      <FocusThreadContext.Provider value={focusThread}>
+        <div className="relative flex h-full min-h-0">
+          <div
+            ref={scrollRef}
+            onScroll={onScroll}
+            className="hide-scrollbar min-h-0 flex-1 overflow-y-auto"
+          >
+            <div ref={contentRef} className={cn(MEASURE, "pb-28 pt-14")}>
+              <Masthead detail={detail} comments={comments} />
 
-            {groups.length === 0 ? (
-              <Empty
-                detail={detail}
-                pending={entriesPending}
-                failedOnly={failedOnly}
-                failedCount={failedCount}
-              />
-            ) : (
-              <div className="mt-14">
-                <Timeline
-                  groups={rendered}
-                  projectPath={projectPath}
-                  agent={s.agent}
-                  expandTools={expandTools}
-                  landed={landed}
-                  register={register}
-                  comments={comments}
+              {groups.length === 0 ? (
+                <Empty
+                  detail={detail}
+                  pending={entriesPending}
+                  failedOnly={failedOnly}
+                  failedCount={failedCount}
                 />
-                {renderCount < groups.length && (
-                  <p className="py-6 text-center font-mono text-xs text-[var(--muted-foreground)]">
-                    {groups.length - renderCount} more…
-                  </p>
-                )}
-              </div>
+              ) : (
+                <div className="mt-14">
+                  <Timeline
+                    groups={rendered}
+                    projectPath={projectPath}
+                    agent={s.agent}
+                    expandTools={expandTools}
+                    landed={landed}
+                    register={register}
+                    comments={comments}
+                  />
+                  {renderCount < groups.length && (
+                    <p className="py-6 text-center font-mono text-xs text-[var(--muted-foreground)]">
+                      {groups.length - renderCount} more…
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Bottom fade — the cue for content below the fold, without the agent
+           *  chat's scroll-to-bottom button: a Session is read top-down and the
+           *  newest entry is not the destination.
+           *
+           *  Deeper than the chat's, and fully opaque before the controls rather
+           *  than at the very bottom edge: the action bar and the search field float
+           *  *on* this, and a linear ramp to the edge left body text legible
+           *  straight through both of them. */}
+          <div
+            aria-hidden
+            className={cn(
+              "pointer-events-none absolute inset-x-0 bottom-0 z-20 h-32 transition-opacity duration-200",
+              more ? "opacity-100" : "opacity-0",
+            )}
+            style={{
+              background:
+                "linear-gradient(to bottom, transparent 0%, color-mix(in srgb, var(--background) 60%, transparent) 28%, color-mix(in srgb, var(--background) 92%, transparent) 44%, var(--background) 55%)",
+            }}
+          />
+
+          {/* The action bar: hand this Session on, or read what was said about
+           *  it. Two round buttons in opposite corners, each growing into its
+           *  own panel — the web reader's footer, which this now matches.
+           *
+           *  `items-end` so each button grows UP out of its corner while the
+           *  bar holds both to the bottom edge.
+           *
+           *  The filter drawer and the in-session search that used to live here
+           *  are gone with it. */}
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex items-end justify-between gap-3 px-4 pb-3.5 *:pointer-events-auto">
+            <ShareMorph
+              detail={detail}
+              projectId={remoteProjectId}
+              directory={comments?.directory ?? EMPTY_DIRECTORY}
+            />
+            {comments && (
+              <CommentsMorph
+                detail={detail}
+                comments={comments}
+                onJump={(anchorId) => {
+                  // Scroll to the entry AND open the thread hanging off it.
+                  // Landing beside a remark without showing it makes you hunt
+                  // for the thing you just clicked.
+                  //
+                  // `setPendingJump` rather than `jumpToAnchor`: the settling
+                  // effect below is what reveals a kind the filters are hiding,
+                  // grows the render window and unfolds a run of tool calls — so
+                  // a remark on the fourth call of a run arrives with its own
+                  // button mounted to hang the popover off. `jumpToAnchor` only
+                  // scrolls, and would have opened nothing in every one of those
+                  // cases.
+                  setFocusThread((prev) => ({ anchorId, n: (prev?.n ?? 0) + 1 }));
+                  // The whole-Session thread hangs off the masthead, which is no
+                  // entry and is already at the top.
+                  if (anchorId === detail.summary.id) {
+                    scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+                    return;
+                  }
+                  setPendingJump(anchorId);
+                }}
+              />
             )}
           </div>
-        </div>
 
-        {/* Bottom fade — the cue for content below the fold, without the agent
-         *  chat's scroll-to-bottom button: a Session is read top-down and the
-         *  newest entry is not the destination.
-         *
-         *  Deeper than the chat's, and fully opaque before the controls rather
-         *  than at the very bottom edge: the action bar and the search field float
-         *  *on* this, and a linear ramp to the edge left body text legible
-         *  straight through both of them. */}
-        <div
-          aria-hidden
-          className={cn(
-            "pointer-events-none absolute inset-x-0 bottom-0 z-20 h-32 transition-opacity duration-200",
-            more ? "opacity-100" : "opacity-0",
+          {filtersOpen && (
+            <FilterDrawer
+              detail={detail}
+              filters={filters}
+              setFilters={setFilters}
+              failedOnly={failedOnly}
+              setFailedOnly={setFailedOnly}
+              failedCount={failedCount}
+              tools={tools}
+              setTools={setTools}
+              expandTools={expandTools}
+              setExpandTools={setExpandTools}
+              foldResponses={foldResponses}
+              setFoldResponses={setFoldResponses}
+              activeFilters={activeFilters}
+              checkpoints={checkpoints}
+              onJump={(entryId) => {
+                // The drawer closes on jump. It covers the right third of the
+                // measure, and landing behind it would mean the reader has to
+                // dismiss it to see what they asked for.
+                setFiltersOpen(false);
+                setPendingJump(entryId);
+              }}
+              onClose={() => setFiltersOpen(false)}
+            />
           )}
-          style={{
-            background:
-              "linear-gradient(to bottom, transparent 0%, color-mix(in srgb, var(--background) 60%, transparent) 28%, color-mix(in srgb, var(--background) 92%, transparent) 44%, var(--background) 55%)",
-          }}
-        />
-
-        {/* The action bar. Floating over the fade rather than docked below the
-         *  scroller: the measure is centred and a full-width toolbar would put its
-         *  controls further from the text than the text is wide. Left is what
-         *  changes the view, right is what moves through it. */}
-        <HintGroup side="top">
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex items-center gap-3 px-4 pb-3.5">
-            <BarButton
-              label="Filters"
-              active={filtersOpen || activeFilters > 0}
-              badge={activeFilters > 0 ? activeFilters : undefined}
-              onClick={() => setFiltersOpen((v) => !v)}
-            >
-              <Filter size={14} strokeWidth={1.6} />
-            </BarButton>
-
-            {/* The search field, between the two control clusters and centred in the
-             *  measure. Same pill as the memory Timeline's: floating, blurred, no
-             *  box around it — it belongs to the content, not to a toolbar. */}
-            <div className="pointer-events-auto mx-auto flex h-11 min-w-0 max-w-[620px] flex-1 items-center gap-2.5 rounded-full border border-[var(--border)] bg-[var(--card)]/70 px-4 shadow-md backdrop-blur-2xl">
-              <Search size={15} className="shrink-0 text-[var(--muted-foreground)]" />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Escape") setSearch("");
-                }}
-                placeholder="Search this session…"
-                spellCheck={false}
-                aria-label="Search this session"
-                className="min-w-0 flex-1 border-0 bg-transparent p-0 text-base text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]"
-              />
-              {search && (
-                <>
-                  <span className="shrink-0 font-mono text-xs text-[var(--atlas-text-disabled)]">
-                    {groups.length}
-                  </span>
-                  <Hint label="Clear search">
-                    <button
-                      type="button"
-                      onClick={() => setSearch("")}
-                      className="flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-full text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
-                    >
-                      <X size={14} />
-                    </button>
-                  </Hint>
-                </>
-              )}
-            </div>
-
-            <div className="pointer-events-auto flex items-center rounded-full border border-[var(--border)] bg-[var(--card)]/70 shadow-md backdrop-blur-xl">
-              {/* On a shared Session this slot finds discussions; on a local
-               *  one there are none to find, so it keeps the jump it always
-               *  had. Comments are the thing that is hard to locate in a long
-               *  record — the next prompt is only ever a scroll away. */}
-              {comments ? (
-                <BarButton
-                  label={commentsOpen ? "Close comments" : "Comments"}
-                  bare
-                  active={commentsOpen}
-                  badge={commentCount > 0 ? commentCount : undefined}
-                  disabled={!onToggleComments}
-                  onClick={onToggleComments}
-                >
-                  <MessageSquare size={14} strokeWidth={1.6} />
-                </BarButton>
-              ) : (
-                <BarButton
-                  label="Next prompt"
-                  bare
-                  disabled={!nextAnchor || activeAnchor >= anchors.length - 1}
-                  onClick={() => nextAnchor && jumpToAnchor(nextAnchor)}
-                >
-                  <ChevronsDown size={14} strokeWidth={1.6} />
-                </BarButton>
-              )}
-              <span aria-hidden className="h-4 w-px bg-[var(--border)]" />
-              <BarButton
-                label={chatOpen ? "Close chat" : "Ask about this session"}
-                bare
-                active={chatOpen}
-                disabled={!onToggleChat}
-                onClick={onToggleChat}
-              >
-                <Sparkles size={14} strokeWidth={1.6} />
-              </BarButton>
-            </div>
-          </div>
-        </HintGroup>
-
-        {filtersOpen && (
-          <FilterDrawer
-            detail={detail}
-            filters={filters}
-            setFilters={setFilters}
-            failedOnly={failedOnly}
-            setFailedOnly={setFailedOnly}
-            failedCount={failedCount}
-            tools={tools}
-            setTools={setTools}
-            expandTools={expandTools}
-            setExpandTools={setExpandTools}
-            foldResponses={foldResponses}
-            setFoldResponses={setFoldResponses}
-            activeFilters={activeFilters}
-            checkpoints={checkpoints}
-            onJump={(entryId) => {
-              // The drawer closes on jump. It covers the right third of the
-              // measure, and landing behind it would mean the reader has to
-              // dismiss it to see what they asked for.
-              setFiltersOpen(false);
-              setPendingJump(entryId);
-            }}
-            onClose={() => setFiltersOpen(false)}
-          />
-        )}
-      </div>
+        </div>
+      </FocusThreadContext.Provider>
     </RemoteSourceContext.Provider>
   );
 }
@@ -756,6 +719,7 @@ export function SessionDetail({
  * here; it lives in the header dock with the tab's other actions.
  */
 function Masthead({ detail, comments }: { detail: Detail; comments: RowComments | null }) {
+  const openSignal = useOpenSignal(detail.summary.id);
   const s = detail.summary;
   const branch = s.branches[0];
   const tokens = tokenLabel(s);
@@ -809,6 +773,7 @@ function Masthead({ detail, comments }: { detail: Detail; comments: RowComments 
             directory={comments.directory}
             label="Comment on this Session"
             className="mt-1 group-hover/row:opacity-100"
+            openSignal={openSignal}
           />
         )}
       </div>
@@ -1084,7 +1049,12 @@ const Timeline = memo(function Timeline({
           expandTools={expandTools}
           isLanded={group.entries.some((e) => e.id === landed)}
           landedCallId={
-            group.kind === "tool_call" && landed && landed !== group.entries[0].id
+            // Including the run's FIRST call, which this used to exclude as
+            // "already the row head, nothing to unfold". The ring does not need
+            // the unfold — but the comment button does: a tool_call group never
+            // renders one on its header (see `isCallRun`), so the only place to
+            // hang the first call's thread off is its own row inside the fold.
+            group.kind === "tool_call" && landed
               ? (group.entries.find((e) => e.id === landed)?.id ?? null)
               : null
           }
@@ -1124,15 +1094,17 @@ const Row = memo(function Row({
   expandTools: boolean;
   /** A jump just landed here — ringed briefly. */
   isLanded: boolean;
-  /** The landed entry, when it is one of this row's calls rather than its head:
-   *  the run has to unfold for it. `null` for every other row, so a jump does
-   *  not re-render the whole window. */
+  /** The landed entry, when it is one of this row's calls: the run has to
+   *  unfold for it, both to ring it and to give its comment thread somewhere to
+   *  open. `null` for every other row, so a jump does not re-render the whole
+   *  window. */
   landedCallId: string | null;
   register: (id: string, node: HTMLDivElement | null) => void;
   /** `null` on a Session that is not shared — there is nothing to anchor to. */
   comments: RowComments | null;
 }) {
   const head = group.entries[0];
+  const openSignal = useOpenSignal(head.id);
   // A group of tool calls speaks for several anchors, not one. Every comment
   // surface below branches on it, so it is named once here.
   const isCallRun = group.kind === "tool_call";
@@ -1221,6 +1193,7 @@ const Row = memo(function Row({
                 comments={comments.byAnchor[head.id]}
                 actions={comments.actions}
                 directory={comments.directory}
+                openSignal={openSignal}
               />
             )}
             {(group.kind === "prompt" || group.kind === "response") && head.text && (
@@ -1719,6 +1692,7 @@ const CallRow = memo(function CallRow({
   /** `null` on a Session that is not shared — there is nothing to anchor to. */
   comments: RowComments | null;
 }) {
+  const openSignal = useOpenSignal(call.id);
   const failed = call.toolStatus === "failed";
   // One parse of the recorded arguments per call, not per render: the table can
   // hold a Session's whole call history.
@@ -1792,6 +1766,7 @@ const CallRow = memo(function CallRow({
               comments={thread}
               actions={comments.actions}
               directory={comments.directory}
+              openSignal={openSignal}
             />
           </ActionCluster>
         )}
@@ -2347,59 +2322,6 @@ function Meta({ label, value }: { label: string; value: string }) {
 }
 
 // ── Content primitives ──────────────────────────────────────────────────────
-
-/**
- * One control in the action bar.
- *
- * `bare` drops the border and background: inside the right-hand pill the group
- * carries those, and a bordered button inside a bordered pill reads as a
- * double outline at this scale.
- */
-function BarButton({
-  label,
-  active,
-  badge,
-  bare,
-  disabled,
-  onClick,
-  children,
-}: {
-  label: string;
-  active?: boolean;
-  badge?: number;
-  bare?: boolean;
-  disabled?: boolean;
-  onClick?: () => void;
-  children: ReactNode;
-}) {
-  return (
-    // The bar is `pointer-events-none`; the item's span has to take the hover
-    // itself, or a disabled button (which passes events through) shows nothing.
-    <HintItem label={label} className="pointer-events-auto">
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={onClick}
-        className={cn(
-          "pointer-events-auto relative flex size-8 shrink-0 items-center justify-center rounded-full transition-colors",
-          disabled
-            ? "cursor-default text-[var(--atlas-text-disabled)]"
-            : "cursor-pointer text-[var(--muted-foreground)] hover:bg-[var(--atlas-element-hover)] hover:text-[var(--foreground)]",
-          !bare && "border border-[var(--border)] bg-[var(--card)]/70 backdrop-blur-xl",
-          !bare && "shadow-md",
-          active && !bare && "border-[var(--atlas-border-strong)] text-[var(--foreground)]",
-        )}
-      >
-        {children}
-        {badge !== undefined && (
-          <span className="absolute -right-0.5 -top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-[var(--primary)] px-0.5 font-mono text-3xs font-semibold text-[var(--primary-foreground)] tabular-nums">
-            {badge > 9 ? "9+" : badge}
-          </span>
-        )}
-      </button>
-    </HintItem>
-  );
-}
 
 /** Height past which a body collapses behind a "Show more". */
 const CLAMP_MAX_PX = 340;

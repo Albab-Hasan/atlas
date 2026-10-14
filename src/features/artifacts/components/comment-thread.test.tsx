@@ -185,3 +185,67 @@ describe("editing a comment", () => {
     expect(screen.queryByRole("button", { name: "Edit comment" })).toBeNull();
   });
 });
+
+/**
+ * `openSignal` — the all-comments panel asking one thread to open after it has
+ * jumped the reader to the entry the remark is hung off.
+ */
+describe("opening a thread from elsewhere", () => {
+  const actions: CommentActions = {
+    post: async () => {},
+    resolve: async () => {},
+    remove: async () => {},
+    edit: async () => {},
+  };
+
+  const button = (signal?: number) => (
+    <CommentButton
+      anchorKind="entry"
+      anchorId="row-1"
+      comments={[comment()]}
+      actions={actions}
+      directory={directory}
+      openSignal={signal}
+    />
+  );
+
+  // The trigger's own state, not the presence of the popup: Base UI keeps a
+  // closing popup mounted until its exit animation ends, and no animation ever
+  // ends under happy-dom.
+  const isOpen = () =>
+    screen.getByRole("button", { name: /Comment/ }).getAttribute("aria-expanded") === "true";
+
+  const close = () => fireEvent.click(screen.getByRole("button", { name: /Comment/ }));
+
+  it("opens when asked, and again when asked a second time", () => {
+    const { rerender } = render(button());
+    expect(isOpen()).toBe(false);
+
+    rerender(button(1));
+    expect(isOpen()).toBe(true);
+
+    close();
+    expect(isOpen()).toBe(false);
+
+    // The same thread, asked for again: a boolean would already have been
+    // `true` here and this second click would have done nothing.
+    rerender(button(2));
+    expect(isOpen()).toBe(true);
+  });
+
+  it("stays shut on a re-render that carries the same request", () => {
+    const { rerender } = render(button(1));
+    close();
+    expect(isOpen()).toBe(false);
+
+    rerender(button(1));
+    expect(isOpen()).toBe(false);
+  });
+
+  it("opens straight away for a row that mounts after the request was made", () => {
+    // The jump grows the render window, so the row the remark belongs to is
+    // often not on screen when the panel asks for it.
+    render(button(3));
+    expect(isOpen()).toBe(true);
+  });
+});

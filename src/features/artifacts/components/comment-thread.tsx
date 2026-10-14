@@ -28,6 +28,7 @@ import { Popover } from "@base-ui/react/popover";
 import { Check, CornerDownLeft, Link2, Loader2, MessageSquare, Pencil, Trash2 } from "lucide-react";
 
 import { AccountAvatar } from "@/features/auth/components/account-avatar";
+import { CommenterAvatar, GuestChip, type Commenter } from "@/components/commenter-avatar";
 import type { AccountUser, OrgMember } from "@/features/auth/lib/auth-api";
 import type { OrgDirectory } from "@/features/organisations/lib/use-org-directory";
 import { cn } from "@/lib/utils";
@@ -113,18 +114,25 @@ export function avatarUser(member: OrgMember): AccountUser {
   } as AccountUser;
 }
 
-/** Who is in this thread, most recent speaker first, deduplicated. */
-export function facesOf(comments: Comment[], directory: OrgDirectory): AccountUser[] {
+/**
+ * Who is in this thread, most recent speaker first, deduplicated.
+ *
+ * Guests included. They used to be dropped — a guest is not in the roster, so
+ * there was no `AccountUser` to push — and a thread a guest had been talking
+ * in showed a bare count with no faces at all. They have art instead of a
+ * photo (`CommenterAvatar`), which is a face like any other here.
+ */
+export function facesOf(comments: Comment[], directory: OrgDirectory): Commenter[] {
   const seen = new Set<string>();
-  const out: AccountUser[] = [];
+  const out: Commenter[] = [];
   // Newest first: the people still talking are the ones worth showing when
   // only three fit.
   for (let i = comments.length - 1; i >= 0; i--) {
     const comment = comments[i];
     if (comment.deletedAt || seen.has(comment.authorId)) continue;
     seen.add(comment.authorId);
-    const member = comment.guestName ? null : directory.byId.get(comment.authorId);
-    if (member) out.push(avatarUser(member));
+    const known = comment.guestName !== null || directory.byId.has(comment.authorId);
+    if (known) out.push({ authorId: comment.authorId, guestName: comment.guestName });
     if (out.length === MAX_FACES) break;
   }
   return out;
@@ -153,6 +161,7 @@ export const CommentButton = memo(function CommentButton({
   showLabel = false,
   selectedText,
   onOpenChange,
+  openSignal,
   collisionBoundary,
 }: {
   anchorKind: AnchorKind;
@@ -168,6 +177,16 @@ export const CommentButton = memo(function CommentButton({
   /** Persist this exact excerpt on a new root comment, still anchored to its message. */
   selectedText?: string;
   onOpenChange?: (open: boolean) => void;
+  /**
+   * Bump to open this thread from elsewhere — the comments panel jumping to
+   * the entry a remark is hung off.
+   *
+   * A changing NUMBER rather than a boolean, so asking twice for the same
+   * thread works: a boolean that is already `true` is not a new request, and
+   * clicking the same comment again after closing the popover would do
+   * nothing.
+   */
+  openSignal?: number;
   collisionBoundary?: HTMLElement;
 }) {
   const count = visibleCount(comments);
@@ -176,8 +195,20 @@ export const CommentButton = memo(function CommentButton({
     [count, comments, directory],
   );
 
+  // Controlled, so `openSignal` can open it. The popover still owns every
+  // other way it opens and closes — the trigger, Escape, a click outside —
+  // through `onOpenChange`.
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (openSignal) setOpen(true);
+  }, [openSignal]);
+  const changeOpen = (next: boolean) => {
+    setOpen(next);
+    onOpenChange?.(next);
+  };
+
   return (
-    <Popover.Root onOpenChange={onOpenChange}>
+    <Popover.Root open={open} onOpenChange={changeOpen}>
       <Popover.Trigger
         aria-label={count > 0 ? `${label} (${count})` : label}
         className={cn(
@@ -208,9 +239,9 @@ export const CommentButton = memo(function CommentButton({
              *  so the stack reads as depth rather than as touching circles. */}
             {faces.length > 0 && (
               <span className="flex shrink-0 items-center -space-x-1.5">
-                {faces.map((user) => (
-                  <span key={user.id} className="rounded-full ring-1 ring-[var(--card)]">
-                    <AccountAvatar user={user} size={14} />
+                {faces.map((face) => (
+                  <span key={face.authorId} className="rounded-full ring-1 ring-[var(--card)]">
+                    <CommenterAvatar commenter={face} directory={directory} size={14} />
                   </span>
                 ))}
               </span>
@@ -497,25 +528,20 @@ const CommentRow = memo(function CommentRow({
   return (
     <div className={cn("group/comment", resolved && "opacity-55")}>
       <div className="flex items-start gap-1.5">
-        {member ? (
-          <span className="mt-px shrink-0">
-            <AccountAvatar user={avatarUser(member)} size={AVATAR_PX} />
-          </span>
-        ) : (
-          <span
-            className="mt-px shrink-0 rounded-full bg-[var(--atlas-element-selected)]"
-            style={{ width: AVATAR_PX, height: AVATAR_PX }}
+        <span className="mt-px shrink-0">
+          <CommenterAvatar
+            commenter={{ authorId: comment.authorId, guestName: comment.guestName }}
+            directory={directory}
+            size={AVATAR_PX}
           />
-        )}
+        </span>
 
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-1.5">
             <span className="min-w-0 truncate text-xs font-medium text-[var(--foreground)]">
               {name}
             </span>
-            {comment.guestName && (
-              <span className="shrink-0 text-3xs text-[var(--atlas-text-disabled)]">guest</span>
-            )}
+            {comment.guestName && <GuestChip />}
             <span className="shrink-0 font-mono text-3xs text-[var(--atlas-text-disabled)]">
               {time(comment.createdAt)}
             </span>

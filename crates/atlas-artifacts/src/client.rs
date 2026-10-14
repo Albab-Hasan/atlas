@@ -11,7 +11,9 @@
 use std::sync::Arc;
 
 use crate::error::{Error, Result};
-use crate::model::{Comment, EntryPayload, InboxPage, SessionBoardPage, SessionDetailPage};
+use crate::model::{
+    ArtifactShare, Comment, EntryPayload, InboxPage, SessionBoardPage, SessionDetailPage,
+};
 use crate::{ingest_base, AnchorKind, TokenSource};
 
 /// The board read's page size. The server clamps at 100 and silently falls back
@@ -360,6 +362,71 @@ impl ArtifactsClient {
         Ok(wrapper.comments)
     }
 
+    /// Every public share link on a Project, live and revoked.
+    ///
+    /// The caller filters for the one it wants: the server has no "the share
+    /// for this Session" route, because a Session can carry more than one link
+    /// over its life and a revoked one is still a row.
+    pub async fn shares(&self, org_id: &str, project_id: &str) -> Result<Vec<ArtifactShare>> {
+        #[derive(serde::Deserialize)]
+        struct Wrapper {
+            #[serde(default)]
+            shares: Vec<ArtifactShare>,
+        }
+        let req = self
+            .http
+            .get(self.url(&["workspaces", project_id, "shares"])?)
+            .bearer_auth(self.token().await?)
+            .query(&[("org", org_id)]);
+        let wrapper: Wrapper = self.send(req, "shares").await?;
+        Ok(wrapper.shares)
+    }
+
+    /// Publish one Session on an unguessable link.
+    ///
+    /// Session scope only. A Project-wide link is a BULK disclosure — it
+    /// exposes every member's Sessions, and a Session title is the first line
+    /// of somebody's prompt — so the server requires a confirmation carrying
+    /// the numbers, and nothing in the desktop app asks for that yet.
+    ///
+    /// Guest commenting is off unless asked for, which is the server's default
+    /// and is restated here so the desktop cannot drift from it silently.
+    pub async fn create_session_share(
+        &self,
+        org_id: &str,
+        project_id: &str,
+        session_id: &str,
+        comments: bool,
+    ) -> Result<ArtifactShare> {
+        #[derive(serde::Deserialize)]
+        struct Wrapper {
+            share: ArtifactShare,
+        }
+        let payload = serde_json::json!({
+            "scope": "session",
+            "session_id": session_id,
+            "comments": comments,
+        });
+        let req = self
+            .http
+            .post(self.url(&["workspaces", project_id, "shares"])?)
+            .bearer_auth(self.token().await?)
+            .query(&[("org", org_id)])
+            .json(&payload);
+        let wrapper: Wrapper = self.send(req, "create share").await?;
+        Ok(wrapper.share)
+    }
+
+    /// Take a link down. Every token already issued against it stops working.
+    pub async fn revoke_share(&self, org_id: &str, project_id: &str, share_id: &str) -> Result<()> {
+        let req = self
+            .http
+            .delete(self.url(&["workspaces", project_id, "shares", share_id])?)
+            .bearer_auth(self.token().await?)
+            .query(&[("org", org_id)]);
+        self.send_discarding_body(req, "revoke share").await
+    }
+
     /// Post a comment. See [`NewComment`] for what is deliberately not sent.
     pub async fn create_comment(
         &self,
@@ -510,6 +577,32 @@ impl ArtifactsClient {
             .cached
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+    }
+
+    /// Send and classify the status, discarding the body.
+    ///
+    /// For the routes that answer `204` or an envelope nobody reads. Separate
+    /// from [`Self::send`] rather than a `T = ()`: that decodes, and decoding
+    /// an empty body as `()` fails.
+    async fn send_discarding_body(&self, req: reqwest::RequestBuilder, what: &str) -> Result<()> {
+        let response = req
+            .send()
+            .await
+            .map_err(|e| Error::Transport(format!("{what}: {e}")))?;
+
+        let status = response.status();
+        if status == reqwest::StatusCode::UNAUTHORIZED {
+            self.forget_token();
+        }
+        if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+            return Err(Error::RateLimited {
+                retry_after: retry_after(&response),
+            });
+        }
+        if !status.is_success() {
+            return Err(Error::from_status(status.as_u16(), what));
+        }
+        Ok(())
     }
 
     /// Send, classify the status, then decode.

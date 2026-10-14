@@ -164,7 +164,28 @@ describe("the launch replay in index.html", () => {
 
     const blocks = document.querySelectorAll("#atlas-resolved-theme");
     expect(blocks).toHaveLength(1);
-    expect(blocks[0].textContent).toBe(resolvedThemeCss(dark.cssVars));
+    // The page's own block first, then the inverted scope — one element
+    // carrying both, so a surface asking for the other appearance cannot be
+    // served by a stylesheet the last `applyTheme` left behind.
+    expect(blocks[0].textContent).toContain(resolvedThemeCss(dark.cssVars));
+    expect(blocks[0].textContent?.startsWith(resolvedThemeCss(dark.cssVars))).toBe(true);
+  });
+
+  it("carries the other appearance under `[data-theme-invert]`", () => {
+    // A panel over the record reads as a layer rather than as more of the
+    // page when it is the opposite colour — the reader's share sheet and its
+    // comments both ask for it.
+    const dark = applyTheme(rosePine, "dark");
+    const css = document.getElementById("atlas-resolved-theme")?.textContent ?? "";
+    const inverted = css.slice(css.indexOf("[data-theme-invert]"));
+
+    expect(inverted).toContain("[data-theme-invert]{");
+    // The light variant's background, not the dark page's.
+    expect(inverted).toContain(`--background:${rosePine.light?.base.background}`);
+    expect(dark.cssVars["--background"]).not.toBe(rosePine.light?.base.background);
+    // Every variable is re-declared, not only the ones that differ: a
+    // half-declared scope inherits the page's already-resolved answers.
+    for (const name of Object.keys(dark.cssVars)) expect(inverted).toContain(`${name}:`);
   });
 
   it("skips an entry that could close the block", () => {

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Sparkles } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { toast } from "sonner";
 
-import { HeaderDock } from "./header-dock";
+import { DockButton, HeaderDock } from "./header-dock";
 import { useLayoutStore } from "@/features/layout/stores/layout-store";
 import { useOrgDirectory } from "@/features/organisations/lib/use-org-directory";
 import { useOrgStore } from "@/features/organisations/stores/org-store";
@@ -29,7 +30,6 @@ import {
 import { readSessionDetail } from "../lib/read-session-detail";
 import { ExportButton } from "./export-button";
 import { SessionChatPanel } from "./session-chat-panel";
-import { SessionCommentsPanel } from "./session-comments-panel";
 import { SessionDetail } from "./session-detail";
 import { BoardFilters } from "./board-filters";
 import { SessionReaderHeader } from "./session-reader";
@@ -73,15 +73,6 @@ function sameBoard(a: BoardSession[], b: BoardSession[]): boolean {
 
 /** The chat half of the split. Wide enough for a code block in an answer. */
 const CHAT_WIDTH = 420;
-
-/**
- * The comments half.
- *
- * Narrower than the chat by design rather than by symmetry: a chat answer
- * carries code blocks and diagrams, a comment carries a sentence or two. At the
- * chat's width the rows were mostly empty and the transcript paid for it.
- */
-const COMMENTS_WIDTH = 294;
 
 /**
  * The card's inset from the tab's edges, in px.
@@ -199,7 +190,7 @@ export function ArtifactsPanel() {
    *  Persisted with the rest of the panel's layout, so a reader you widened
    *  is still wide next launch — `showSidebar` is the same two-state choice
    *  under its original name. */
-  const dockWide = !useLayoutStore((s) => s.timelinePanel.showSidebar);
+  const wideByChoice = !useLayoutStore((s) => s.timelinePanel.showSidebar);
   const { toggleTimelineSidebar } = useLayoutStore.use.actions();
   /** How wide the dock is, in pixels, so it can be animated.
    *
@@ -332,7 +323,25 @@ export function ArtifactsPanel() {
    * transcript — opening them together would leave the record narrower than the
    * thing being discussed.
    */
-  const [sidePanel, setSidePanel] = useState<"chat" | "comments" | null>(null);
+  /** Whether the grounded chat is open beside the record.
+   *
+   *  A boolean, not a two-panel switch: the Session's comments used to share
+   *  this slot, and they are now a panel the footer's button grows into —
+   *  which is both the web's shape and one fewer thing competing for the
+   *  reader's width. */
+  const [chatOpen, setChatOpen] = useState(false);
+
+  /**
+   * The chat takes its room from the board, never from the record.
+   *
+   * Three columns do not fit: at the dock's normal width the chat pushed the
+   * reader down to a few words a line and squeezed the board until its own
+   * rows overlapped. The board is the thing you can do without while you are
+   * asking about ONE Session, so opening the chat hides it and closing the
+   * chat brings it straight back — derived, not stored, so nothing has to
+   * remember to put it back.
+   */
+  const dockWide = wideByChoice || chatOpen;
   /**
    * The open panel's width, held through the close animation.
    *
@@ -341,19 +350,18 @@ export function ArtifactsPanel() {
    * own — the slide-out would jump before it moved.
    */
   const lastPanelWidth = useRef(CHAT_WIDTH);
-  if (sidePanel) lastPanelWidth.current = sidePanel === "chat" ? CHAT_WIDTH : COMMENTS_WIDTH;
+  if (chatOpen) lastPanelWidth.current = CHAT_WIDTH;
   const panelWidth = lastPanelWidth.current;
 
   const dockWidth = useMemo(() => {
     if (mainWidth === 0) return 0;
+    // Wide covers the chat too — opening it hides the board rather than
+    // splitting the tab three ways.
     if (dockWide) return mainWidth;
-    // The reader wants ~620px to itself; a side panel is added on top of that
-    // rather than taken out of it.
-    const want = 620 + (sidePanel ? panelWidth : 0);
-    // Never more than most of the tab — the board has to stay readable, or
-    // the split has stopped being one.
-    return Math.min(want, Math.round(mainWidth * 0.82));
-  }, [mainWidth, dockWide, sidePanel, panelWidth]);
+    // Never more than most of the tab: the board has to stay readable, or the
+    // split has stopped being one.
+    return Math.min(620, Math.round(mainWidth * 0.82));
+  }, [mainWidth, dockWide]);
 
   /** Monotonic read sequence — only the newest read may write list state. */
   const listSeq = useRef(0);
@@ -464,11 +472,28 @@ export function ArtifactsPanel() {
         if (!frame) return;
         if (frame.kind === "entryUpsert" && frame.sessionId) {
           invalidateCachedDetail(frame.sessionId);
+        } else if (frame.kind === "boardChanged") {
+          void refresh();
         } else if (frame.kind === "resync") {
           clearDetailCache();
+          void refresh();
         }
       }),
     ]);
+
+    // Read once more as soon as the listeners are actually live.
+    //
+    // `listen` is a round trip: between this panel's first read and its
+    // subscription being registered there is a window, and an event emitted
+    // inside it reaches nobody. Rust fills the cloud half of the board in the
+    // background and emits exactly once when it lands — so losing that one
+    // event left every REMOTE Session off the board until something unrelated
+    // refreshed it, which is why the rows appeared the moment you opened a
+    // Session or touched a filter.
+    //
+    // Cheap, and idempotent: a board read that finds nothing new hits the
+    // `sameBoard` bailout and does not even re-render.
+    void unlisten.then(() => void refresh());
     // No poll: the two events above cover every write path (they are why a
     // fresh session appears immediately), and the visibility handler below
     // catches anything that happened while the window was hidden. The 15s
@@ -526,8 +551,10 @@ export function ArtifactsPanel() {
     [open],
   );
 
+  // A different Session is a different conversation; the chat does not
+  // follow you into it.
   useEffect(() => {
-    setSidePanel(null);
+    setChatOpen(false);
   }, [open?.sessionId]);
 
   useEffect(() => {
@@ -725,6 +752,17 @@ export function ArtifactsPanel() {
                     actions={
                       detail && (
                         <HeaderDock>
+                          {/* Grounded chat about this Session. It lived on the
+                              footer bar until that became the web's two
+                              morphs; it is an action about the record, so it
+                              belongs with Export rather than beside them. */}
+                          <DockButton
+                            label={chatOpen ? "Close chat" : "Ask about this session"}
+                            active={chatOpen}
+                            onClick={() => setChatOpen((v) => !v)}
+                          >
+                            <Sparkles size={12} />
+                          </DockButton>
                           <ExportButton detail={detail} />
                         </HeaderDock>
                       )
@@ -754,41 +792,25 @@ export function ArtifactsPanel() {
                                 ? { projectId: open.remoteProjectId, sessionId: open.sessionId }
                                 : null
                             }
+                            remoteProjectId={open.remoteProjectId ?? null}
                             focusCommitSha={open.commitSha}
-                            chatOpen={sidePanel === "chat"}
-                            onToggleChat={() =>
-                              setSidePanel((current) => (current === "chat" ? null : "chat"))
-                            }
-                            commentsOpen={sidePanel === "comments"}
-                            onToggleComments={() =>
-                              setSidePanel((current) =>
-                                current === "comments" ? null : "comments",
-                              )
-                            }
                           />
                         </div>
                         <aside
                           className="atlas-split shrink-0 overflow-hidden border-l border-[var(--border)]"
-                          style={{ width: sidePanel ? panelWidth : 0 }}
-                          aria-hidden={sidePanel === null}
+                          style={{ width: chatOpen ? panelWidth : 0 }}
+                          aria-hidden={!chatOpen}
                         >
                           {/* Fixed inner width so the content does not reflow
                            *  through the animation — a panel that re-wraps every
                            *  frame while opening reads as a glitch, not a
                            *  transition. */}
                           <div style={{ width: panelWidth }} className="h-full">
-                            {sidePanel === "chat" && (
+                            {chatOpen && (
                               <SessionChatPanel
                                 detail={detail}
                                 projectPath={open.projectPath}
-                                onClose={() => setSidePanel(null)}
-                              />
-                            )}
-                            {sidePanel === "comments" && comments && (
-                              <SessionCommentsPanel
-                                detail={detail}
-                                comments={comments}
-                                onClose={() => setSidePanel(null)}
+                                onClose={() => setChatOpen(false)}
                               />
                             )}
                           </div>

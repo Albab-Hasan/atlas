@@ -44,9 +44,9 @@ pub use client::{
 pub use error::{Error, Result};
 pub use manager::{ArtifactsEvent, ArtifactsManager, ManagerConfig};
 pub use model::{
-    AnchorKind, Comment, EntryPayload, InboxEntry, InboxKind, InboxPage, RemoteEntry,
-    RemoteEntryCounts, RemoteProject, RemoteSession, RemoteToolTally, SessionBoardPage,
-    SessionDetailPage,
+    AnchorKind, ArtifactShare, Comment, EntryPayload, InboxEntry, InboxKind, InboxPage,
+    RemoteEntry, RemoteEntryCounts, RemoteProject, RemoteSession, RemoteToolTally,
+    SessionBoardPage, SessionDetailPage,
 };
 pub use socket::{ClientFrame, ExitReason, Keepalive, ServerFrame};
 
@@ -146,6 +146,19 @@ pub fn session_web_url(org_id: &str, project_id: &str, session_id: &str) -> Stri
 
 fn session_web_url_at(web_base: &str, org_id: &str, project_id: &str, session_id: &str) -> String {
     format!("{web_base}/timeline?org={org_id}&workspace={project_id}&session={session_id}")
+}
+
+/// The public address of a share slug — what a guest opens.
+///
+/// A short path, not the Session route: a guest has no Organisation and no
+/// Project, and the slug IS the credential. Nothing else is in it, so a link
+/// handed on discloses only the thing it was created to disclose.
+pub fn share_web_url(slug: &str) -> String {
+    share_web_url_at(&web_base(), slug)
+}
+
+fn share_web_url_at(web_base: &str, slug: &str) -> String {
+    format!("{web_base}/s/{slug}")
 }
 
 #[cfg(test)]
