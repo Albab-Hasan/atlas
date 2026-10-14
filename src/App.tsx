@@ -57,10 +57,6 @@ import { stripInjectedContext } from "@/features/chat/lib/atlas-context";
 import { openNewAgentChat } from "@/features/chat/lib/open-agent-session";
 import { requestCloseTab } from "@/features/chat/lib/close-tab";
 import { pruneContextUsageCache } from "@/features/chat/lib/context-usage-cache";
-import {
-  createTurnIndexScheduler,
-  sessionProjectPath,
-} from "@/features/chat/lib/turn-index-scheduler";
 import { isScrollHot } from "@/lib/scroll-hot";
 import { useAppProfile } from "@/lib/app-profile";
 import { basename } from "@/lib/paths";
@@ -906,30 +902,6 @@ export function App() {
       pendingDeltas.push(env);
     };
 
-    // After any agent's turn that may have changed files, refresh the
-    // project's codebase index (incremental + structural — cheap, no LLM) so
-    // `memory_search` and the Memory tab stay current. Debounced per project so
-    // a burst of turns triggers one rebuild.
-    const turnIndex = createTurnIndexScheduler((path) => {
-      // Broadcast index activity so the composer's memory pill can show
-      // "Indexing…" then refresh its status.
-      const emit = (active: boolean) =>
-        window.dispatchEvent(
-          new CustomEvent("atlas:agent-index", {
-            detail: { path, active },
-          }),
-        );
-      emit(true);
-      void invoke("codebase_index_build", {
-        projectPath: path,
-        opts: { mode: "incremental", backend: "structural" },
-      })
-        .catch((err) => console.warn("auto codebase index failed:", err))
-        .finally(() => emit(false));
-    });
-    const autoIndexAfterTurn = (acpSessionId: string) =>
-      turnIndex.schedule(sessionProjectPath(useChatStore.getState().sessions, acpSessionId));
-
     // Record a chat into the sidebar "Chats" (recently-invoked) list whenever a
     // session sees meaningful activity. Resolves project + title from the chat
     // session that owns this acpSessionId.
@@ -1070,10 +1042,8 @@ export function App() {
           bufferDelta(env);
           schedule();
           // Superseded by a newer send → the store ignores the idle flip; skip
-          // the memory reindex and log too (the notifier checks this itself).
+          // the log too (the notifier checks this itself).
           if (isStaleAgentTurn(env.session_id, env.turn_seq)) return;
-          // Keep the project's memory fresh after any agent's turn (debounced, cheap).
-          if (env.stop_reason !== "cancelled") autoIndexAfterTurn(env.session_id);
           logEvent({
             source: "atlas",
             kind: "agent-turn-finished",
@@ -1143,7 +1113,6 @@ export function App() {
       window.removeEventListener("wheel", onUserActivity);
       window.clearInterval(keepWarm);
       window.clearTimeout(pruneTimer);
-      turnIndex.cancelAll();
       unlisten?.();
     };
   }, []);

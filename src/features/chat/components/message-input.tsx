@@ -12,7 +12,6 @@ import {
   Check,
   Loader2,
   Brain,
-  Database,
   ChevronDown,
   Plus,
   RotateCw,
@@ -44,7 +43,6 @@ import {
 } from "@/features/chat/lib/switch-agent";
 import { AgentMark } from "@/components/agent-mark";
 import { loadNativeEffort } from "../lib/native-model-pref";
-import { useCodebaseIndexStatus } from "../lib/use-codebase-index-status";
 import { loadCachedAcpModels } from "../lib/acp-models-cache";
 import { modelLabel } from "../lib/model-label";
 import { ModelPicker, type PickerAgent } from "./model-picker";
@@ -73,7 +71,6 @@ import type {
 import { commandRequiresArgs } from "./slash-command-picker";
 import { PlanTasksPill } from "./plan-tasks-pill";
 import { openSettingsSection } from "@/features/settings/lib/open-settings";
-import { CodeModelNudge } from "@/components/code-model-nudge";
 import { ComposerOptionsPill } from "./composer-options-pill";
 import { UsagePill } from "./usage-pill";
 import { composerPillLabelClass } from "./composer-dropup";
@@ -239,66 +236,6 @@ function acpModeColor(modeId: string | undefined): string {
   if (/auto|default|edit|accept|agent|project/.test(id))
     return "var(--atlas-status-success-foreground)";
   return "var(--muted-foreground)";
-}
-
-/** Codebase-index status pill for the native agent — the index that grounds
- *  `memory_search`. Shows file count (or "Index memory" when unbuilt), flips to
- *  "Indexing…" while the auto-indexer runs, and re-indexes on click. */
-function NativeMemoryPill() {
-  const projectPath = useAppStore((s) => s.currentProject?.path ?? null);
-  const { status, refresh } = useCodebaseIndexStatus(projectPath);
-  const [indexing, setIndexing] = useState(false);
-
-  // Track the auto-indexer (fired from App.tsx after a turn) for this project.
-  useEffect(() => {
-    const onIdx = (e: Event) => {
-      const d = (e as CustomEvent<{ path: string; active: boolean }>).detail;
-      if (!d || d.path !== projectPath) return;
-      setIndexing(d.active);
-      if (!d.active) refresh();
-    };
-    window.addEventListener("atlas:agent-index", onIdx);
-    return () => window.removeEventListener("atlas:agent-index", onIdx);
-  }, [projectPath, refresh]);
-
-  const reindex = () => {
-    if (!projectPath || indexing) return;
-    setIndexing(true);
-    void invoke("codebase_index_build", {
-      projectPath,
-      opts: { mode: "full", backend: "structural" },
-    })
-      .catch((err) => console.warn("manual codebase index failed:", err))
-      .finally(() => {
-        setIndexing(false);
-        refresh();
-      });
-  };
-
-  const label = indexing
-    ? "Indexing…"
-    : status?.indexed
-      ? `${status.fileCount} indexed`
-      : "Index memory";
-
-  return (
-    <button
-      onClick={reindex}
-      disabled={indexing}
-      title="Codebase index that grounds the agent's memory recall — click to re-index"
-      className="flex items-center px-2 h-6.5 rounded-full border border-[var(--border)] bg-[var(--card)] text-2xs leading-none font-medium text-[var(--muted-foreground)] hover:bg-[var(--atlas-element-hover)] hover:text-[var(--foreground)] transition-colors cursor-pointer tabular-nums disabled:cursor-default"
-    >
-      {indexing ? (
-        <Loader2 size={11} className="animate-spin text-[var(--primary)]" />
-      ) : (
-        <Database
-          size={11}
-          className={status?.indexed ? "text-[var(--primary)]" : "text-[var(--muted-foreground)]"}
-        />
-      )}
-      <span className={composerPillLabelClass("early")}>{label}</span>
-    </button>
-  );
 }
 
 const EFFORT_CYCLE = ["", "low", "medium", "high", "max"] as const;
@@ -1913,12 +1850,6 @@ export function MessageInput({
         {/* Transient-failure retry countdown (native agent). */}
         <RetryPill tabId={tabId} />
 
-        {/* Every agent's semantic_search is keyword-only until the code model
-            is downloaded; this is where the user can find out. First, so the
-            strips below — the ones explaining why the composer cannot send —
-            sit nearest it. */}
-        {projectPath && !grantBarShown && <CodeModelNudge />}
-
         {/* The no-grant setup state (D15a), tucked into the top of the
             composer — the explanation for the input being locked below.
             Scoped to the native agent for the same reason the lock is: the
@@ -2177,9 +2108,6 @@ export function MessageInput({
                   same ACP model pill as every other agent, fed by the seam's
                   published catalogue. */}
               {agentType === "atlas-agent" && <EffortPill tabId={tabId} />}
-              {agentType === "atlas-agent" && <NativeMemoryPill />}
-              {/* The code-model nudge was a pill here; it is a strip above
-                  the composer now, with the other notices. */}
             </div>
             {/* Right side, in this order: the session's usage, the agent's own
                 knobs, then the live

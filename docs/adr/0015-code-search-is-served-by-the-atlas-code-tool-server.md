@@ -1,10 +1,14 @@
 # ADR-0015: Code search is served by the `atlas_code` tool server
 
-**Status:** Accepted (2026-10-03). Phase 1 of `docs/superpowers/plans/2026-10-03-codeindex-search/`. Amended by ADR-0020: an ACP agent gets the server through the stdio bridge whatever it advertises; only the in-process native agent gets it over HTTP.
+**Status:** Partly superseded by ADR-0021 (2026-10-15) — the tool server stands, its code index
+does not. Accepted (2026-10-03) as Phase 1 of `docs/superpowers/plans/2026-10-03-codeindex-search/`.
+Amended by ADR-0020: an ACP agent gets the server through the stdio bridge whatever it advertises;
+only the in-process native agent gets it over HTTP.
 
 **For agents:** if an agent cannot search code, or searches the wrong place, look at the code tool
 server (`src-tauri/src/commands/code_server/`) and the engine it calls (`crates/atlas-search`),
-not at the shell or the prompts.
+not at the shell or the prompts. The index-backed tools this ADR describes no longer exist; only
+`grep` and `find_files` do.
 
 ## Context
 

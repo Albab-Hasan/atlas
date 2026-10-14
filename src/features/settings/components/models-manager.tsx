@@ -57,18 +57,10 @@ export function ModelsManager() {
     }
   };
 
-  // Selecting a memory model rebuilds the per-project memory index (a
-  // different vector space), so it is confirmed first. A code model only
-  // swaps the code index's embedder, which re-syncs in the background.
+  // Switching the model rebuilds the per-project memory index (a different
+  // vector space), so it is confirmed first.
   const doUse = (m: ModelStatus) => {
     if (m.selected) return;
-    if (m.kind === "code_embedding") {
-      void actions
-        .select(m.id)
-        .then(() => toast.success(`Using ${m.name} for code search`))
-        .catch((e) => toast.error(`${e instanceof Error ? e.message : String(e)}`));
-      return;
-    }
     setConfirm({ id: m.id, name: m.name });
   };
 
@@ -146,11 +138,6 @@ export function ModelsManager() {
                           In use
                         </span>
                       )}
-                      {m.kind === "code_embedding" && (
-                        <span className="text-3xs uppercase tracking-wide text-muted-foreground border border-border rounded px-1 py-px">
-                          Code search
-                        </span>
-                      )}
                     </div>
                     <div className="text-2xs text-muted-foreground mt-0.5 truncate">
                       {m.description}
@@ -193,12 +180,12 @@ export function ModelsManager() {
                         disabled={busy || !m.downloaded}
                         title={
                           m.downloaded
-                            ? `Use ${m.name} for ${m.kind === "code_embedding" ? "code search" : "embeddings"}`
+                            ? `Use ${m.name} for embeddings`
                             : "Download this model first"
                         }
                         aria-label={
                           m.downloaded
-                            ? `Use ${m.name} for ${m.kind === "code_embedding" ? "code search" : "embeddings"}`
+                            ? `Use ${m.name} for embeddings`
                             : "Download this model first"
                         }
                         onClick={() => void doUse(m)}

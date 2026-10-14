@@ -1637,10 +1637,6 @@ export const northwindMiscRawCommands: MockHandlers = {
     version: null,
     currentVersion: VERSION,
   }),
-  codebase_index_status: ({ projectPath }) =>
-    isProject(projectPath)
-      ? { indexed: true, fileCount: 24, summaryCount: 19, builtAtMs: LOAD - 3 * HOUR }
-      : { indexed: false, fileCount: 0, summaryCount: 0, builtAtMs: 0 },
   load_project_session: (): string => "{}",
   load_editor_state: (): string => "{}",
 

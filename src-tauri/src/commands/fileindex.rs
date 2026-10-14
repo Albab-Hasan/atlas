@@ -344,17 +344,6 @@ async fn build_project_index(
                     // typically one parent dir per debounce.
                     let (dirs_touched, full_refresh) = summarise_events(&events);
 
-                    // Content edits matter to the code index even though the
-                    // file list ignores them: forward every surviving batch.
-                    if let Some(code_index) = app_for_watch
-                        .try_state::<Arc<crate::commands::code_index::CodeIndexRegistry>>()
-                    {
-                        code_index.apply_feed(
-                            &root_for_watch,
-                            crate::commands::code_index::feed_from(&events),
-                        );
-                    }
-
                     apply_events(&root_for_watch, &files_for_watch, events);
                     // Files just changed — drop the derived folder
                     // cache so the next mention_search rebuilds it.
@@ -429,22 +418,12 @@ pub fn fileindex_close_project(
     state: State<'_, FileIndexState>,
 ) {
     let key = workspace_id.unwrap_or_else(|| webview.label().to_string());
-    if let Some(root) = state.drop_window(&key) {
-        close_code_index(webview.app_handle(), &root);
-    }
+    state.drop_window(&key);
 }
 
 /// Whether any window still has `root` open.
 fn root_still_open<'a>(roots: impl IntoIterator<Item = &'a Path>, root: &Path) -> bool {
     roots.into_iter().any(|r| r == root)
-}
-
-/// Close `root`'s code index. Dropping the registry's project closes its
-/// queue; the worker exits after its current job and releases SQLite.
-pub fn close_code_index(app: &AppHandle, root: &Path) {
-    if let Some(code) = app.try_state::<Arc<crate::commands::code_index::CodeIndexRegistry>>() {
-        code.close(root);
-    }
 }
 
 #[derive(Debug, Clone, Serialize)]

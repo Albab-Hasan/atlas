@@ -16,7 +16,6 @@ pub mod catalog;
 pub mod claude_memory_import;
 pub mod cli;
 pub mod clipboard;
-pub mod code_index;
 pub mod code_server;
 pub mod comms;
 pub mod compose_prompt;

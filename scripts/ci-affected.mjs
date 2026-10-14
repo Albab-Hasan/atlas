@@ -110,12 +110,6 @@ export const EXTRA_INPUTS = [
     why: "the tests module of src/lib.rs, and tests/import.rs, check the mock's snapshots",
   },
   {
-    path: ".atlasignore",
-    packages: ["atlas-codeindex"],
-    testOnly: true,
-    why: "src/tests/skip.rs checks this repository's own .atlasignore indexes the engine",
-  },
-  {
     path: "docs/agents/delta-wire-contract.md",
     packages: ["atlas-agent-wire"],
     testOnly: true,
@@ -163,8 +157,6 @@ export const NON_RUST = [
   ".oxfmtrc.json",
   ".gitignore",
   ".env.example",
-  // Also an EXTRA_INPUTS entry, which still marks atlas-codeindex.
-  ".atlasignore",
 ];
 
 /**

@@ -99,6 +99,13 @@ export interface MentionFolder {
   absPath: string;
 }
 
+/**
+ * A code symbol. **Nothing produces one any more** — its only source was the
+ * code index, which is gone. The kind survives so a prompt saved before then,
+ * or a transcript quoting one, still deserializes and renders as a chip rather
+ * than as raw `@symbol:` text; it is not offered in the picker
+ * (`MENTION_CATEGORIES`) and `mention_search` never returns one.
+ */
 export interface MentionSymbol {
   kind: "symbol";
   id: string; // `${name}@${file_path}:${line}`
@@ -221,7 +228,6 @@ export interface MentionCategory {
 export const MENTION_CATEGORIES: readonly MentionCategory[] = [
   { kind: "file", label: "Files", aliases: ["file", "f/"], weight: 1.0 },
   { kind: "folder", label: "Folders", aliases: ["folder", "dir", "d/"], weight: 0.95 },
-  { kind: "symbol", label: "Symbols", aliases: ["symbol", "sym", "s/"], weight: 0.85 },
   { kind: "knowledge", label: "Knowledge", aliases: ["note", "knowledge", "k/"], weight: 0.85 },
   {
     kind: "component",
@@ -440,10 +446,10 @@ export function toShortForm(m: MentionData): string {
  *   - file / folder via `FileIndexState` (live, watcher-updated)
  *   - repo via `list_cloned_repos` (cheap disk walk)
  *   - branch via watcher-invalidated `git_refs_cache`
- *   - knowledge / symbol via `MentionCacheState`, populated by the
+ *   - knowledge via `MentionCacheState`, populated by the
  *     publishers below (`publishKnowledgeToMentionCache` etc.) when
  *     the JS stores hydrate or mutate. Per keystroke we DON'T ship
- *     these arrays anymore — that was the source of the picker's
+ *     that array anymore — it was the source of the picker's
  *     typing lag on large projects (100-500 KB JSON encode + IPC
  *     per keystroke).
  *
@@ -506,7 +512,7 @@ export async function searchMentions(
     const stripped = stripCategoryAlias(query, scope ?? "file");
     // Unscoped `@`: blend the JS-owned kinds (projects) alongside the
     // Rust-ranked kinds so ONE search reaches everything — files, folders,
-    // notes, repos, branches, symbols, projects. The JS kinds are
+    // notes, repos, branches, projects. The JS kinds are
     // small lists; they're appended after the Rust results and the picker
     // groups the flat list into per-kind sections for display.
     if (scope === null) {

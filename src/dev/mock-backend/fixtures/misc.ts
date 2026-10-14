@@ -261,27 +261,6 @@ const MODELS: ModelStatus[] = [
     downloaded: false,
     selected: false,
   },
-  // Code search's model: selected (it is the default) but not downloaded, the
-  // state a fresh install is in, so the composer's "Enable semantic search"
-  // pill shows. Downloading it walks the progress events below.
-  {
-    id: "granite-embedding-small-r2",
-    kind: "code_embedding",
-    name: "Granite Embedding Small R2",
-    repo: "ibm-granite/granite-embedding-small-english-r2",
-    files: ["config.json", "tokenizer.json", "model.safetensors"].map((file) => ({
-      repo: "ibm-granite/granite-embedding-small-english-r2",
-      file,
-      dest: file,
-    })),
-    dim: 384,
-    sizeMb: 95,
-    description:
-      "Small, fast code search embeddings (47M, Apache-2.0). Default for semantic code search.",
-    compatible: true,
-    downloaded: false,
-    selected: true,
-  },
 ];
 
 const models: ModelStatus[] = MODELS.map((model) => ({ ...model }));
@@ -444,7 +423,6 @@ export const miscHandlers: MockHandlers = {
     return { needsReindex: previous?.dim !== next.dim };
   },
   force_reindex: nothing,
-  codebase_index_build: nothing,
 
   // ── the native agent's entitlement ──────────────────────────────────────
   // `localOrg` is the honest answer for the fake project's local-only org,

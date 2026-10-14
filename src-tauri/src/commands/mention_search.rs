@@ -2,7 +2,7 @@
 //! fan-out + ranking in `src/features/chat/lib/mentions.ts`.
 //!
 //! Previously: each keystroke in the picker triggered N parallel JS
-//! providers (`Promise.allSettled([files, folders, symbols, knowledge,
+//! providers (`Promise.allSettled([files, folders, knowledge,
 //! repos, branches])`), each invoking its own Tauri command
 //! and returning results, then JS ran `rankMention` to blend + sort.
 //! That's per-keystroke N+1 IPCs + JS-side fuzzy scoring across all
@@ -10,11 +10,11 @@
 //!
 //! Now: one Tauri command. Rust reads the data sources it already
 //! owns (file/folder via the live `FileIndexState`, repo via
-//! existing computes, branch via `git_refs_compute`). Knowledge +
-//! symbols are passed in from the frontend caches that already
-//! mirror Rust state — the input is small (a few hundred entries)
-//! and the alternative (a second Rust cache layer for them) was a
-//! larger refactor without payoff for this round. All seven kinds
+//! existing computes, branch via `git_refs_compute`). Knowledge is
+//! passed in from the frontend cache that already mirrors Rust
+//! state — the input is small (a few hundred entries) and the
+//! alternative (a second Rust cache layer for it) was a larger
+//! refactor without payoff for this round. All five kinds
 //! fan out in parallel via `tokio::join!`; every fuzzy match runs
 //! through `nucleo` (the same matcher Cmd+P uses) and returns a
 //! unified ranked top-N. Past-message is intentionally out of
@@ -22,8 +22,7 @@
 //! doesn't fit the unified shape.
 
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::path::PathBuf;
 
 use nucleo_matcher::pattern::{CaseMatching, Normalization, Pattern};
 use nucleo_matcher::{Matcher, Utf32Str};
@@ -31,7 +30,6 @@ use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use tauri::{State, WebviewWindow};
 
-use super::code_index::CodeIndexRegistry;
 use super::fileindex::FileIndexState;
 use super::git::{GitRef, GitRefs};
 use super::git_watcher::GitWatcherState;
@@ -45,35 +43,22 @@ const TOTAL_LIMIT: usize = 40;
 
 /// Per-process cache of the mention-search inputs that aren't already held in
 /// a lock-protected Rust state. Knowledge entries are pushed in from JS
-/// (`useKnowledgeStore`) via `mention_cache_set_knowledge`; symbols are loaded
-/// Rust-side from the project's code index by [`ensure_symbol_cache`]
-/// (no JS push). Read by `mention_search`.
+/// (`useKnowledgeStore`) via `mention_cache_set_knowledge`. Read by
+/// `mention_search`.
 ///
 /// Why this exists: before the cache, every @-picker keystroke
-/// serialized the full knowledge + symbols arrays from JS to JSON,
-/// shipped them over IPC to Rust, then Rust deserialized them. On a
-/// project with 1000 symbols this was ~150 KB of JSON encode +
-/// decode work on the JS main thread per keystroke — the perceived
+/// serialized the full knowledge array from JS to JSON, shipped it
+/// over IPC to Rust, then Rust deserialized it — JSON encode +
+/// decode work on the JS main thread per keystroke, the perceived
 /// typing lag in the picker. With the cache the per-keystroke
 /// payload is just `(query, scope, project_path)` (a few hundred
 /// bytes) and the heavy data sits hot in Rust.
 /// Per-WINDOW caches (keyed by webview label), for the same reason as
 /// `FileIndexState`: `.manage()` state is process-global, so a single cache
-/// would let window B's knowledge/symbols leak into window A's @-mentions.
+/// would let window B's knowledge leak into window A's @-mentions.
 #[derive(Default)]
 struct WindowCache {
     knowledge: Vec<KnowledgeInput>,
-    symbols: Vec<SymbolInput>,
-    /// Which project `symbols` was loaded from. Symbols are sourced Rust-side
-    /// from the project's code index (see `ensure_symbol_cache`) rather than
-    /// pushed from JS, so we lazily load them on the first symbol-search per
-    /// project and remember the project here to avoid re-reading the index on
-    /// every keystroke.
-    symbols_project: Option<String>,
-    /// The code index generation the cached `symbols` were built from. It
-    /// moves on every write that changed rows, so freshly-indexed symbols show
-    /// up without a window reload; comparing it per keystroke is an atomic load.
-    symbols_generation: i64,
 }
 
 #[derive(Default)]
@@ -113,83 +98,6 @@ pub fn mention_cache_clear(
     state.per_window.write().remove(&key);
 }
 
-/// Ranked shape for a code symbol in the @-mention picker. Built Rust-side
-/// from the project's code index by [`ensure_symbol_cache`].
-#[derive(Debug, Clone)]
-pub struct SymbolInput {
-    pub name: String,
-    pub kind: String,
-    pub file_path: String,
-    pub line: u32,
-    pub signature: String,
-}
-
-/// Lazily populate a window's symbol cache from the project's code index the
-/// first time symbols are searched for a given project, and again whenever
-/// the index's generation moves. The read runs on a blocking thread; every
-/// other keystroke hits the hot in-memory cache. A project with no open code
-/// index yields an empty list: `@symbol` returns nothing until it is indexed.
-async fn ensure_symbol_cache(
-    state: &MentionCacheState,
-    code_index: &CodeIndexRegistry,
-    label: &str,
-    project_path: Option<&str>,
-) {
-    let Some(project) = project_path else {
-        return;
-    };
-    // The open code index covering the project; its generation moves on every
-    // write that changed rows. 0 when no index is open (nothing to list yet).
-    let index = code_index.root_for(Path::new(project));
-    let generation = index.as_ref().map_or(0, |p| {
-        i64::try_from(p.index.generation()).unwrap_or(i64::MAX)
-    });
-    // Already loaded for this exact project + index revision → nothing to do.
-    {
-        let map = state.per_window.read();
-        if let Some(c) = map.get(label) {
-            if c.symbols_project.as_deref() == Some(project) && c.symbols_generation == generation {
-                return;
-            }
-        }
-    }
-    let symbols = match index {
-        None => Vec::new(),
-        Some(index) => tokio::task::spawn_blocking(move || {
-            let root = index.index.root().to_path_buf();
-            let hits = match index.index.picker_symbols(20_000) {
-                Ok(hits) => hits,
-                Err(e) => {
-                    tracing::warn!(target: "atlas::mention_search", "picker symbols: {e}");
-                    Vec::new()
-                }
-            };
-            hits.into_iter()
-                .map(|s| SymbolInput {
-                    signature: if s.signature.is_empty() {
-                        format!("{} {}", s.kind, s.name)
-                    } else {
-                        s.signature.clone()
-                    },
-                    // Absolute path so the picker can open the file directly.
-                    file_path: root.join(&s.rel).to_string_lossy().into_owned(),
-                    line: s.start_line,
-                    name: s.name,
-                    kind: s.kind,
-                })
-                .collect::<Vec<_>>()
-        })
-        .await
-        .unwrap_or_default(),
-    };
-
-    let mut map = state.per_window.write();
-    let entry = map.entry(label.to_string()).or_default();
-    entry.symbols = symbols;
-    entry.symbols_project = Some(project.to_string());
-    entry.symbols_generation = generation;
-}
-
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct KnowledgeInput {
@@ -223,14 +131,6 @@ pub enum MentionResult {
         id: String,
         display_name: String,
         abs_path: String,
-    },
-    Symbol {
-        id: String,
-        display_name: String,
-        signature: String,
-        symbol_kind: String,
-        file_path: String,
-        line: u32,
     },
     Knowledge {
         id: String,
@@ -269,7 +169,6 @@ pub async fn mention_search(
     fileindex: State<'_, FileIndexState>,
     git_watcher: State<'_, GitWatcherState>,
     cache: State<'_, MentionCacheState>,
-    code_index: State<'_, Arc<CodeIndexRegistry>>,
 ) -> Result<Vec<MentionResult>, String> {
     let label = workspace_id.unwrap_or_else(|| webview.label().to_string());
     let scope_ref = scope.as_deref();
@@ -279,7 +178,6 @@ pub async fn mention_search(
     let want_folder = matches_scope(scope_ref, "folder");
     let want_repo = matches_scope(scope_ref, "repo");
     let want_branch = matches_scope(scope_ref, "branch");
-    let want_symbol = matches_scope(scope_ref, "symbol");
     let want_knowledge = matches_scope(scope_ref, "knowledge");
 
     // Pull file/folder snapshots ONCE (no redundant clone) directly
@@ -304,7 +202,6 @@ pub async fn mention_search(
     let trimmed_for_folder = trimmed.clone();
     let trimmed_for_repo = trimmed.clone();
     let trimmed_for_branch = trimmed.clone();
-    let trimmed_for_symbol = trimmed.clone();
     let trimmed_for_knowledge = trimmed.clone();
 
     let file_fut = async move {
@@ -360,35 +257,7 @@ pub async fn mention_search(
     // savings come from NOT serializing+deserializing those
     // entries across the IPC boundary on every keystroke (the old
     // path could push 100-500 KB per keystroke on a project with
-    // many symbols, which was the visible typing lag).
-    // Symbols are sourced from the project's code index, loaded lazily into
-    // the per-window cache on the first symbol-search per project.
-    if want_symbol {
-        ensure_symbol_cache(
-            cache.inner(),
-            code_index.inner(),
-            &label,
-            project_path.as_deref(),
-        )
-        .await;
-    }
-    let symbols_data: Vec<SymbolInput> = if want_symbol {
-        cache
-            .per_window
-            .read()
-            .get(&label)
-            .map(|c| c.symbols.clone())
-            .unwrap_or_default()
-    } else {
-        Vec::new()
-    };
-    let symbol_fut = async move {
-        if !want_symbol {
-            return Vec::new();
-        }
-        rank_symbols(&trimmed_for_symbol, symbols_data)
-    };
-
+    // many entries, which was the visible typing lag).
     let knowledge_data: Vec<KnowledgeInput> = if want_knowledge {
         cache
             .per_window
@@ -406,19 +275,13 @@ pub async fn mention_search(
         rank_knowledge(&trimmed_for_knowledge, knowledge_data)
     };
 
-    let (files, folders, repos, branches, symbols_res, knowledge_res) = tokio::join!(
-        file_fut,
-        folder_fut,
-        repo_fut,
-        branch_fut,
-        symbol_fut,
-        knowledge_fut
-    );
+    let (files, folders, repos, branches, knowledge_res) =
+        tokio::join!(file_fut, folder_fut, repo_fut, branch_fut, knowledge_fut);
 
     if scope_ref.is_some() {
         // Scoped view: only one kind is populated — flatten and cap.
         let mut all: Vec<MentionResult> = Vec::new();
-        for scored in [files, folders, symbols_res, knowledge_res, repos, branches] {
+        for scored in [files, folders, knowledge_res, repos, branches] {
             all.extend(scored.into_iter().map(|(_, m)| m));
         }
         return Ok(all.into_iter().take(PER_KIND_LIMIT).collect());
@@ -426,8 +289,7 @@ pub async fn mention_search(
 
     if trimmed.is_empty() {
         // Zero-query overview: a small slice of every kind so `@` alone
-        // shows real results (Linear-style) instead of nothing. Symbols
-        // are omitted — "the first N symbols in walk order" is noise.
+        // shows real results (Linear-style) instead of nothing.
         let mut all: Vec<MentionResult> = Vec::new();
         for (scored, cap) in [
             (files, 8),
@@ -445,7 +307,7 @@ pub async fn mention_search(
     // score (stable sort keeps per-kind order on ties), with a per-kind
     // cap so no single kind can push the rest below the fold.
     let mut all: Vec<(u32, MentionResult)> = Vec::new();
-    for scored in [files, folders, symbols_res, knowledge_res, repos, branches] {
+    for scored in [files, folders, knowledge_res, repos, branches] {
         all.extend(scored);
     }
     all.sort_by_key(|entry| std::cmp::Reverse(entry.0));
@@ -469,7 +331,6 @@ fn kind_key(m: &MentionResult) -> &'static str {
     match m {
         MentionResult::File { .. } => "file",
         MentionResult::Folder { .. } => "folder",
-        MentionResult::Symbol { .. } => "symbol",
         MentionResult::Knowledge { .. } => "knowledge",
         MentionResult::Repo { .. } => "repo",
         MentionResult::Branch { .. } => "branch",
@@ -648,56 +509,6 @@ fn rank_branches(query: &str, refs: GitRefs) -> Vec<(u32, MentionResult)> {
                     sha: r.sha,
                     ref_kind: r.kind,
                     is_current: r.is_current,
-                },
-            )
-        })
-        .collect()
-}
-
-fn rank_symbols(query: &str, symbols: Vec<SymbolInput>) -> Vec<(u32, MentionResult)> {
-    if query.is_empty() {
-        return symbols
-            .into_iter()
-            .take(PER_KIND_LIMIT)
-            .map(|s| {
-                (
-                    0,
-                    MentionResult::Symbol {
-                        id: format!("{}@{}:{}", s.name, s.file_path, s.line),
-                        display_name: s.name,
-                        signature: s.signature,
-                        symbol_kind: s.kind,
-                        file_path: s.file_path,
-                        line: s.line,
-                    },
-                )
-            })
-            .collect();
-    }
-    let pattern = Pattern::parse(query, CaseMatching::Smart, Normalization::Smart);
-    let mut matcher = Matcher::default();
-    let mut scored: Vec<(u32, SymbolInput)> = symbols
-        .into_iter()
-        .filter_map(|s| {
-            let mut buf = Vec::new();
-            let utf = Utf32Str::new(&s.name, &mut buf);
-            pattern.score(utf, &mut matcher).map(|sc| (sc, s))
-        })
-        .collect();
-    scored.sort_by_key(|entry| std::cmp::Reverse(entry.0));
-    scored
-        .into_iter()
-        .take(PER_KIND_LIMIT)
-        .map(|(sc, s)| {
-            (
-                sc,
-                MentionResult::Symbol {
-                    id: format!("{}@{}:{}", s.name, s.file_path, s.line),
-                    display_name: s.name,
-                    signature: s.signature,
-                    symbol_kind: s.kind,
-                    file_path: s.file_path,
-                    line: s.line,
                 },
             )
         })
