@@ -588,9 +588,14 @@ function markerFor(tc: ToolCallDisplay, turnId: string, first: boolean): MarkerR
           ? "running"
           : "pending";
 
-  // A tool call that ran a terminal always has an output pane worth opening,
+  // A tool call that is running a terminal has an output pane worth opening
   // even before the command's first byte: watching it stream is the point.
-  const ranTerminal = (tc.contentBlocks ?? []).some((b) => b.type === "terminal");
+  // Once it has finished, the pane is worth opening only if something was
+  // printed — every native command carries a terminal now, and a silent
+  // `git config` should not claim an output nobody can open.
+  const ranTerminal =
+    (tc.contentBlocks ?? []).some((b) => b.type === "terminal") &&
+    (tc.status === "pending" || tc.status === "running" || !!tc.result);
 
   let verb = tc.toolName;
   let tool: MarkerTool = toolIconFor(tc.kind, tc.toolName);

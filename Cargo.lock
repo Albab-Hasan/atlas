@@ -3285,6 +3285,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "atlas-embed",
+ "atlas-memory",
  "atlas-profile",
  "atlas-redact",
  "atlas-retrieval",

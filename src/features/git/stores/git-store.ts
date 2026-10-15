@@ -42,6 +42,30 @@ export interface GitFileStatus {
   staged: boolean;
 }
 
+/**
+ * `next`, or the EXISTING array when it describes the same working tree.
+ *
+ * `refresh` runs on `atlas:git-changed`, on `atlas:explorer:changed` — i.e. on
+ * every file save — on autofetch, and after every git action. Rebuilding the
+ * array each time handed a new identity to six subscribers
+ * (`file-tree`, `changed-files-tree`, `changes-view`, `conflicts-view`,
+ * `stashes-view`, `git-manager-panel`) whether or not anything had changed, and
+ * identity is what they re-render on: `file-tree` rebuilt its git-overlay Maps,
+ * `changes-view` re-invoked `git_diff_file` for an unchanged selection, and
+ * `conflicts-view` re-ran its load effect. Keeping the old array when the
+ * contents match turns a save into no work at all.
+ */
+export function sameFiles(prev: GitFileStatus[], next: GitFileStatus[]): GitFileStatus[] {
+  if (prev === next) return prev;
+  if (prev.length !== next.length) return next;
+  for (let i = 0; i < prev.length; i++) {
+    const a = prev[i];
+    const b = next[i];
+    if (a.path !== b.path || a.status !== b.status || a.staged !== b.staged) return next;
+  }
+  return prev;
+}
+
 export interface GitLogEntry {
   hash: string;
   short_hash: string;
@@ -210,7 +234,7 @@ function ensureGitStatusFreshListener(): void {
     useGitStore.setState((s) => {
       s.isRepo = e.payload.status.is_repo;
       s.branch = e.payload.status.branch;
-      s.files = e.payload.status.files;
+      s.files = sameFiles(s.files, e.payload.status.files);
       s.ahead = e.payload.status.ahead;
       s.behind = e.payload.status.behind;
     });
@@ -459,11 +483,14 @@ export const useGitStore = createSelectors(
               set((s) => {
                 s.isRepo = snap.isRepo;
                 s.branch = snap.branch;
-                s.files = snap.files.map((f) => ({
-                  path: f.path,
-                  status: f.status,
-                  staged: f.staged,
-                }));
+                s.files = sameFiles(
+                  s.files,
+                  snap.files.map((f) => ({
+                    path: f.path,
+                    status: f.status,
+                    staged: f.staged,
+                  })),
+                );
                 s.ahead = snap.ahead;
                 s.behind = snap.behind;
                 s.branchesFull = snap.branches;

@@ -767,6 +767,7 @@ export function App() {
       }
       if (pendingDeltas.length === 0) {
         oldestBufferedAt = null;
+        drainRecentChats();
         return;
       }
       // Mid-fling, hold the batch: applying it re-renders ChatPanel →
@@ -784,6 +785,7 @@ export function App() {
         return;
       }
       oldestBufferedAt = null;
+      drainRecentChats();
       const deltas = pendingDeltas.slice();
       pendingDeltas.length = 0;
       toolDeltaPos.clear();
@@ -902,6 +904,15 @@ export function App() {
       pendingDeltas.push(env);
     };
 
+    // Sessions that saw activity since the last flush. A SET, drained once per
+    // frame: `record` writes through zustand `persist`, so each call is a
+    // synchronous JSON.stringify + localStorage.setItem on the main thread, and
+    // its `updatedAt: Date.now()` guarantees the state differs every time — so
+    // every subscriber re-renders too. Calling it on the raw event meant a
+    // tool-heavy turn paid both dozens of times a second, outside the very
+    // buffer that exists to stop exactly this.
+    const pendingRecentChats = new Set<string>();
+
     // Record a chat into the sidebar "Chats" (recently-invoked) list whenever a
     // session sees meaningful activity. Resolves project + title from the chat
     // session that owns this acpSessionId.
@@ -925,6 +936,13 @@ export function App() {
         });
         return;
       }
+    };
+
+    /** Write out one record per session that saw activity this frame. */
+    const drainRecentChats = () => {
+      if (pendingRecentChats.size === 0) return;
+      for (const id of pendingRecentChats) recordRecentChat(id);
+      pendingRecentChats.clear();
     };
 
     listenAgents((env) => {
@@ -970,7 +988,7 @@ export function App() {
         env.kind === "message_appended" ||
         env.kind === "turn_finished"
       ) {
-        recordRecentChat(env.session_id);
+        pendingRecentChats.add(env.session_id);
       }
       switch (env.kind) {
         case "text_chunk":
