@@ -461,8 +461,11 @@ export function ArtifactsPanel() {
         // of a Session that has since moved, and the cache is served
         // SYNCHRONOUSLY on the next open — so a stale entry is a wrong panel,
         // not a slow one.
-        const id = (e.payload as { sessionId?: string } | null)?.sessionId;
-        if (id) invalidateCachedDetail(id);
+        // The recording worker names what it wrote (`CaptureChanged` in
+        // capture.rs); other emitters send nothing and only mean "re-read".
+        const changed = e.payload as { sessionIds?: string[]; all?: boolean } | null;
+        if (changed?.all) clearDetailCache();
+        else for (const id of changed?.sessionIds ?? []) invalidateCachedDetail(id);
         void refresh();
       }),
       // The cloud half of the same story: a teammate's Session grew, or a

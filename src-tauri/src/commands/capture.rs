@@ -376,6 +376,49 @@ type Notifier = Arc<Mutex<Option<AppHandle>>>;
 /// else to listen to.
 pub const CAPTURE_CHANGED: &str = "atlas:capture-changed";
 
+/// What a recording-worker [`CAPTURE_CHANGED`] says moved.
+///
+/// The Timeline keeps an in-memory cache of opened Sessions and paints it
+/// synchronously on the next open, so it has to know WHICH Sessions a burst
+/// touched — an empty payload left that cache unable to tell a stale entry from
+/// a fresh one. Other emitters (the sync worker, the cloud board) still send
+/// `()`: they change sync state or the remote board, not a local timeline.
+#[derive(Debug, Default, Clone, serde::Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CaptureChanged {
+    /// Store ids (`as-…`) of the Sessions written to since the last emit.
+    pub session_ids: Vec<String>,
+    /// A commit was linked. A link can add a Checkpoint to any Session whose
+    /// touches the commit consumed, which is not knowable from the job, so the
+    /// reader should treat every cached Session as stale.
+    pub all: bool,
+}
+
+/// Which Sessions a job can change, read off the job before it is consumed.
+enum Touches {
+    Nothing,
+    /// Keyed by the agent's native id; the store id is looked up after the job
+    /// ran, because a `Prompt` is what assigns it.
+    Session(String),
+    All,
+}
+
+fn job_touches(job: &Job) -> Touches {
+    match job {
+        Job::EndSession { .. } => Touches::Nothing,
+        Job::WalkCommits { .. } => Touches::All,
+        Job::ToolCall {
+            settled_commits, ..
+        } if !settled_commits.is_empty() => Touches::All,
+        Job::Prompt { binding, .. }
+        | Job::Turn { binding, .. }
+        | Job::ToolCall { binding, .. }
+        | Job::FinishTurn { binding }
+        | Job::RewindTurns { binding, .. }
+        | Job::Usage { binding, .. } => Touches::Session(binding.native_session_id.clone()),
+    }
+}
+
 /// Coalescing window for [`CAPTURE_CHANGED`].
 ///
 /// One streaming turn produces dozens of jobs — every tool call, every finished
@@ -2954,6 +2997,8 @@ fn worker(
     // would want; `last_emit` enforces the window. Starting `last_emit` a full
     // window in the past makes the very first write emit immediately.
     let mut dirty = false;
+    // What the pending notification will name — see [`CaptureChanged`].
+    let mut changed = CaptureChanged::default();
     let mut last_emit = Instant::now() - NOTIFY_DEBOUNCE;
     loop {
         // Short wait while a notification is pending, so the trailing edge of a
@@ -2979,20 +3024,44 @@ fn worker(
             // poisoned are recovered by `lock_ok` everywhere.
             //
             // Every job changes something a reader can see.
+            let touches = job_touches(&job);
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 process_job(job, &mut session_ids, &stores);
             }));
             if result.is_err() {
                 tracing::error!(target: "atlas::capture", "capture job panicked; job dropped");
             }
+            note_touches(&mut changed, touches, &session_ids);
             dirty = true;
         }
 
         if dirty && last_emit.elapsed() >= NOTIFY_DEBOUNCE {
             dirty = false;
             last_emit = Instant::now();
+            let payload = std::mem::take(&mut changed);
             if let Some(app) = lock_ok(&notify).as_ref() {
-                let _ = app.emit(CAPTURE_CHANGED, ());
+                let _ = app.emit(CAPTURE_CHANGED, payload);
+            }
+        }
+    }
+}
+
+/// Fold one job's [`Touches`] into the pending notification.
+fn note_touches(
+    changed: &mut CaptureChanged,
+    touches: Touches,
+    session_ids: &HashMap<String, String>,
+) {
+    match touches {
+        Touches::Nothing => {}
+        Touches::All => changed.all = true,
+        Touches::Session(native) => {
+            // No store id yet means no Session row yet (a delta before the
+            // first send) — nothing a reader could have cached.
+            if let Some(id) = session_ids.get(&native) {
+                if !changed.session_ids.contains(id) {
+                    changed.session_ids.push(id.clone());
+                }
             }
         }
     }
@@ -4136,6 +4205,65 @@ fn diff_paths(blocks: &[ToolContentBlock]) -> Vec<String> {
             ToolContentBlock::Terminal { .. } => None,
         })
         .collect()
+}
+
+#[cfg(test)]
+mod capture_changed_tests {
+    use super::*;
+
+    fn ids(pairs: &[(&str, &str)]) -> HashMap<String, String> {
+        pairs
+            .iter()
+            .map(|(n, s)| ((*n).to_string(), (*s).to_string()))
+            .collect()
+    }
+
+    #[test]
+    fn names_each_written_session_once_by_its_store_id() {
+        let map = ids(&[("native-a", "as-a"), ("native-b", "as-b")]);
+        let mut changed = CaptureChanged::default();
+        note_touches(&mut changed, Touches::Session("native-a".into()), &map);
+        note_touches(&mut changed, Touches::Session("native-b".into()), &map);
+        note_touches(&mut changed, Touches::Session("native-a".into()), &map);
+        assert_eq!(changed.session_ids, vec!["as-a", "as-b"]);
+        assert!(!changed.all);
+    }
+
+    #[test]
+    fn a_session_with_no_row_yet_is_not_named() {
+        let mut changed = CaptureChanged::default();
+        note_touches(
+            &mut changed,
+            Touches::Session("native-x".into()),
+            &HashMap::new(),
+        );
+        note_touches(&mut changed, Touches::Nothing, &HashMap::new());
+        assert_eq!(changed, CaptureChanged::default());
+    }
+
+    #[test]
+    fn a_commit_link_marks_everything_stale() {
+        let mut changed = CaptureChanged::default();
+        note_touches(&mut changed, Touches::All, &HashMap::new());
+        assert!(changed.all);
+        let walk = Job::WalkCommits {
+            project_root: PathBuf::from("/p"),
+            workspace_id: "/p".into(),
+        };
+        assert!(matches!(job_touches(&walk), Touches::All));
+    }
+
+    #[test]
+    fn the_wire_shape_is_camel_case() {
+        let payload = CaptureChanged {
+            session_ids: vec!["as-1".into()],
+            all: false,
+        };
+        assert_eq!(
+            serde_json::to_value(payload).unwrap(),
+            serde_json::json!({ "sessionIds": ["as-1"], "all": false })
+        );
+    }
 }
 
 #[cfg(test)]
