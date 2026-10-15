@@ -1673,10 +1673,15 @@ fn canonical_project_dir(raw: &str) -> String {
     if trimmed.is_empty() {
         return String::new();
     }
-    if let Ok(canonical) = std::fs::canonicalize(trimmed) {
+    // `dunce`, not `std::fs`: on Windows std returns the verbatim `\\?\C:\…`
+    // form, which slugs to `----C--…` — a `~/.claude/projects` folder Claude
+    // Code never writes (it slugs its plain `getcwd`, `C--…`). The watcher then
+    // waited forever for that folder, so live-elsewhere detection and the
+    // `session/list` filter both silently never matched on Windows.
+    if let Ok(canonical) = dunce::canonicalize(trimmed) {
         return canonical.to_string_lossy().into_owned();
     }
-    let without_slash = trimmed.trim_end_matches('/');
+    let without_slash = trimmed.trim_end_matches(['/', '\\']);
     if without_slash.is_empty() {
         "/".to_owned()
     } else {
@@ -2549,6 +2554,23 @@ mod project_dir_tests {
             canonical_project_dir(&format!("{}/", link.to_string_lossy())),
             physical,
             "a trailing slash is the same project"
+        );
+    }
+
+    /// Claude Code names a project's transcript folder after its plain
+    /// `getcwd`. On Windows `std::fs::canonicalize` adds the verbatim `\\?\`
+    /// prefix, whose slug (`----C--…`) is a folder that never exists.
+    #[test]
+    fn an_existing_directory_canonicalises_to_a_plain_path() {
+        let tmp = tempfile::tempdir().unwrap();
+        let canonical = canonical_project_dir(&tmp.path().to_string_lossy());
+        assert!(
+            !canonical.starts_with(r"\\?\"),
+            "verbatim prefix leaked: {canonical}"
+        );
+        assert!(
+            !atlas_agent_transcript::encode_cwd(&canonical).starts_with("--"),
+            "slug must match Claude Code's folder name"
         );
     }
 

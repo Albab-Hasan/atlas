@@ -48,7 +48,9 @@ use std::sync::{Arc, Weak};
 use std::time::{Duration, Instant};
 
 use agent_client_protocol::schema::v1 as acp;
-use atlas_agent_transcript::discovery::{claude_sessions_dir, scan_sessions};
+use atlas_agent_transcript::discovery::{
+    claude_sessions_dir, is_live, last_writer, scan_sessions, DiscoveredSession, LastWriter,
+};
 use chrono::{DateTime, Utc};
 use notify::RecursiveMode;
 use notify_debouncer_full::new_debouncer;
@@ -147,6 +149,10 @@ pub struct SessionWatcher {
     /// What the watcher is armed for, and the watch itself, under one lock.
     armed: Mutex<Armed>,
     modified: Mutex<HashMap<String, DateTime<Utc>>>,
+    /// Who wrote each recently-written transcript's newest conversation
+    /// line, and when — see [`last_writer`]. Liveness is judged from this,
+    /// not from the file time, wherever it is known.
+    writers: Mutex<HashMap<String, LastWriter>>,
     tried: Mutex<UnknownBackoff>,
 }
 
@@ -159,6 +165,7 @@ impl SessionWatcher {
             ticking: AtomicBool::new(false),
             armed: Mutex::new(Armed::default()),
             modified: Mutex::new(HashMap::new()),
+            writers: Mutex::new(HashMap::new()),
             tried: Mutex::new(UnknownBackoff::default()),
         })
     }
@@ -171,6 +178,7 @@ impl SessionWatcher {
             let generation = armed.arm(cwd);
             if generation.is_some() {
                 self.modified.lock().clear();
+                self.writers.lock().clear();
             }
             generation
         }) else {
@@ -184,10 +192,37 @@ impl SessionWatcher {
         tauri::async_runtime::spawn_blocking(move || this.install(generation, &cwd, true));
     }
 
-    /// Last-seen modified time per session id for the armed project; the
-    /// history commands read it to decide which rows are live elsewhere.
+    /// Last activity per session id for the armed project, as evidence of
+    /// another process; the history commands read it to decide which rows are
+    /// live elsewhere. A session whose newest conversation line Atlas wrote is
+    /// left out, and one a terminal wrote is timed by that line rather than by
+    /// the file — bookkeeping appended later (on exit, say) is not activity.
     pub fn last_modified(&self) -> HashMap<String, DateTime<Utc>> {
-        self.modified.lock().clone()
+        let writers = self.writers.lock();
+        self.modified
+            .lock()
+            .iter()
+            .filter_map(|(id, modified)| {
+                activity_elsewhere(*modified, writers.get(id)).map(|at| (id.clone(), at))
+            })
+            .collect()
+    }
+
+    /// Re-read who wrote each recently-written transcript last. Only files
+    /// inside the liveness window are opened — anything older cannot be live
+    /// either way — and only their tail is read.
+    fn note_writers(&self, sessions: &[DiscoveredSession]) {
+        let now = Utc::now();
+        let mut writers = self.writers.lock();
+        for s in sessions {
+            match is_live(s.modified, now)
+                .then(|| last_writer(&s.path))
+                .flatten()
+            {
+                Some(writer) => writers.insert(s.session_id.clone(), writer),
+                None => writers.remove(&s.session_id),
+            };
+        }
     }
 
     /// Start watching for `cwd`, dropping whatever was watched before.
@@ -218,7 +253,9 @@ impl SessionWatcher {
         };
 
         if seed && !in_parent {
-            let seen: HashMap<_, _> = scan_sessions(&dir)
+            let scanned = scan_sessions(&dir);
+            self.note_writers(&scanned);
+            let seen: HashMap<_, _> = scanned
                 .into_iter()
                 .map(|s| (s.session_id, s.modified))
                 .collect();
@@ -285,8 +322,7 @@ impl SessionWatcher {
     fn live_ids(&self) -> HashSet<String> {
         let now = Utc::now();
         let activity = self.host.atlas_activity();
-        self.modified
-            .lock()
+        self.last_modified()
             .iter()
             .filter(|(id, at)| live_elsewhere(Some(**at), activity.get(*id), now))
             .map(|(id, _)| id.clone())
@@ -356,6 +392,7 @@ impl SessionWatcher {
     /// Rescan, refresh the last-seen map, and act on what moved.
     fn handle_batch(self: &Arc<Self>, generation: u64, cwd: &str, dir: &Path) {
         let sessions = scan_sessions(dir);
+        self.note_writers(&sessions);
         let previous = {
             let armed = self.armed.lock();
             if !armed.is_current(generation) {
@@ -523,9 +560,64 @@ fn on_batch(weak: &Weak<SessionWatcher>, generation: u64, cwd: &str, dir: &Path,
     this.handle_batch(generation, cwd, dir);
 }
 
+/// A session's last activity as evidence of another process, or `None` when
+/// there is none. Its newest conversation line decides: Atlas's own (an SDK
+/// entrypoint) is no evidence at all, and a terminal's is timed by that line.
+/// Without a readable writer the file time stands, so an unrecognised
+/// transcript can still show as live rather than be hidden.
+fn activity_elsewhere(
+    modified: DateTime<Utc>,
+    writer: Option<&LastWriter>,
+) -> Option<DateTime<Utc>> {
+    match writer {
+        Some(w) if w.is_sdk_host() => None,
+        Some(LastWriter { at: Some(at), .. }) => Some(*at),
+        _ => Some(modified),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn writer(entrypoint: &str, at: Option<DateTime<Utc>>) -> LastWriter {
+        LastWriter {
+            entrypoint: entrypoint.to_owned(),
+            at,
+        }
+    }
+
+    /// Reproduced on Windows: a terminal `claude --resume` answered, and its
+    /// exit flush (`cost-state`, `last-prompt`) touched the file 130 s later.
+    /// Timed by the file, the banner came back for another 90 s after the
+    /// terminal was gone; timed by its last line, it stays down.
+    #[test]
+    fn a_terminal_is_timed_by_its_last_line_not_its_exit_flush() {
+        let line = "2026-10-15T19:11:53Z".parse().unwrap();
+        let flush = "2026-10-15T19:14:03Z".parse().unwrap();
+        let at = activity_elsewhere(flush, Some(&writer("cli", Some(line))));
+        assert_eq!(at, Some(line));
+    }
+
+    #[test]
+    fn atlas_own_session_is_never_evidence_of_another_process() {
+        let now = Utc::now();
+        assert_eq!(
+            activity_elsewhere(now, Some(&writer("sdk-cli", Some(now)))),
+            None
+        );
+        assert_eq!(activity_elsewhere(now, Some(&writer("sdk-ts", None))), None);
+    }
+
+    #[test]
+    fn an_unknown_or_untimed_writer_falls_back_to_the_file_time() {
+        let now = Utc::now();
+        assert_eq!(activity_elsewhere(now, None), Some(now));
+        assert_eq!(
+            activity_elsewhere(now, Some(&writer("cli", None))),
+            Some(now)
+        );
+    }
 
     /// The review finding: an install for project A that finished after
     /// `arm(B)` stored A's watch over B's. Every arming has its own
