@@ -32,6 +32,8 @@ import { useSettingsStore } from "@/features/settings/stores/settings-store";
 
 const TOOLBAR_HEIGHT = 32;
 const DIRTY_CHECK_DEBOUNCE = 300; // ms — only check dirty state, not sync content
+/** Coalescing window for watcher-driven disk reconciliation (see below). */
+const REVALIDATE_DEBOUNCE_MS = 150;
 
 // Theme colours are live-swappable through a compartment; the resolved theme
 // is shared with the rest of Atlas rather than selected independently.
@@ -303,10 +305,24 @@ export function EditorPanel({ tabId, filePath, containerHeight }: EditorPanelPro
   useEffect(() => {
     if (!buffer || isUntitled) return;
     void revalidateRef.current();
-    const un = listen("atlas:explorer:changed", () => void revalidateRef.current());
+    // Coalesce the watcher's bursts. `atlas:explorer:changed` fires per
+    // debounced fs batch over the whole working tree, and EVERY open editor
+    // tab stays mounted and listening — so an agent writing a dozen files used
+    // to cost a `file_mtime_ms` round trip per file per tab, none of which the
+    // mtime gate inside `revalidate` can prevent because it runs after the
+    // call. One trailing revalidate per quiet window answers the same question.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const soon = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => void revalidateRef.current(), REVALIDATE_DEBOUNCE_MS);
+    };
+    const un = listen("atlas:explorer:changed", soon);
+    // Focus regain is a single discrete event, and the user is looking right
+    // now — reconcile immediately rather than a beat later.
     const onActive = () => void revalidateRef.current();
     window.addEventListener("atlas:window-active", onActive);
     return () => {
+      clearTimeout(timer);
       un.then((u) => u());
       window.removeEventListener("atlas:window-active", onActive);
     };

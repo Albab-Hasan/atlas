@@ -370,7 +370,7 @@ impl OutboundMiddleware<SessionDeltaEnvelope> for TranscriptMiddleware {
             SessionDelta::MessageAppended { message } => {
                 // Cheap guard first: no buffer means no prompt was recorded for
                 // this session, so it isn't one we're recording.
-                if state.snapshot(&envelope.session_id).is_none() {
+                if !state.is_recording(&envelope.session_id) {
                     return;
                 }
                 // `agents_send` records the user's own prompts, so a user
@@ -875,11 +875,8 @@ pub fn install_manager(app: &AppHandle) {
         // The code index (Phase 2) serves the symbol tools and names grep
         // hits by their enclosing symbol; it is managed in `setup` before
         // this runs.
-        let mut code_server_tools = super::code_server::CodeTools::new(code_tools.clone());
-        if let Some(registry) = app.try_state::<Arc<super::code_index::CodeIndexRegistry>>() {
-            code_server_tools = code_server_tools.with_index(registry.inner().clone());
-        }
-        let code_router = super::code_server::router(code_server_tools);
+        let code_router =
+            super::code_server::router(super::code_server::CodeTools::new(code_tools.clone()));
         // Every agent that can take the server is handed it on each session
         // request, with a token of its own. It is the only way memory reaches
         // an agent (ADR-0010): nothing is prepended to a prompt. A connection
@@ -935,22 +932,13 @@ pub fn install_manager(app: &AppHandle) {
             let app = bootstrap_app.clone();
             Box::pin(async move { build_bootstrap(&app, &cwd, &session_id).await })
         });
-        // Cited code is checked through the open code index, which finds a
-        // symbol that moved; a scope with no index open reads the files.
-        let check_app = app.clone();
+        // Cited code is checked against the file on disk.
         let check: super::memory_server::CitationCheck = Arc::new(
             move |root: &std::path::Path, cites: &[atlas_memory::citation::Citation]| {
                 static CACHE: std::sync::OnceLock<atlas_memory::citation::ValidationCache> =
                     std::sync::OnceLock::new();
                 let cache = CACHE.get_or_init(Default::default);
-                let resolver = match check_app
-                    .try_state::<Arc<super::code_index::CodeIndexRegistry>>()
-                {
-                    Some(registry) => {
-                        super::code_index::citations::CodeIndexResolver::for_scope(&registry, root)
-                    }
-                    None => super::code_index::citations::CodeIndexResolver::with_index(root, None),
-                };
+                let resolver = atlas_memory::citation::FileResolver::new(root);
                 cites.iter().map(|c| cache.check(c, &resolver)).collect()
             },
         );

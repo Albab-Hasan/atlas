@@ -449,7 +449,7 @@ async fn overlay(
     query: &str,
     options: OverlaySearch,
 ) -> Result<CodeGrepResult, String> {
-    grep_overlay(root.to_string(), query.to_string(), options, None).await
+    grep_overlay(root.to_string(), query.to_string(), options).await
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -526,43 +526,4 @@ async fn code_grep_is_literal_and_case_insensitive_unless_asked() {
         }),
         "the shape `code-search-api.ts` reads"
     );
-}
-
-// ── The code index (Phase 2) ─────────────────────────────────────────────────
-
-#[tokio::test(flavor = "multi_thread")]
-async fn symbol_tools_answer_from_the_code_index_and_grep_names_the_symbol() {
-    let dir = project(&[(
-        "src/lib.rs",
-        "pub struct Store;\nimpl Store {\n    pub fn open() -> Self {\n        // needle\n        Store\n    }\n}\n",
-    )]);
-    let registry = Arc::new(crate::commands::code_index::CodeIndexRegistry::new(None));
-    registry
-        .ensure_open(dir.path())
-        .unwrap()
-        .enqueue_and_wait(crate::commands::code_index::Job::Reconcile)
-        .await
-        .unwrap()
-        .unwrap();
-    let tools = CodeTools::new(enabled(true)).with_index(registry);
-    let host = running_host_with(tools).await;
-    let client = client_in(&host, dir.path()).await;
-    let (_, found) = call(&client, "find_symbol", json!({ "query": "open" })).await;
-    assert!(found.contains("Store::open"), "{found}");
-    let (_, outline) = call(&client, "outline", json!({ "path": "src/lib.rs" })).await;
-    assert!(
-        outline.contains("struct") && outline.contains("Store"),
-        "{outline}"
-    );
-    let (_, grep) = call(
-        &client,
-        "grep",
-        json!({ "pattern": "needle", "output_mode": "content" }),
-    )
-    .await;
-    assert!(
-        grep.contains("Store::open"),
-        "grep group names its symbol: {grep}"
-    );
-    client.cancel().await.ok();
 }

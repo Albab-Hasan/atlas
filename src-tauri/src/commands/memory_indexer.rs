@@ -664,9 +664,6 @@ async fn health_one(app: &AppHandle, registry: &MemoryRegistry, cwd: &str) -> Re
     let _ = registry.provider(app).await;
     let now = chrono::Utc::now().timestamp_millis();
     let owned = cwd.to_string();
-    let code = app
-        .try_state::<Arc<super::code_index::CodeIndexRegistry>>()
-        .map(|r| r.inner().clone());
     let (record, restored, archived, linked) = tokio::task::spawn_blocking(move || -> Result<_, String> {
         let store = super::shared_memory::store_for(&owned)?;
         let report = store.heal(now).map_err(|e| format!("{e:#}"))?;
@@ -674,14 +671,9 @@ async fn health_one(app: &AppHandle, registry: &MemoryRegistry, cwd: &str) -> Re
             tracing::warn!(target: "atlas::memory_indexer", "memory snapshot failed: {e:#}");
         }
         // Unused candidates, and unused memories whose cited code changed,
-        // leave for the archive. Cited code is read through the code index
-        // when one is open, so a symbol that only moved still holds.
-        let resolver = match &code {
-            Some(registry) => {
-                super::code_index::citations::CodeIndexResolver::for_scope(registry, store.root())
-            }
-            None => super::code_index::citations::CodeIndexResolver::with_index(store.root(), None),
-        };
+        // leave for the archive. Citations are checked against the file on
+        // disk; a symbol that only moved no longer holds on its own.
+        let resolver = atlas_memory::citation::FileResolver::new(store.root());
         let archived = store.expire(now, &resolver).unwrap_or_else(|e| {
             tracing::warn!(target: "atlas::memory_indexer", "memory expiry failed: {e:#}");
             0

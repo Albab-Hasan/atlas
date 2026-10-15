@@ -33,12 +33,10 @@ members = [
   "crates/atlas-artifacts",
   "crates/atlas-bus",
   "crates/atlas-checkpoint",
-  "crates/atlas-codeindex",
   "crates/atlas-comms",
   "crates/atlas-embed",
   "crates/atlas-git",
   "crates/atlas-gitdiff",
-  "crates/atlas-grepindex",
   "crates/atlas-icon-theme",
   "crates/atlas-instruction-sync",
   "crates/atlas-memory",
@@ -575,9 +573,9 @@ tracing-subscriber = "0.3.22"
 tracing-test = "0.2.5"
 tonic = { version = "0.14.3", default-features = false, features = ["channel", "codegen"] }
 tonic-prost = "0.14.3"
-# BLOCKER B (#39/#42): `tree-sitter` sets `links = "tree-sitter"`, so the fork
-# and `atlas-codeindex` cannot hold different majors. D4 resolves it by
-# bumping the fork rather than pinning Atlas back: upstream was 0.25.10 here.
+# BLOCKER B (#39/#42): `tree-sitter` sets `links = "tree-sitter"`, so no two
+# crates in the graph may hold different majors. D4 resolved it by bumping the
+# engine's fork rather than pinning Atlas back: upstream was 0.25.10 here.
 # `tree-sitter-bash` stays at 0.25 — there is no 0.26 of it, and it does not
 # need one: grammar crates bind to the `tree-sitter-language` shim rather than
 # to the core, which is exactly what lets one core serve grammars of several
@@ -796,8 +794,6 @@ opt-level = 1
 opt-level = 1
 [profile.dev.package.atlas-checkpoint]
 opt-level = 1
-[profile.dev.package.atlas-codeindex]
-opt-level = 1
 [profile.dev.package.atlas-comms]
 opt-level = 1
 [profile.dev.package.atlas-embed]
@@ -805,8 +801,6 @@ opt-level = 1
 [profile.dev.package.atlas-git]
 opt-level = 1
 [profile.dev.package.atlas-gitdiff]
-opt-level = 1
-[profile.dev.package.atlas-grepindex]
 opt-level = 1
 [profile.dev.package.atlas-icon-theme]
 opt-level = 1

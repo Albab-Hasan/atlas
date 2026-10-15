@@ -27,7 +27,7 @@ import { skillsHandlers } from "../fixtures/skills";
 import { spacesHandlers } from "../fixtures/spaces";
 import { terminalHandlers } from "../fixtures/terminal";
 import { importedUserThemes, themeImportHandlers } from "../fixtures/theme-import";
-import { appState, MOCK_PROJECT } from "../project";
+import { appState } from "../project";
 
 const nothing = () => null;
 
@@ -128,12 +128,6 @@ export const baseHandlers: MockHandlers = {
   save_editor_state: nothing,
   load_project_session: () => "{}",
   read_directory: ({ path }): FileEntry[] => listDir(path),
-  // The demo project reads as indexed, so the composer pill shows "N indexed";
-  // the other projects keep the unbuilt "Index memory" label.
-  codebase_index_status: ({ projectPath }) =>
-    projectPath === MOCK_PROJECT.path
-      ? { indexed: true, fileCount: 1284, summaryCount: 312, builtAtMs: Date.now() - 42 * 60_000 }
-      : { indexed: false, fileCount: 0, summaryCount: 0, builtAtMs: 0 },
   log_interaction: nothing,
 
   // ── knowledge ───────────────────────────────────────────────────────────

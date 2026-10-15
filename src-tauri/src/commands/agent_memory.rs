@@ -843,17 +843,13 @@ mod tests {
     }
     use super::*;
 
-    /// Code is searched through `atlas_code`, not the memory corpus: even with
-    /// a built code index in the project, no `codebase` document is gathered.
+    /// Code is searched through `atlas_code`, not the memory corpus: a project
+    /// full of source files gathers no `codebase` document.
     #[tokio::test]
     async fn the_corpus_has_no_codebase_docs() {
         let dir = tempfile::tempdir().unwrap();
         std::fs::create_dir_all(dir.path().join(".git")).unwrap();
         std::fs::write(dir.path().join("lib.rs"), "pub fn indexed() {}\n").unwrap();
-        atlas_codeindex::CodeIndex::open(dir.path())
-            .unwrap()
-            .full_build(&atlas_search::CancelToken::new(), &|_| {})
-            .unwrap();
         let docs = collect_corpus(dir.path().to_str().unwrap()).await;
         assert!(docs.iter().all(|d| d.source != "codebase"));
     }

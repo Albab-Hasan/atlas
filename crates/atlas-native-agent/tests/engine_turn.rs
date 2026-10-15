@@ -235,6 +235,33 @@ impl Harness {
             .join("")
     }
 
+    /// What a tool call in the newest thread would flatten to on the wire —
+    /// the same function the projector uses, so this is the `result` field the
+    /// UI's output pane renders.
+    fn tool_results(&self) -> Vec<String> {
+        let thread = self.thread();
+        let thread = thread
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        thread
+            .entries()
+            .iter()
+            .filter_map(|e| match e {
+                atlas_acp_thread::AgentThreadEntry::ToolCall(call) => Some(call),
+                _ => None,
+            })
+            .filter_map(|call| {
+                let mut out = String::new();
+                for block in &call.content {
+                    if let atlas_acp_thread::ToolCallContent::Terminal(id) = block {
+                        out.push_str(&thread.terminal_output(id).unwrap_or_default());
+                    }
+                }
+                (!out.is_empty()).then_some(out)
+            })
+            .collect()
+    }
+
     fn thread(&self) -> atlas_acp_thread::AcpThreadHandle {
         self.threads
             .lock()
@@ -1203,6 +1230,49 @@ async fn control_an_approved_command_really_does_run() {
         marker.exists(),
         "an approved command did not run at all, so the cancel and retry tests \
          above prove nothing: they assert on a file that could never appear",
+    );
+}
+
+/// A command's output reaches the wire.
+///
+/// It is carried by a terminal now rather than a text block the sink rebuilt
+/// from everything printed so far — the shape the projector has a cheap path
+/// for, which is what stops a chatty command's cost growing with its own
+/// output. The unit tests beside `command_terminal_id` assert that shape; this
+/// runs a real command through a real engine turn and asserts the bytes come
+/// out the other end, so a terminal that was announced but never filled — or
+/// filled but never flattened — is a red test rather than an empty output pane.
+#[tokio::test]
+async fn a_commands_output_reaches_its_tool_call() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let command = "echo atlas-output-marker".to_string();
+
+    let h = harness_with(vec![
+        (Some(1), sse_ok(command_turn(&command))),
+        (None, sse_ok(assistant_turn("done"))),
+    ])
+    .await;
+    let session_id = h.open_thread_in(dir.path().to_path_buf()).await;
+
+    let connection = h.connection.clone();
+    let prompting = {
+        let session_id = session_id.clone();
+        tokio::spawn(async move {
+            connection
+                .prompt(acp::PromptRequest::new(session_id, text("echo it")))
+                .await
+        })
+    };
+
+    // `echo` is trusted, so no approval is asked for — and asking for one that
+    // never comes would just time out. Approval is the subject of the tests
+    // above; this one is about the bytes.
+    let _ = tokio::time::timeout(Duration::from_secs(60), prompting).await;
+
+    let results = h.tool_results();
+    assert!(
+        results.iter().any(|r| r.contains("atlas-output-marker")),
+        "the command's output never reached its tool call: {results:?}",
     );
 }
 
