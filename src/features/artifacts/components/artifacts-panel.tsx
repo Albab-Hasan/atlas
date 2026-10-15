@@ -810,6 +810,7 @@ export function ArtifactsPanel() {
                               <SessionChatPanel
                                 detail={detail}
                                 projectPath={open.projectPath}
+                                remoteProjectId={open.remoteProjectId ?? null}
                                 onClose={() => setChatOpen(false)}
                               />
                             )}

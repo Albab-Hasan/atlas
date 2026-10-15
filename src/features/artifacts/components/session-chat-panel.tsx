@@ -64,10 +64,14 @@ const STARTERS = [
 export function SessionChatPanel({
   detail,
   projectPath,
+  remoteProjectId,
   onClose,
 }: {
   detail: Detail;
   projectPath: string;
+  /** The server Project of a shared Session, so a question about a Session
+   *  that is not on this machine is grounded on the server's copy. */
+  remoteProjectId: string | null;
   onClose: () => void;
 }) {
   const sessionId = detail.summary.id;
@@ -110,8 +114,8 @@ export function SessionChatPanel({
   }, [init, byokLoaded, loadByok]);
 
   useEffect(() => {
-    void open(sessionId, projectPath, defaultScope(detail.entries));
-  }, [open, sessionId, projectPath]);
+    void open(sessionId, projectPath, defaultScope(detail.entries), remoteProjectId);
+  }, [open, sessionId, projectPath, remoteProjectId]);
 
   /** Only used to decide whether any provider is set up at all — the picker
    *  resolves which one on its own. */
