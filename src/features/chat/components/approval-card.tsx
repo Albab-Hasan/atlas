@@ -162,11 +162,12 @@ export function ApprovalCard({
         <div className="flex items-start gap-2.5">
           <CircleHelp className="mt-0.5 size-4 shrink-0 text-[var(--muted-foreground)]" />
           <div className="min-w-0 flex-1">
-            {q.header && (
-              <div className="text-2xs uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
-                {q.header}
-              </div>
-            )}
+            {/* `q.header` is deliberately not rendered. It is the question's
+                category ("Layout", "Features") and the question text below
+                already says what is being asked, so the eyebrow was a second,
+                shorter restatement sitting above it. It still travels on the
+                spec — `composeAnswers` names each answer by it when there is
+                more than one question, which is where it earns its keep. */}
             <div className="text-md font-medium leading-snug text-[var(--foreground)]">
               {q.question || "The agent has a question"}
             </div>
@@ -182,7 +183,12 @@ export function ApprovalCard({
         </div>
 
         {/* Options. */}
-        <div className="mt-3 flex flex-col gap-0.5 pl-[26px]">
+        {/* No left indent. Aligning these under the header's TEXT (past the
+            icon) cost 26px that the right-hand edge has no counterpart for, so
+            the options sat in a column noticeably further from their left
+            border than their numbers were from the right one. They now share
+            the card's own padding with everything else. */}
+        <div className="mt-3 flex flex-col gap-0.5">
           {q.options.map((o, i) => {
             const on = answer.selected.includes(o.label);
             return (
@@ -251,7 +257,7 @@ export function ApprovalCard({
 
         {/* Footer: back, dots, next/submit. */}
         <HintGroup side="top">
-          <div className="mt-5 flex items-center gap-3 pl-[26px]">
+          <div className="mt-5 flex items-center gap-3">
             <HintItem label="Previous question">
               <button
                 type="button"
