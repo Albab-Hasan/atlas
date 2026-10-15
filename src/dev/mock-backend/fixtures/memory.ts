@@ -1473,7 +1473,78 @@ export const memoryHandlers: TypedHandlers<MemoryResponses> = {
     conflicts: [],
     dreams: [],
   }),
-  memory_session_writes: (): SessionWrite[] => [],
+  // What the current chat session wrote, for the "Memory updated" block under
+  // the transcript. Every kind is represented, long names included: the block
+  // renders each kind as an icon, and the version before that gave the kind a
+  // fixed-width text column that `architecture` and `preference` overran into
+  // the content beside them. A `candidate` and an already-removed row cover
+  // the two states that change what the row offers.
+  memory_session_writes: (): SessionWrite[] => [
+    {
+      id: 901,
+      rev: 9010,
+      op: "insert",
+      kind: "architecture",
+      content:
+        "The web declares full theme token sets under `[data-theme=\"dark\"]` in CSS, while the desktop writes the active theme's variables at runtime, so inverted scopes must be generated in JS alongside the page's block in the same style element.",
+      state: "active",
+      at: ago(2),
+      live: true,
+    },
+    {
+      id: 902,
+      rev: 9020,
+      op: "insert",
+      kind: "preference",
+      content:
+        "Desktop rendering changes should mirror how the web does it; the web reference implementation lives in `~/Desktop/server`.",
+      state: "active",
+      at: ago(3),
+      live: true,
+    },
+    {
+      id: 903,
+      rev: 9030,
+      op: "insert",
+      kind: "failure",
+      content:
+        "lucide v1 dropped its brand icons, so GitHub/X marks must be inlined as SVG — a wrong-but-present glyph reads as a different product.",
+      state: "active",
+      at: ago(4),
+      live: true,
+    },
+    {
+      id: 904,
+      rev: 9040,
+      op: "insert",
+      kind: "decision",
+      content: "The comments side panel was retired, replaced by the footer comments morph.",
+      state: "active",
+      at: ago(5),
+      live: true,
+    },
+    {
+      id: 905,
+      rev: 9050,
+      op: "insert",
+      kind: "fact",
+      content:
+        "The desktop app has no localStorage equivalent for per-browser read state, so the comments panel ships All/Open tabs with no Unread tab.",
+      state: "candidate",
+      at: ago(6),
+      live: true,
+    },
+    {
+      id: 906,
+      rev: 9060,
+      op: "insert",
+      kind: "file_changed",
+      content: "src/features/memory/components/memory-updated-card.tsx",
+      state: "active",
+      at: ago(7),
+      live: false,
+    },
+  ],
   memory_promote: ({ projectPath, id }): boolean => {
     const entry = entriesFor(String(projectPath)).find((e) => e.id === Number(id));
     if (!entry) return false;

@@ -12,6 +12,7 @@ import { extractPlanMarkdown } from "../lib/plans";
 import { exitPlanOffersBypass } from "../lib/exit-plan-modes";
 import { composeAnswers, extractQuestions } from "../lib/questions";
 import { ApprovalCard, type Answer } from "./approval-card";
+import { ComposerDrawer } from "./composer-drawer";
 import type { PermissionOptionRef, PendingPermission } from "@/types/acp";
 import { type AgentType } from "@/types/agent";
 import { agentMeta } from "@/features/agents/lib/agent-meta";
@@ -335,14 +336,14 @@ function PermissionModalImpl({ tabId, onSendMessage }: PermissionModalProps) {
   // Esc still backs out via this modal's keyboard handler.
   if (questions) {
     return (
-      <div className="px-4 pt-2">
+      <ComposerDrawer>
         <ApprovalCard
           key={current.requestId}
           questions={questions}
           queueNote={queueNote}
           onSubmit={submitQuestionAnswers}
         />
-      </div>
+      </ComposerDrawer>
     );
   }
 
