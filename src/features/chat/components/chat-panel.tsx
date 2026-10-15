@@ -1592,16 +1592,17 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
           {/* Permission / question prompt — an inline card pinned above the
               composer (plan reviews still render as a centered modal). */}
           <PermissionModal tabId={tabId} onSendMessage={onPermissionSend} />
-          {pendingElicitation && (
-            <SessionElicitation
-              key={pendingElicitation.requestId}
-              pending={pendingElicitation}
-              onClose={() => {
-                clearAgentQuestion(tabId, pendingElicitation.requestId);
-                clearElicitation(tabId);
-              }}
-            />
-          )}
+          {/* Mounted whether or not a question is pending: the drawer inside
+              owns the enter AND exit animation, and a component the parent
+              unmounts cannot animate anything out. */}
+          <SessionElicitation
+            pending={pendingElicitation ?? null}
+            onClose={() => {
+              if (!pendingElicitation) return;
+              clearAgentQuestion(tabId, pendingElicitation.requestId);
+              clearElicitation(tabId);
+            }}
+          />
           {/* Bottom fade lives in the transcript; the centered floating
               row (setup pill + scroll-to-bottom) lives inside
               ChatComposer below. */}

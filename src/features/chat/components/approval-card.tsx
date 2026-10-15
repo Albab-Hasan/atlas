@@ -134,13 +134,30 @@ export function ApprovalCard({
 
   return (
     <div
-      // A card resting in the composer stack, not a menu: `shadow-md` is the
-      // menu elevation (0 16px 48px at 90%) and read as a black slab over the
-      // transcript. This sits between `shadow-sm` and that, with no step to name.
+      // Inset from the 720px column the composer and transcript share, so the
+      // question reads as a thing resting ON the conversation rather than as
+      // another row of it. Wide enough that an option's label and its
+      // description still sit on one line each, which is what the narrower
+      // version cost.
+      //
+      // `--popover`, not `--card`: this sits directly on the composer, whose
+      // field is `--background`, and `--card` is only one step from it in
+      // either appearance — close enough that the two read as one surface with
+      // a line through it. `--popover` is the lifted tone the rest of the
+      // chrome uses when something sits above something else, and it is the
+      // step that makes the card legible against the composer in both.
+      //
       // ratchet-allow: an in-flow raised card, softer than the menu elevation
-      className="mx-auto w-full max-w-[720px] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)] shadow-[0_8px_24px_rgba(0,0,0,0.35)]"
+      className="mx-auto w-full max-w-[650px] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--popover)] shadow-[0_8px_24px_rgba(0,0,0,0.35)]"
     >
-      <div className="px-4 pt-3.5 pb-4">
+      <div
+        // `pb-6` rather than matching `pt-3.5`: the card is deliberately
+        // bottom-heavy. Its last row is the footer's controls, and its bottom
+        // edge is tucked under the composer (see `ComposerDrawer`), so padding
+        // that looked even on its own left the next/submit button sitting on
+        // the join.
+        className="px-4 pt-3.5 pb-6"
+      >
         {/* Header: icon, question, step counter. */}
         <div className="flex items-start gap-2.5">
           <CircleHelp className="mt-0.5 size-4 shrink-0 text-[var(--muted-foreground)]" />
@@ -234,7 +251,7 @@ export function ApprovalCard({
 
         {/* Footer: back, dots, next/submit. */}
         <HintGroup side="top">
-          <div className="mt-4 flex items-center gap-3 pl-[26px]">
+          <div className="mt-5 flex items-center gap-3 pl-[26px]">
             <HintItem label="Previous question">
               <button
                 type="button"
