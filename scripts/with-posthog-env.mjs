@@ -63,9 +63,15 @@ console.log(
   `[with-posthog-env] PostHog key ${embedded ? "embedded from env/.env" : "not set — telemetry inert"}`,
 );
 
-const result = spawnSync(cmd, args, {
+// `shell: true` (needed on Windows so `tauri` resolves to `tauri.cmd`) makes
+// Node join the command and arguments with bare spaces for cmd.exe, so a part
+// containing a space — `C:\Program Files\nodejs\node.exe`, the default install
+// path — is split into `C:\Program`. Quote such parts ourselves.
+const win = process.platform === "win32";
+const quote = (part) => (win && /\s/.test(part) && !/^".*"$/.test(part) ? `"${part}"` : part);
+const result = spawnSync(quote(cmd), args.map(quote), {
   stdio: "inherit",
   env,
-  shell: process.platform === "win32",
+  shell: win,
 });
 process.exit(result.status ?? 1);
