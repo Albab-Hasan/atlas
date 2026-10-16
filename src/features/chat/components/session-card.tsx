@@ -198,7 +198,7 @@ function WorkingRing() {
       // is a continuous, deliberately slow rotation — the stock `animate-spin`
       // at 1s reads as "loading" rather than "working" — and no slow-spin
       // token exists. Reduced motion stops it.
-      className="size-3 shrink-0 animate-spin [animation-duration:3s] motion-reduce:animate-none"
+      className="size-2.5 shrink-0 animate-spin [animation-duration:3s] motion-reduce:animate-none"
     >
       <circle
         cx="8"
@@ -214,24 +214,93 @@ function WorkingRing() {
   );
 }
 
+/** Lucide's `circle-dashed-check`, drawn here.
+ *
+ *  It is not in the pinned lucide (1.41.0) — it landed later — and bumping the
+ *  icon set sixteen minors for one glyph risks every other icon in the app on
+ *  a rename. The arcs are lucide's own `circle-dashed`, verbatim, plus its
+ *  standard check, so it is the same mark the upgrade would eventually bring.
+ *
+ *  Its dashed ring deliberately echoes `WorkingRing` above: the thread that is
+ *  running and the thread that finished wear the same ring, one turning and
+ *  one closed by the check. */
+function CircleDashedCheck({ size = 12 }: { size?: number }) {
+  return (
+    <svg
+      aria-hidden
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="shrink-0"
+    >
+      <path d="M10.1 2.182a10 10 0 0 1 3.8 0" />
+      <path d="M13.9 21.818a10 10 0 0 1-3.8 0" />
+      <path d="M17.609 3.721a10 10 0 0 1 2.69 2.7" />
+      <path d="M2.182 13.9a10 10 0 0 1 0-3.8" />
+      <path d="M20.279 17.609a10 10 0 0 1-2.7 2.69" />
+      <path d="M21.818 10.1a10 10 0 0 1 0 3.8" />
+      <path d="M3.721 6.391a10 10 0 0 1 2.7-2.69" />
+      <path d="M6.391 20.279a10 10 0 0 1-2.69-2.7" />
+      <path d="m9 12 2 2 4-4" />
+    </svg>
+  );
+}
+
+/** "20h ago" → "20h Ago", "just now" → "Just Now", "20 May" → "20 May".
+ *
+ *  Per word, and only the first CHARACTER of each: upper-casing the whole
+ *  token would give "20H Ago", because `timeAgo`'s unit is glued to its
+ *  number. A token starting with a digit is left as it is, which is what
+ *  keeps the dates it falls back to past a week intact. */
+function titleCase(text: string): string {
+  return text.replace(/\S+/g, (word) => word[0]!.toUpperCase() + word.slice(1));
+}
+
 export type SessionLiveStatus = "running" | "waiting" | null;
 
 /** The visible status. Hidden from assistive tech: the open button carries a
- *  static description instead, so the hover swap and the per-second timer
- *  never chatter. */
+ *  static description instead, so the per-second timer never chatters.
+ *
+ *  Three states, each with its own colour, because the card's bottom-left is
+ *  the one place a glance can tell them apart: the agent is working (info), it
+ *  is blocked on the user (warning), or the thread is finished (success).
+ *  "Done" is named rather than left as a bare timestamp — a timestamp alone
+ *  reads as metadata, and the point of this row is that nothing is pending. */
 function StatusLabel({
   status,
   tabId,
   lastUpdated,
+  liveElsewhere,
 }: {
   status: SessionLiveStatus;
   tabId: string | null;
   lastUpdated: string | null;
+  /** Another process is writing this thread. It IS running, Atlas is just not
+   *  the one running it. */
+  liveElsewhere: boolean;
 }) {
   const startedAt = useTurnStartedAt(status === "running" ? tabId : null);
-  if (status === "running") {
+  // A thread another process is writing is a RUNNING thread, so it wears the
+  // running treatment rather than a mark of its own. It used to be a green
+  // dot beside whatever the status said — which on a finished-looking row
+  // read as a second, contradictory state ("Done", but with a live dot), and
+  // said nothing about what was actually happening.
+  //
+  // Only the duration differs: the turn clock is stamped by the chat store
+  // when THIS process starts a turn, so there is no start to count from for a
+  // turn running somewhere else. The label simply reads "Working".
+  if (status === "running" || liveElsewhere) {
     return (
-      <span className="flex items-center gap-1 text-2xs font-medium text-info">
+      <span
+        data-testid={status === "running" ? undefined : "live-elsewhere-working"}
+        title={liveElsewhere ? "Active in another process" : undefined}
+        className="flex items-center gap-1 text-3xs font-medium text-info"
+      >
         <WorkingRing />
         Working {startedAt !== null && <WorkingDuration startedAt={startedAt} />}
       </span>
@@ -239,21 +308,38 @@ function StatusLabel({
   }
   if (status === "waiting") {
     return (
-      <span className="flex items-center gap-1 text-2xs font-medium text-warning">
-        <span className="size-1.5 rounded-full bg-current" />
-        Needs input
+      <span className="flex items-center gap-1 text-3xs font-medium text-warning">
+        <span className="size-1 rounded-full bg-current" />
+        Needs Input
       </span>
     );
   }
+  const ago = timeAgo(lastUpdated, { suffix: true });
   return (
-    <span className="text-2xs tabular-nums text-muted-foreground">{timeAgo(lastUpdated)}</span>
+    <span className="flex items-center gap-1 text-3xs font-medium text-success">
+      <CircleDashedCheck size={11} />
+      Done
+      {ago && (
+        <>
+          <span aria-hidden className="text-success/50">
+            ·
+          </span>
+          <span className="tabular-nums">{titleCase(ago)}</span>
+        </>
+      )}
+    </span>
   );
 }
 
-function statusDescription(status: SessionLiveStatus, lastUpdated: string | null): string {
-  if (status === "running") return "Working";
+function statusDescription(
+  status: SessionLiveStatus,
+  lastUpdated: string | null,
+  liveElsewhere: boolean,
+): string {
+  if (status === "running" || liveElsewhere) return "Working";
   if (status === "waiting") return "Needs input";
-  return lastUpdated ? `Updated ${timeAgo(lastUpdated)}` : "";
+  const ago = timeAgo(lastUpdated, { suffix: true });
+  return ago ? `Done ${ago}` : "Done";
 }
 
 // ── Pull request ───────────────────────────────────────────────────────────
@@ -289,11 +375,11 @@ function PullRequestChip({
       aria-label={`${label} — open on GitHub`}
       title={label}
       className={cn(
-        "relative flex shrink-0 cursor-pointer items-center gap-0.5 rounded-sm text-2xs tabular-nums hover:underline",
+        "relative flex shrink-0 cursor-pointer items-center gap-0.5 rounded-sm text-3xs tabular-nums hover:underline",
         state?.className ?? "text-muted-foreground",
       )}
     >
-      <Icon size={11} aria-hidden />
+      <Icon size={10} aria-hidden />
       {pr.number}
     </button>
   );
@@ -303,17 +389,17 @@ function PullRequestChip({
 
 /** The mark of the agent that ran a thread. */
 export function SidebarAgentIcon({ agent }: { agent: SidebarAgent }) {
-  if (agent === "codex") return <CodexIcon className="size-3" />;
-  if (agent === "opencode") return <OpenCodeIcon className="size-3" />;
-  if (agent === "cursor") return <CursorIcon className="size-3" />;
-  if (agent === "kilo") return <KiloIcon className="size-3" />;
-  if (agent === "atlas-agent") return <AtlasIcon size={12} />;
-  if (agent === "claude") return <ClaudeIcon className="size-3" />;
+  if (agent === "codex") return <CodexIcon className="size-2.5" />;
+  if (agent === "opencode") return <OpenCodeIcon className="size-2.5" />;
+  if (agent === "cursor") return <CursorIcon className="size-2.5" />;
+  if (agent === "kilo") return <KiloIcon className="size-2.5" />;
+  if (agent === "atlas-agent") return <AtlasIcon size={10} />;
+  if (agent === "claude") return <ClaudeIcon className="size-2.5" />;
   const meta = agentMeta(agent);
   return meta.iconDataUrl ? (
-    <ExternalAgentIcon dataUrl={meta.iconDataUrl} size={12} />
+    <ExternalAgentIcon dataUrl={meta.iconDataUrl} size={10} />
   ) : (
-    <AgentMonogram label={meta.label} size={12} />
+    <AgentMonogram label={meta.label} size={10} />
   );
 }
 
@@ -370,25 +456,23 @@ export const SessionCard = memo(function SessionCard({
   const description = [
     showProject ? projectName : null,
     liveElsewhere ? "Active in another process" : null,
-    statusDescription(status, lastUpdated),
+    statusDescription(status, lastUpdated, liveElsewhere),
     branch,
     agentLabel,
   ]
     .filter(Boolean)
     .join(", ");
-  // The archive/delete actions take this slot's place on hover, so it is at
-  // least as wide as they are (two 20px buttons and their gap, less the 4px
-  // they sit further right): a short "2h" must not leave them over the title.
+  // Bottom-left: what the thread is doing. It no longer shares the title's row
+  // with the hover actions, so it no longer fades out under them — the actions
+  // are a floating pill over the title instead.
   const statusSlot = (
-    <span className="flex min-w-10 shrink-0 items-center justify-end gap-1 transition-opacity duration-fast group-hover:opacity-0 group-focus-within:opacity-0">
-      {liveElsewhere && (
-        <span
-          title="Active in another process"
-          data-testid="live-elsewhere-dot"
-          className="size-1.5 shrink-0 rounded-full bg-success"
-        />
-      )}
-      <StatusLabel status={status} tabId={liveTabId} lastUpdated={lastUpdated} />
+    <span className="flex shrink-0 items-center gap-1">
+      <StatusLabel
+        status={status}
+        tabId={liveTabId}
+        lastUpdated={lastUpdated}
+        liveElsewhere={liveElsewhere}
+      />
     </span>
   );
 
@@ -396,7 +480,9 @@ export const SessionCard = memo(function SessionCard({
     <div
       ref={ref}
       className={cn(
-        "group relative flex select-none flex-col gap-1.5 rounded-xl px-2.5 py-2 text-left transition-colors duration-fast",
+        // `rounded-md` is the scale's card step; `rounded-xl` is the dialog
+        // step, and at this size it read as a pill rather than a card.
+        "group relative flex select-none flex-col gap-1.5 rounded-md px-2.5 py-2 text-left transition-colors duration-fast",
         active
           ? "bg-element-selected ring-1 ring-foreground/10"
           : "bg-card ring-1 ring-foreground/5 hover:bg-element-hover",
@@ -410,7 +496,7 @@ export const SessionCard = memo(function SessionCard({
         aria-current={active || undefined}
         aria-label={title}
         aria-describedby={descriptionId}
-        className="absolute inset-0 cursor-pointer rounded-xl focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+        className="absolute inset-0 cursor-pointer rounded-md focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
       />
       <span id={descriptionId} className="sr-only">
         {description}
@@ -424,11 +510,14 @@ export const SessionCard = memo(function SessionCard({
           <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
             {projectName}
           </span>
-          {statusSlot}
         </div>
       )}
 
-      <div aria-hidden className="pointer-events-none flex min-w-0 items-start gap-2">
+      {/* Title, alone on its row. The actions float over its right end on
+          hover, so it reserves nothing for them — a permanent gutter cost
+          two words of every title to buy a strip that is empty most of the
+          time, and the pill below is opaque enough to sit on text. */}
+      <div aria-hidden className="pointer-events-none flex min-w-0 items-start">
         <span
           className={cn(
             "line-clamp-2 min-w-0 flex-1 text-sm leading-snug",
@@ -437,40 +526,47 @@ export const SessionCard = memo(function SessionCard({
         >
           {title}
         </span>
-        {!showProject && statusSlot}
       </div>
 
+      {/* Status on the left, where the thread's state is; who ran it on the
+          right.
+          The branch NAME is deliberately not here. The sidebar is scoped to one
+          project, so in practice every row named the same branch — a column of
+          identical text earning none of the width it cost. The branch is still
+          what the pull request is looked up by, and the chip is the part of it
+          that actually varies per row, so that stays. The separator went with
+          the name: it existed to part the branch from the agent, and there is
+          nothing left to part. */}
       <div className="pointer-events-none flex min-w-0 items-center gap-2">
-        <span
-          aria-hidden
-          className="min-w-0 flex-1 truncate font-mono text-2xs text-muted-foreground"
-        >
-          {branch ?? ""}
-        </span>
-        {branch && cwd && (
-          <span className="pointer-events-auto flex shrink-0">
-            <PullRequestChip cwd={cwd} branch={branch} enabled={seen} />
+        {statusSlot}
+        <span className="ml-auto flex shrink-0 items-center gap-1.5">
+          {branch && cwd && (
+            <span className="pointer-events-auto flex shrink-0">
+              <PullRequestChip cwd={cwd} branch={branch} enabled={seen} />
+            </span>
+          )}
+          <span
+            aria-hidden
+            className="flex shrink-0 items-center text-secondary-foreground"
+            title={agentLabel}
+          >
+            <SidebarAgentIcon agent={agent} />
           </span>
-        )}
-        <span
-          aria-hidden
-          className="flex shrink-0 items-center text-secondary-foreground"
-          title={agentLabel}
-        >
-          <SidebarAgentIcon agent={agent} />
         </span>
       </div>
 
-      {/* Hover actions (archive, delete) — they take the status's place. Both
-          work for every agent: the row is Atlas's, so neither depends on
+      {/* Hover actions (archive, delete), as a floating pill over the title's
+          right end — the same 24px dock the titlebar and the GitHub panel's
+          rows use. Opaque, so the title tail it covers does not show through.
+          Both work for every agent: the row is Atlas's, so neither depends on
           reaching the agent that produced it. */}
-      <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 opacity-0 transition-opacity duration-fast group-hover:opacity-100 group-focus-within:opacity-100">
+      <div className="absolute top-1.5 right-1.5 flex items-center gap-px rounded-full border border-border-subtle bg-card p-0.5 opacity-0 transition-opacity duration-fast group-hover:opacity-100 group-focus-within:opacity-100">
         <Hint label="Archive — keeps it in History">
           <button
             type="button"
             onClick={() => onArchive(threadId)}
             aria-label="Archive session"
-            className="flex size-control-xs items-center justify-center rounded-sm text-muted-foreground hover:bg-element-active hover:text-foreground"
+            className="flex size-control-xs items-center justify-center rounded-full text-muted-foreground hover:bg-element-active hover:text-foreground"
           >
             <Archive size={11} />
           </button>
@@ -480,7 +576,7 @@ export const SessionCard = memo(function SessionCard({
             type="button"
             onClick={() => onDelete(threadId)}
             aria-label="Delete session"
-            className="flex size-control-xs items-center justify-center rounded-sm text-muted-foreground hover:bg-element-active hover:text-error"
+            className="flex size-control-xs items-center justify-center rounded-full text-muted-foreground hover:bg-element-active hover:text-error"
           >
             <X size={11} />
           </button>

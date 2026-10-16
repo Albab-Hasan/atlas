@@ -141,12 +141,22 @@ describe("SessionCard", () => {
     useChatStore.setState({ sessions: savedSessions });
   });
 
-  it("shows the title, branch and the branch's pull request", async () => {
+  it("looks the pull request up by the branch without printing the branch", async () => {
+    // The sidebar is scoped to one project, so the branch name was the same
+    // text on every row. It is still what the PR is found by — and the PR
+    // number, which does vary, is what the row shows for it.
     renderCard();
     expect(screen.getByText("Add Model Picker Dropdown")).toBeTruthy();
-    expect(screen.getByText("0.4.0")).toBeTruthy();
+    expect(screen.queryByText("0.4.0")).toBeNull();
     expect(await screen.findByText("353")).toBeTruthy();
     expect(invoke).toHaveBeenCalledWith("git_repo_pull_requests", { path: "/repo/atlas" });
+  });
+
+  it("still names the branch for assistive tech, where it costs no width", () => {
+    renderCard();
+    const open = screen.getByRole("button", { name: "Add Model Picker Dropdown" });
+    const description = document.getElementById(open.getAttribute("aria-describedby")!);
+    expect(description?.textContent).toMatch(/0\.4\.0/);
   });
 
   it("names the project only when the thread belongs to another one", () => {
@@ -167,20 +177,33 @@ describe("SessionCard", () => {
     expect(document.body.textContent).toMatch(/atlas, /);
   });
 
-  it("marks a session another process is writing, for sight and for screen readers", () => {
+  it("shows a session another process is writing as working, not as a dot", () => {
+    // It IS running — Atlas just is not the one running it — so it wears the
+    // running treatment rather than a green dot beside a contradictory
+    // "Done". No duration: the turn clock is only stamped for turns this
+    // process starts.
     renderCard();
-    expect(screen.queryByTestId("live-elsewhere-dot")).toBeNull();
+    expect(screen.queryByTestId("live-elsewhere-working")).toBeNull();
     cleanup();
     renderCard({ liveElsewhere: true });
-    expect(screen.getByTestId("live-elsewhere-dot")).toBeTruthy();
+    const working = screen.getByTestId("live-elsewhere-working");
+    expect(working.textContent).toMatch(/^Working\s*$/);
+    expect(screen.queryByText("Done")).toBeNull();
     expect(document.body.textContent).toMatch(/Active in another process/);
   });
 
-  it("keeps the status on the title line when the project is not named", () => {
+  it("puts the status on the bottom row, not the title's", () => {
+    // The title owns its row outright — the hover actions float over its end
+    // rather than taking the status's place, which is what used to put the
+    // two on one line. Status sits bottom-left, with the branch and the agent
+    // opposite it.
     renderCard({ status: "waiting" });
-    const status = screen.getByText("Needs input");
+    const status = screen.getByText("Needs Input");
     const titleRow = screen.getByText("Add Model Picker Dropdown").parentElement!;
-    expect(titleRow.contains(status)).toBe(true);
+    expect(titleRow.contains(status)).toBe(false);
+    const bottomRow = status.closest("div")!;
+    expect(bottomRow.textContent).toMatch(/Needs Input/);
+    expect(bottomRow.textContent).toMatch(/Claude Code/);
   });
 
   it("asks once per repository, however many cards share it", async () => {
@@ -337,18 +360,43 @@ describe("SessionCard", () => {
     expect(screen.queryByText(/\ds$/)).toBeNull();
   });
 
-  it("says Needs input while it waits", () => {
+  it("says Needs Input while it waits", () => {
     renderCard({ status: "waiting" });
-    expect(screen.getByText("Needs input")).toBeTruthy();
+    expect(screen.getByText("Needs Input")).toBeTruthy();
     expect(screen.queryByText(/Working/)).toBeNull();
   });
 
-  it("shows how long ago it was updated when idle", () => {
+  it("says the thread is done, and how long ago, when nothing is running", () => {
+    // "Done · 3h ago", not a bare "3h": a timestamp on its own reads as
+    // metadata, where the point of this row is that nothing is pending.
     renderCard({ lastUpdated: new Date(Date.now() - 3 * 60 * 60_000).toISOString() });
     expect(screen.queryByText(/Working|Needs input/)).toBeNull();
+    expect(screen.getByText("Done")).toBeTruthy();
+    // Title Case: the indicator reads "Done · 3h Ago", not "3h ago".
+    expect(screen.getByText("3h Ago")).toBeTruthy();
+    expect(screen.queryByText("3h ago")).toBeNull();
     const open = screen.getByRole("button", { name: "Add Model Picker Dropdown" });
     const description = document.getElementById(open.getAttribute("aria-describedby")!);
-    expect(description?.textContent).toMatch(/^Updated .+, 0\.4\.0, /);
+    expect(description?.textContent).toMatch(/^Done 3h ago, 0\.4\.0, /);
+  });
+
+  it("title-cases every shape timeAgo returns, without mangling the unit", () => {
+    // Three different shapes come out of `timeAgo`, and each breaks a naive
+    // capitalisation differently: "just now" is two words, "3h ago" glues the
+    // unit to a digit (upper-casing the token gives "3H"), and past a week it
+    // is a date that must survive untouched.
+    renderCard({ lastUpdated: new Date(Date.now() - 30_000).toISOString() });
+    expect(screen.getByText("Just Now")).toBeTruthy();
+    cleanup();
+
+    renderCard({ lastUpdated: new Date(Date.now() - 3 * 60 * 60_000).toISOString() });
+    expect(screen.getByText("3h Ago")).toBeTruthy();
+    cleanup();
+
+    const old = new Date(Date.now() - 40 * 86_400_000);
+    renderCard({ lastUpdated: old.toISOString() });
+    const asDate = old.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+    expect(screen.getByText(asDate)).toBeTruthy();
   });
 
   it("hides the working ring from assistive tech and stops it under reduced motion", () => {

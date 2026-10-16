@@ -1,12 +1,10 @@
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
-import { useActionShortcut } from "@/features/keybindings/lib/use-action-shortcut";
 import { Fragment, memo, useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { Search, PanelLeft, Plus, History } from "lucide-react";
+import { ArrowUp, History, Search } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { HintGroup, HintItem } from "@/ui/hint-group";
 import { Hint } from "@/ui/tooltip";
-import { openNewAgentChat } from "@/features/chat/lib/open-agent-session";
+import { ScrollFade, useScrollEdges } from "@/ui/scroll-fade";
 import { isBusyAgentStatus, agentTypeFromPluginId } from "@/types/agent";
 import { pluginIdForAgent } from "@/types/agent";
 import { repoPullRequestsKey } from "@/features/git/lib/git-pr-api";
@@ -37,6 +35,38 @@ import { AGENT_TYPE_BY_SIDEBAR, sidebarAgentOf, type SidebarAgent } from "../lib
 
 /** A row's identity for the frozen order (and its React key). */
 const rowKey = (item: SidebarItem) => item.threadId;
+
+/** The list's edge fades. They ramp from the sidebar's own fill — fading from
+ *  `--background` here was a grey wash over the panel rather than an invisible
+ *  one. */
+const LIST_FADE = "from-[var(--sidebar)] via-[var(--sidebar)]/80";
+
+/** The way back to the newest thread, over the bottom of the list.
+ *
+ *  It rides ON the bottom fade, so it only ever sits over rows that are
+ *  already dimmed — and it is a pill with its own fill, which is what lets it
+ *  overlap them at all. */
+function JumpToLatest({ visible, onJump }: { visible: boolean; onJump: () => void }) {
+  return (
+    <div
+      className={cn(
+        "absolute inset-x-0 bottom-2 z-20 flex justify-center transition-opacity duration-200",
+        visible ? "opacity-100" : "pointer-events-none opacity-0",
+      )}
+    >
+      <button
+        type="button"
+        onClick={onJump}
+        tabIndex={visible ? 0 : -1}
+        aria-hidden={!visible}
+        className="flex h-control-xs cursor-pointer items-center gap-1 rounded-full border border-border-subtle bg-card px-2 text-2xs font-medium text-secondary-foreground shadow-md transition-colors hover:bg-element-hover hover:text-foreground"
+      >
+        <ArrowUp size={10} aria-hidden />
+        Jump to latest
+      </button>
+    </div>
+  );
+}
 /** The message of a failed query, for the error row. */
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -132,7 +162,6 @@ export const SessionSidebar = memo(function SessionSidebar({
   variant = "sidebar",
   onOpened,
 }: SessionSidebarProps) {
-  const sidebarHint = useActionShortcut("panels.agentSidebar")?.label;
   const asDropdown = variant === "dropdown";
   const queryClient = useQueryClient();
   const project = useAppStore.use.currentProject();
@@ -273,8 +302,7 @@ export const SessionSidebar = memo(function SessionSidebar({
   } = useChatStore.use.actions();
 
   const chatSidebar = useLayoutStore.use.chatSidebar();
-  const { toggleChatSidebar, setChatSidebarWidth, addTab, setActiveTab } =
-    useLayoutStore.use.actions();
+  const { setChatSidebarWidth, addTab, setActiveTab } = useLayoutStore.use.actions();
 
   const [search, setSearch] = useState("");
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -424,9 +452,17 @@ export const SessionSidebar = memo(function SessionSidebar({
     [filtered, projects],
   );
 
+  // The list is newest-first (Rust sorts by recency), so "latest" is the TOP
+  // of it and the way back is up — which is why the pill shows while there is
+  // something scrolled off above (`edges.top`) rather than below.
+  const listRef = useRef<HTMLDivElement>(null);
+  const edges = useScrollEdges(listRef, [filtered.length, search, isLoading]);
+  const jumpToLatest = useCallback(() => {
+    listRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
+
   // Singleton model: "New chat" always starts a fresh session in the CURRENT
   // tab (never a second tab). Shared with ⌘T / the palette / the context menu.
-  const handleNewChat = () => openNewAgentChat();
 
   const handleOpenAgent = (item: SidebarItem) => {
     const storeSnapshot = useChatStore.getState().sessions;
@@ -732,103 +768,88 @@ export const SessionSidebar = memo(function SessionSidebar({
         onOpenThread={(thread) => handleOpenAgent(itemFromThread(thread, thread.projectName))}
       />
 
-      {/* List */}
-      <div
-        data-testid="session-list"
-        className="flex flex-1 flex-col gap-1.5 overflow-y-auto p-2 hide-scrollbar"
-        {...frozenListProps}
-      >
-        {isLoading && <div className="px-1 py-1 text-xs text-muted-foreground">Loading…</div>}
-        {showError && (
-          <div role="alert" className="px-1 py-1 text-xs leading-relaxed text-error">
-            Couldn't load chats: {errorMessage(historyError)}
-          </div>
-        )}
-        {showEmpty && (
-          <div className="px-1 py-1 text-xs leading-relaxed text-muted-foreground">
-            {/* Names the scope: the list is this project's, so an empty one
+      {/* List. The wrapper is what the fades and the jump pill are positioned
+          against — inside the scroller they would scroll away with the rows.
+          `min-h-0` so the scroller actually scrolls instead of growing the
+          column past the panel. */}
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        <div
+          ref={listRef}
+          data-testid="session-list"
+          className="flex flex-1 flex-col gap-1.5 overflow-y-auto p-2 hide-scrollbar"
+          {...frozenListProps}
+        >
+          {isLoading && <div className="px-1 py-1 text-xs text-muted-foreground">Loading…</div>}
+          {showError && (
+            <div role="alert" className="px-1 py-1 text-xs leading-relaxed text-error">
+              Couldn't load chats: {errorMessage(historyError)}
+            </div>
+          )}
+          {showEmpty && (
+            <div className="px-1 py-1 text-xs leading-relaxed text-muted-foreground">
+              {/* Names the scope: the list is this project's, so an empty one
                 means "nothing here yet", not "no chats anywhere". Other
                 projects' chats are behind the History button in the header. */}
-            {search.trim() ? "No sessions match your search." : "No chats in this project yet."}
-          </div>
-        )}
-        {filtered.map((item, index) => {
-          const live = liveByKey.get(`${item.kind}:${item.id}`);
-          const { heading, showProject } = placements[index]!;
-          const card = (
-            <SessionCard
-              key={item.threadId}
-              threadId={item.threadId}
-              title={item.title}
-              projectName={item.projectName}
-              showProject={showProject}
-              branch={item.branch}
-              cwd={item.cwd}
-              lastUpdated={item.lastUpdated}
-              status={live?.status ?? null}
-              liveTabId={live?.tabId ?? null}
-              active={isActiveItem(item)}
-              agent={item.agent}
-              liveElsewhere={item.liveElsewhere}
-              onOpen={onOpenCard}
-              onArchive={onArchiveCard}
-              onDelete={onDeleteCard}
-            />
-          );
-          if (!heading) return card;
-          return (
-            <Fragment key={item.threadId}>
-              <div
-                role="heading"
-                aria-level={3}
-                className={cn(
-                  "-mx-2 truncate px-3 pt-1.5 pb-0.5 text-3xs font-medium uppercase tracking-wider text-muted-foreground",
-                  // Sticky in the sidebar, where the list sits on the opaque
-                  // sidebar fill; the dropdown's panel is translucent and
-                  // blurred, and a sticky fill there would punch through it.
-                  !asDropdown && "sticky top-0 z-panel bg-[var(--sidebar)]",
-                )}
-              >
-                {heading}
-              </div>
-              {card}
-            </Fragment>
-          );
-        })}
-      </div>
-
-      {/* Bottom mini-bar. Height matches the left panel's collapsed Git
-          strip (a 28px button + its 1px top border = 29px) so this
-          footer's top border lines up horizontally with the Git strip's. */}
-      <HintGroup side="top">
-        <div
-          className={cn(
-            "flex items-center justify-between px-1.5 h-[29px]",
-            // Same rule as the search row above: an opaque fill would punch a
-            // solid strip through the picker's blurred panel.
-            asDropdown
-              ? "border-t border-[var(--atlas-element-hover)]"
-              : "border-t border-[var(--border)] bg-[var(--sidebar)]",
+              {search.trim() ? "No sessions match your search." : "No chats in this project yet."}
+            </div>
           )}
-        >
-          <HintItem label={sidebarHint ? `Hide sidebar (${sidebarHint})` : "Hide sidebar"}>
-            <button
-              onClick={toggleChatSidebar}
-              className="flex items-center justify-center w-6 h-6 rounded text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--atlas-element-hover)] transition-colors cursor-pointer"
-            >
-              <PanelLeft size={12} />
-            </button>
-          </HintItem>
-          <HintItem label="New chat">
-            <button
-              onClick={handleNewChat}
-              className="flex items-center justify-center w-6 h-6 rounded text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--atlas-element-hover)] transition-colors cursor-pointer"
-            >
-              <Plus size={12} />
-            </button>
-          </HintItem>
+          {filtered.map((item, index) => {
+            const live = liveByKey.get(`${item.kind}:${item.id}`);
+            const { heading, showProject } = placements[index]!;
+            const card = (
+              <SessionCard
+                key={item.threadId}
+                threadId={item.threadId}
+                title={item.title}
+                projectName={item.projectName}
+                showProject={showProject}
+                branch={item.branch}
+                cwd={item.cwd}
+                lastUpdated={item.lastUpdated}
+                status={live?.status ?? null}
+                liveTabId={live?.tabId ?? null}
+                active={isActiveItem(item)}
+                agent={item.agent}
+                liveElsewhere={item.liveElsewhere}
+                onOpen={onOpenCard}
+                onArchive={onArchiveCard}
+                onDelete={onDeleteCard}
+              />
+            );
+            if (!heading) return card;
+            return (
+              <Fragment key={item.threadId}>
+                <div
+                  role="heading"
+                  aria-level={3}
+                  className={cn(
+                    "-mx-2 truncate px-3 pt-1.5 pb-0.5 text-3xs font-medium uppercase tracking-wider text-muted-foreground",
+                    // Sticky in the sidebar, where the list sits on the opaque
+                    // sidebar fill; the dropdown's panel is translucent and
+                    // blurred, and a sticky fill there would punch through it.
+                    !asDropdown && "sticky top-0 z-panel bg-[var(--sidebar)]",
+                  )}
+                >
+                  {heading}
+                </div>
+                {card}
+              </Fragment>
+            );
+          })}
         </div>
-      </HintGroup>
+
+        {/* Edge fades, and the way back to the top. Sidebar only: the
+            dropdown's panel is translucent and blurred, and an opaque
+            gradient over it punches a solid strip through the blur — the same
+            rule the search row and the sticky headings follow. */}
+        {!asDropdown && (
+          <>
+            <ScrollFade className={LIST_FADE} at="top" visible={edges.top} />
+            <ScrollFade className={LIST_FADE} at="bottom" visible={edges.bottom} />
+          </>
+        )}
+        <JumpToLatest visible={edges.top} onJump={jumpToLatest} />
+      </div>
 
       {/* Resize handle — subtle, matches main panel handles. The dropdown has
           its own fixed size, so it has nothing to resize. */}

@@ -40,7 +40,12 @@ import { adoptSession } from "../fake-agent";
 
 const nothing = () => null;
 
-const T0 = Date.parse("2026-09-17T09:12:00Z");
+// Anchored when the mock loads, not at a fixed instant. Everything `ago`
+// feeds is rendered as a RELATIVE time ("5m", "3h ago"), so a frozen anchor
+// does not freeze the fixture — it ages it, and every row that was meant to
+// read as "minutes ago" silently became an absolute date once a week had
+// passed. The deltas below are what is deterministic; the instant is not.
+const T0 = Date.now();
 const ago = (ms: number) => new Date(T0 - ms).toISOString();
 
 // ── chat history (ADR-0001: Atlas's own thread-metadata store) ─────────────
@@ -123,6 +128,88 @@ const THREADS: ThreadRow[] = [
     liveElsewhere: false,
     // Detached HEAD when it ran, so Atlas never learned a branch.
     branch: null,
+  },
+  {
+    threadId: "th-06",
+    sessionId: "sess-06",
+    agentId: "claude-code",
+    title: "Trim the first paint: the titlebar dock mounts before the theme resolves",
+    updatedAt: ago(2 * 3_600_000),
+    createdAt: ago(2 * 3_600_000),
+    archived: false,
+    projectName: MOCK_PROJECT.name,
+    folderPaths: [MOCK_PROJECT.path],
+    liveElsewhere: false,
+    // A branch nobody would size a column for. The card trims it rather than
+    // pushing the agent's mark off its own edge — the only row here that
+    // exercises that, and the reason it is this long.
+    branch: "adib/revert-the-codeindex-and-restore-the-mention-search-ranking",
+  },
+  {
+    threadId: "th-07",
+    sessionId: "sess-07",
+    agentId: "codex",
+    title: "Port the seatbelt profile to bubblewrap",
+    updatedAt: ago(7 * 3_600_000),
+    createdAt: ago(8 * 3_600_000),
+    archived: false,
+    projectName: MOCK_PROJECT.name,
+    folderPaths: [MOCK_PROJECT.path],
+    liveElsewhere: false,
+    branch: "feature/auth-v2",
+  },
+  {
+    threadId: "th-08",
+    sessionId: "sess-08",
+    agentId: "atlas-agent",
+    title: "Explain the delta wire's additive-only rule",
+    updatedAt: ago(19 * 3_600_000),
+    createdAt: ago(19 * 3_600_000),
+    archived: false,
+    projectName: MOCK_PROJECT.name,
+    folderPaths: [MOCK_PROJECT.path],
+    liveElsewhere: false,
+    branch: null,
+  },
+  {
+    threadId: "th-09",
+    sessionId: "sess-09",
+    agentId: "gemini-cli",
+    title: "Why is the terminal buffer re-rendering on every keystroke?",
+    updatedAt: ago(2 * 86_400_000),
+    createdAt: ago(2 * 86_400_000),
+    archived: false,
+    projectName: MOCK_PROJECT.name,
+    folderPaths: [MOCK_PROJECT.path],
+    liveElsewhere: false,
+    branch: "main",
+  },
+  {
+    threadId: "th-10",
+    sessionId: "sess-10",
+    agentId: "claude-code",
+    title: "Checkpoint restore drops the new-file blob",
+    updatedAt: ago(5 * 86_400_000),
+    createdAt: ago(5 * 86_400_000),
+    archived: false,
+    projectName: MOCK_PROJECT.name,
+    folderPaths: [MOCK_PROJECT.path],
+    liveElsewhere: false,
+    branch: "fix/checkpoint-blobs",
+  },
+  {
+    threadId: "th-11",
+    sessionId: "sess-11",
+    agentId: "atlas-agent",
+    // Older than a week, so `timeAgo` falls back to a date: "Done · 20 May".
+    title: "First pass at the memory briefing",
+    updatedAt: ago(12 * 86_400_000),
+    createdAt: ago(12 * 86_400_000),
+    archived: false,
+    projectName: MOCK_PROJECT.name,
+    folderPaths: [MOCK_PROJECT.path],
+    liveElsewhere: false,
+    branch: "main",
   },
 ];
 
