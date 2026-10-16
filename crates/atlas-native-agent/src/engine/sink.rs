@@ -8,7 +8,9 @@
 //! retry notices, compaction, plans, and tool calls — command executions
 //! (with live output), file changes (with locations, which is what feeds
 //! capture's write set and therefore Artifacts checkpoints), and MCP calls.
-//! What remains unmapped (sub-agent activity, image views, review-mode
+//! Sub-agents are mapped too: a v2 child's start from its `SubAgentActivity`
+//! on the parent, its end from the child's own `TurnCompleted`.
+//! What remains unmapped (v1 collab tool calls, image views, review-mode
 //! markers, web search items) is matched explicitly below and dropped with a
 //! trace rather than falling into a silent `_ => {}`, so an unmapped event is
 //! visible in a log instead of being invisible in the UI.
@@ -127,6 +129,20 @@ pub struct EngineSessions {
     /// ([`atlas_agent_servers::AskFirst::every_time`]): their card offers no
     /// "Allow for this session", and no allowance is ever kept for them.
     every_time: Mutex<HashMap<String, std::collections::HashSet<(String, String)>>>,
+    /// The subagents the sessions spawned, keyed by the CHILD's engine thread
+    /// id. The engine reports a v2 child's start on the parent
+    /// (`SubAgentActivity`) but its end only on the child's own thread — its
+    /// `TurnCompleted` — and `wait_agent` names no child at all. This is what
+    /// carries that end back to the parent's transcript.
+    children: Mutex<HashMap<String, SpawnedChild>>,
+}
+
+/// Where a spawned child's end is reported, and under which identity.
+struct SpawnedChild {
+    parent: acp::SessionId,
+    /// The detector's identity for the child (`native_id`): the end must name
+    /// the same path the start did, or the two are two rows.
+    agent_path: String,
 }
 
 /// How long a turn waits for its thread's host MCP servers to finish starting.
@@ -150,6 +166,10 @@ impl EngineSessions {
         // is bounded by live sessions rather than by every session the
         // process ever opened.
         sessions.retain(|_, session| session.thread.strong_count() > 0);
+        self.children
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .retain(|_, child| sessions.contains_key(&child.parent));
         sessions.insert(
             session_id,
             EngineSession {
@@ -364,6 +384,41 @@ impl EngineSessions {
             .is_some_and(|s| s.streamed.contains(item_id))
     }
 
+    /// Remembers the child a `Started` activity on `parent_thread_id` names,
+    /// so its end can be reported there. Anything else is ignored.
+    fn note_spawned_child(&self, parent_thread_id: &str, item: &ThreadItem) {
+        use atlas_engine_app_server_protocol::SubAgentActivityKind as K;
+        let ThreadItem::SubAgentActivity {
+            kind: K::Started,
+            agent_thread_id,
+            agent_path,
+            ..
+        } = item
+        else {
+            return;
+        };
+        self.children
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .insert(
+                agent_thread_id.clone(),
+                SpawnedChild {
+                    parent: session_id(parent_thread_id),
+                    agent_path: agent_path.clone(),
+                },
+            );
+    }
+
+    /// The parent session and agent path of the child running on
+    /// `child_thread_id`, if a session here spawned it.
+    fn spawned_child(&self, child_thread_id: &str) -> Option<(acp::SessionId, String)> {
+        self.children
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(child_thread_id)
+            .map(|child| (child.parent.clone(), child.agent_path.clone()))
+    }
+
     fn lock(&self) -> std::sync::MutexGuard<'_, HashMap<acp::SessionId, EngineSession>> {
         self.sessions
             .lock()
@@ -567,11 +622,7 @@ pub(crate) fn tool_call_of(item: &ThreadItem) -> Option<acp::ToolCall> {
                 K::Interacted => ("interacted", "Interact with"),
                 K::Interrupted => ("interrupted", "Interrupt"),
             };
-            let name = agent_path
-                .trim_end_matches('/')
-                .rsplit('/')
-                .next()
-                .unwrap_or(agent_path.as_str());
+            let name = subagent_name(agent_path);
             Some(
                 acp::ToolCall::new(id.clone(), format!("{verb} subagent {name}"))
                     .kind(acp::ToolKind::Other)
@@ -725,6 +776,64 @@ pub(crate) fn tool_call_of(item: &ThreadItem) -> Option<acp::ToolCall> {
 /// the switch: text passes through, a resource link contributes its URI, an
 /// embedded text resource contributes its text, and anything else is skipped
 /// rather than stringified into noise.
+/// The last segment of an agent path: `/root/counter` → `counter`.
+fn subagent_name(agent_path: &str) -> &str {
+    agent_path
+        .trim_end_matches('/')
+        .rsplit('/')
+        .next()
+        .unwrap_or(agent_path)
+}
+
+/// A spawned child's turn ending, as the lifecycle step that ends its row.
+///
+/// The same shape as [`tool_call_of`]'s `SubAgentActivity` arm, and as the
+/// external adapter for this engine's `Complete subagent …` call: the agent
+/// path is what makes it the same row as the start. A failed turn is a
+/// failed call, which the projection reads as a failed child; an interrupted
+/// one is the `interrupted` step. The child's last reply is the content, so
+/// the row carries what the child reported back.
+///
+/// `None` for a turn still in progress. Each of a child's turns ends with its
+/// own step (the id names the turn), since a parent can hand one child more
+/// work; the projection keeps the first terminal status it sees.
+pub(crate) fn subagent_end_of(
+    child_thread_id: &str,
+    agent_path: &str,
+    turn: &atlas_engine_app_server_protocol::Turn,
+) -> Option<acp::ToolCall> {
+    use atlas_engine_app_server_protocol::TurnStatus as S;
+    let (activity, verb, status) = match turn.status {
+        S::Completed => ("completed", "Complete", acp::ToolCallStatus::Completed),
+        S::Failed => ("completed", "Complete", acp::ToolCallStatus::Failed),
+        S::Interrupted => ("interrupted", "Interrupt", acp::ToolCallStatus::Completed),
+        S::InProgress => return None,
+    };
+    let name = subagent_name(agent_path);
+    let mut call = acp::ToolCall::new(
+        format!("subagent-end-{child_thread_id}-{}", turn.id),
+        format!("{verb} subagent {name}"),
+    )
+    .kind(acp::ToolKind::Other)
+    .status(status)
+    .raw_input(serde_json::json!({
+        "agentThreadId": child_thread_id,
+        "agentPath": agent_path,
+        "activityKind": activity,
+    }));
+    let reply = turn.items.iter().rev().find_map(|item| match item {
+        ThreadItem::AgentMessage { text, .. } if !text.trim().is_empty() => Some(text.clone()),
+        _ => None,
+    });
+    let report = reply.or_else(|| turn.error.as_ref().map(|e| e.message.clone()));
+    if let Some(text) = report {
+        call = call.content(vec![acp::ToolCallContent::Content(acp::Content::new(
+            owned_text_block(text),
+        ))]);
+    }
+    Some(call)
+}
+
 pub fn flatten_prompt(blocks: &[acp::ContentBlock]) -> String {
     let mut out = String::new();
     for block in blocks {
@@ -832,6 +941,7 @@ pub fn apply_notification(
             let Some(thread) = sessions.thread(&id) else {
                 return;
             };
+            sessions.note_spawned_child(&params.thread_id, &params.item);
             match &params.item {
                 ThreadItem::AgentMessage {
                     id: item_id, text, ..
@@ -899,6 +1009,7 @@ pub fn apply_notification(
             let Some(thread) = sessions.thread(&session) else {
                 return;
             };
+            sessions.note_spawned_child(&params.thread_id, &params.item);
             if let ThreadItem::ContextCompaction { id } = &params.item {
                 lock(&thread).upsert_context_compaction(
                     atlas_acp_thread::ContextCompactionId(id.as_str().into()),
@@ -963,7 +1074,18 @@ pub fn apply_notification(
 
         // The turn's outcome. This is what `prompt` is awaiting — without it a
         // prompt future never resolves and the composer stays spinning.
+        //
+        // A spawned child's turns arrive here too: the in-process server
+        // listens on every thread it creates, children included. A child's
+        // end is reported nowhere on the parent's thread — v2's `wait_agent`
+        // names no child — so this is where its row is closed.
         ServerNotification::TurnCompleted(params) => {
+            if let Some((parent, agent_path)) = sessions.spawned_child(&params.thread_id) {
+                let end = subagent_end_of(&params.thread_id, &agent_path, &params.turn);
+                if let (Some(thread), Some(call)) = (sessions.thread(&parent), end) {
+                    let _ = lock(&thread).upsert_tool_call(call);
+                }
+            }
             turns.complete(&params.thread_id, params.turn);
         }
 
@@ -1514,6 +1636,126 @@ mod command_output {
         fn terminal_output(&self, id: &str) -> Option<String> {
             lock(&self.thread).terminal_output(&command_terminal_id(id))
         }
+    }
+
+    /// v2 reports a child's start on the parent and its end only on the
+    /// child's own thread, and `wait_agent` names no child — so a native
+    /// child stayed "running" for the life of the session. Its own
+    /// `TurnCompleted` now closes the row, under the same agent path.
+    #[test]
+    fn a_spawned_childs_own_turn_ending_closes_its_row_on_the_parent() {
+        use atlas_acp_thread::subagent::{activity, Activity};
+        use atlas_acp_thread::AgentThreadEntry;
+        use atlas_engine_app_server_protocol::{
+            SubAgentActivityKind, Turn, TurnCompletedNotification, TurnStatus,
+        };
+
+        let f = fixture();
+        f.apply(ServerNotification::ItemStarted(ItemStartedNotification {
+            item: ThreadItem::SubAgentActivity {
+                id: "call-spawn".into(),
+                kind: SubAgentActivityKind::Started,
+                agent_thread_id: "child-1".into(),
+                agent_path: "/root/counter".into(),
+            },
+            thread_id: f.session.to_string(),
+            turn_id: "turn-1".into(),
+            started_at_ms: 0,
+        }));
+
+        let turn = |id: &str, status, text: &str| Turn {
+            id: id.into(),
+            items: vec![ThreadItem::AgentMessage {
+                id: format!("{id}-msg"),
+                text: text.into(),
+                phase: None,
+                memory_citation: None,
+            }],
+            items_view: Default::default(),
+            status,
+            error: None,
+            started_at: None,
+            completed_at: None,
+            duration_ms: None,
+        };
+        // A turn of a thread nobody spawned is not a child's.
+        f.apply(ServerNotification::TurnCompleted(
+            TurnCompletedNotification {
+                thread_id: "stranger".into(),
+                turn: turn("t-0", TurnStatus::Completed, "not mine"),
+            },
+        ));
+        f.apply(ServerNotification::TurnCompleted(
+            TurnCompletedNotification {
+                thread_id: "child-1".into(),
+                turn: turn("t-1", TurnStatus::Completed, "There are 42 files."),
+            },
+        ));
+
+        let thread = lock(&f.thread);
+        let calls: Vec<_> = thread
+            .entries()
+            .iter()
+            .filter_map(|entry| match entry {
+                AgentThreadEntry::ToolCall(call) => Some(call),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            calls.len(),
+            2,
+            "the start and the end, nothing for the stranger"
+        );
+        let end = calls[1];
+        assert_eq!(end.label, "Complete subagent counter");
+        assert_eq!(activity(end.raw_input.as_ref()), Some(Activity::Completed));
+        let identity = |call: &atlas_acp_thread::ToolCall| {
+            call.launched_subagent
+                .as_ref()
+                .and_then(|launch| launch.native_id.clone())
+        };
+        assert_eq!(identity(end), Some("/root/counter".to_owned()));
+        assert_eq!(identity(end), identity(calls[0]), "one child, one row");
+        assert!(
+            format!("{:?}", end.content).contains("There are 42 files."),
+            "the child's reply is what the row reports"
+        );
+    }
+
+    #[test]
+    fn subagent_end_steps_follow_the_turns_outcome() {
+        use atlas_acp_thread::subagent::{activity, Activity};
+        use atlas_engine_app_server_protocol::{Turn, TurnError, TurnStatus};
+
+        let turn = |status, error: Option<&str>| Turn {
+            id: "t".into(),
+            items: Vec::new(),
+            items_view: Default::default(),
+            status,
+            error: error.map(|message| TurnError {
+                message: message.into(),
+                atlas_engine_error_info: None,
+                additional_details: None,
+                retry_delay_ms: None,
+            }),
+            started_at: None,
+            completed_at: None,
+            duration_ms: None,
+        };
+        let end = |t| super::subagent_end_of("c", "/root/x", &t);
+
+        assert!(end(turn(TurnStatus::InProgress, None)).is_none());
+
+        let failed = end(turn(TurnStatus::Failed, Some("model refused"))).unwrap();
+        assert_eq!(failed.status, acp::ToolCallStatus::Failed);
+        assert!(format!("{:?}", failed.content).contains("model refused"));
+
+        let interrupted = end(turn(TurnStatus::Interrupted, None)).unwrap();
+        assert_eq!(
+            activity(interrupted.raw_input.as_ref()),
+            Some(Activity::Interrupted)
+        );
+        assert_eq!(interrupted.title, "Interrupt subagent x");
     }
 
     #[test]
