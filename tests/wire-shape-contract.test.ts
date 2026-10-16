@@ -342,3 +342,59 @@ describe("chat Message ↔ ChatMessage, and who wrote it (#6)", () => {
     expect(ts).toContain("other");
   });
 });
+
+describe("subagents: Rust Subagent ↔ the renderer's Subagent (#8)", () => {
+  // ACP has no subagent concept, so a subagent is read out of an ordinary
+  // tool call (`atlas_acp_thread::subagent`) and projected onto the delta
+  // wire. Two shapes have to agree, and they disagree in different cases:
+  //
+  //  - `Subagent` is `rename_all = "camelCase"`, so its Rust field names
+  //    reach the renderer camelCased.
+  //  - the wire `ToolCall` has NO rename, so its new `parent_tool_call_id`
+  //    arrives snake_cased and the renderer's own camelCase `ToolCall` only
+  //    gets it because `toChatToolCall` maps it across.
+  //
+  // Both are the silent-undefined failure this file exists for: the renderer
+  // would group every child under "no parent" and show nothing.
+  const types = read("crates", "atlas-agent-wire", "src", "types.rs");
+  const delta = read("crates", "atlas-agent-wire", "src", "delta.rs");
+  const wireTs = read("src", "types", "agents.ts");
+  const agentTs = read("src", "types", "agent.ts");
+  const store = read("src", "features", "chat", "stores", "chat-store.ts");
+
+  it("every Rust Subagent field is on the renderer's Subagent, camelCased", () => {
+    const rustFields = rustStructFields(rustItem(types, "struct", "Subagent").body);
+    expect(rustFields).toContain("tool_call_id");
+    expect(rustFields).toContain("status");
+    const ts = tsInterfaceProps(agentTs, "Subagent");
+    const missing = rustFields
+      .map((field) => field.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase()))
+      .filter((field) => !ts.includes(field));
+    expect(missing).toEqual([]);
+  });
+
+  it("every Rust SubagentStatus is a renderer SubagentStatus", () => {
+    const variants = rustEnumVariants(rustItem(types, "enum", "SubagentStatus").body).map(
+      pascalToSnake,
+    );
+    expect(variants).toEqual(["running", "completed", "failed", "interrupted"]);
+    const ts = tsUnionLiterals(agentTs, "SubagentStatus");
+    expect(variants.filter((v) => !ts.includes(v))).toEqual([]);
+  });
+
+  it("the subagent_upserted delta exists on both sides", () => {
+    expect(delta).toMatch(/SubagentUpserted\s*\{\s*subagent: Subagent,/);
+    expect(wireTs).toMatch(/kind: "subagent_upserted";/);
+  });
+
+  it("a tool call's parent link survives the wire's snake_case", () => {
+    expect(rustStructFields(rustItem(types, "struct", "ToolCall").body)).toContain(
+      "parent_tool_call_id",
+    );
+    // The wire-shaped TS declares what Rust actually sends …
+    expect(tsInterfaceProps(wireTs, "ToolCall")).toContain("parent_tool_call_id");
+    // … and the mapper is what turns it into the renderer's camelCase field.
+    expect(tsInterfaceProps(agentTs, "ToolCallDisplay")).toContain("parentToolCallId");
+    expect(store).toMatch(/parentToolCallId:\s*tc\.parent_tool_call_id/);
+  });
+});

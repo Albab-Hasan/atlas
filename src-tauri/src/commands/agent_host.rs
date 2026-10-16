@@ -158,6 +158,15 @@ pub struct SessionSnapshot {
     pub prompt_image_supported: bool,
     pub plan: Vec<PlanEntry>,
     pub messages: Vec<Message>,
+    /// The children this session delegated to, in launch order.
+    ///
+    /// Carried with the transcript, not separately: a subagent is read out of
+    /// a tool call, so a snapshot that had the calls but not the subagents
+    /// would show a reloaded session's delegated work as plain tool calls —
+    /// live and reloaded views of one session disagreeing, which is the
+    /// shape of ATL-224. Empty with `messages` for the metadata-only read.
+    #[serde(default)]
+    pub subagents: Vec<atlas_agent_delta::Subagent>,
     pub usage: Usage,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -1502,6 +1511,23 @@ impl AgentHost {
             plan: project::plan_entries(&thread.plan().entries),
             messages: if with_messages {
                 project::snapshot_messages(&thread, current_model.as_deref())
+            } else {
+                Vec::new()
+            },
+            subagents: if with_messages {
+                // The snapshot's message ids are positional (`msg-{ix}`), and
+                // `snapshot_messages` builds them the same way, so naming the
+                // entry's own index here points at the same message.
+                project::subagents(
+                    &thread,
+                    |ix| Some(format!("msg-{ix}")),
+                    |ix| {
+                        thread
+                            .entry_created_at(ix)
+                            .unwrap_or(created_at)
+                            .timestamp_millis()
+                    },
+                )
             } else {
                 Vec::new()
             },

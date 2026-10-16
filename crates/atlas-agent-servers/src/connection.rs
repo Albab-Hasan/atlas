@@ -867,6 +867,18 @@ pub fn client_capabilities_for_agent(_agent_id: &AgentId) -> acp::ClientCapabili
     let meta = acp::Meta::from_iter([
         ("terminal_output".into(), true.into()),
         ("terminal-auth".into(), true.into()),
+        // Ask for a subagent's own narration, which an adapter otherwise keeps
+        // inside the launching tool call — a row that runs for minutes saying
+        // nothing. The text arrives on this session, each chunk stamped with
+        // the launching call's id, which is how `atlas_acp_thread::subagent`
+        // attributes it. Deliberately not the RFD's
+        // `clientCapabilities.subagents`: that moves children onto their own
+        // ACP sessions and reports them with `subagent_update` session
+        // updates, which the v1 `SessionUpdate` enum cannot represent.
+        (
+            atlas_acp_thread::subagent::SUBAGENT_TRANSCRIPT_META_KEY.into(),
+            true.into(),
+        ),
     ]);
 
     acp::ClientCapabilities::new()

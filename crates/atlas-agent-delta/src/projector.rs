@@ -598,6 +598,10 @@ struct SessionProjection {
     new_permissions: Vec<(Uuid, PermissionKey)>,
     announced_elicitations: Vec<ElicitationEntryId>,
     new_elicitations: Vec<(Uuid, ElicitationKey)>,
+    /// Each subagent as last announced, by its launching call's id, so an
+    /// unchanged one is not re-sent. Like `plan`: the set is derived from the
+    /// thread on every tool-call change, and only what moved goes out.
+    subagents: HashMap<String, serde_json::Value>,
 }
 
 impl SessionProjection {
@@ -616,7 +620,44 @@ impl SessionProjection {
             new_permissions: Vec::new(),
             announced_elicitations: Vec::new(),
             new_elicitations: Vec::new(),
+            subagents: HashMap::new(),
         }
+    }
+
+    /// The subagent deltas for whatever the thread says now.
+    ///
+    /// Called after any change that can touch a tool call. Derived rather than
+    /// tracked: a launch is only recognisable once its `rawInput` has streamed
+    /// in, and a child's calls can be attributed to it by an update later than
+    /// the one that created them — so "what changed" is a question only the
+    /// current thread can answer.
+    fn sync_subagents(&mut self) -> Vec<SessionDelta> {
+        let thread = lock_thread(&self.thread);
+        let message_id_at = |ix: usize| match self.entries.get(ix) {
+            Some(Projected::ToolCall { message_id, .. }) => Some(message_id.clone()),
+            _ => None,
+        };
+        let started_at = |ix: usize| {
+            thread
+                .entry_created_at(ix)
+                .unwrap_or_else(chrono::Utc::now)
+                .timestamp_millis()
+        };
+        let current = project::subagents(&thread, message_id_at, started_at);
+        drop(thread);
+
+        let mut deltas = Vec::new();
+        for subagent in current {
+            let Ok(value) = serde_json::to_value(&subagent) else {
+                continue;
+            };
+            if self.subagents.get(&subagent.tool_call_id) == Some(&value) {
+                continue;
+            }
+            self.subagents.insert(subagent.tool_call_id.clone(), value);
+            deltas.push(SessionDelta::SubagentUpserted { subagent });
+        }
+        deltas
     }
 
     fn wrap(&self, deltas: Vec<SessionDelta>) -> Vec<SessionDeltaEnvelope> {
@@ -634,10 +675,15 @@ impl SessionProjection {
         match event {
             // New entries can also appear without an event of their own when a
             // later event refers to one, so both paths go through `sync`.
-            AcpThreadEvent::NewEntry => self.sync_entries(),
+            AcpThreadEvent::NewEntry => {
+                let mut deltas = self.sync_entries();
+                deltas.extend(self.sync_subagents());
+                deltas
+            }
             AcpThreadEvent::EntryUpdated(ix) => {
                 let mut deltas = self.sync_entries();
                 deltas.extend(self.update_entry(ix));
+                deltas.extend(self.sync_subagents());
                 deltas
             }
             AcpThreadEvent::EntriesRemoved(range) => {
@@ -676,6 +722,12 @@ impl SessionProjection {
                     }
                     true
                 });
+                // And its subagents. The rewind drops the launching calls, so
+                // leaving them here would both keep a finished child on screen
+                // and make a re-run of the same work look unchanged, so no
+                // delta would be sent for it.
+                self.subagents
+                    .retain(|tool_call_id, _| !removed.iter().any(|id| id == tool_call_id));
                 if turns > 0 {
                     deltas.push(SessionDelta::HistoryRewound { turns });
                 }

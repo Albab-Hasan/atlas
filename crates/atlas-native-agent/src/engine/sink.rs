@@ -541,6 +541,51 @@ fn command_of(item: &ThreadItem) -> Option<(&str, &str)> {
 /// last part: capture's write extraction reads it first.
 pub(crate) fn tool_call_of(item: &ThreadItem) -> Option<acp::ToolCall> {
     match item {
+        // A child the agent delegated to. The engine reports each thing that
+        // happens to one as its own item; Atlas renders it as a tool call
+        // whose `rawInput` names the child, which is what
+        // `atlas_acp_thread::subagent` reads to build a subagent row.
+        //
+        // The shape is deliberately the one the ACP adapter for this same
+        // engine puts on the wire (`{agentThreadId, agentPath,
+        // activityKind}`), so a native child and an external one are one case
+        // for every layer above this — detection, projection and the UI —
+        // rather than two.
+        //
+        // Before this the item fell through to `None`, so the native agent's
+        // children were invisible: no tool row, nothing to attribute a
+        // child's work to, and no subagent at all.
+        ThreadItem::SubAgentActivity {
+            id,
+            kind,
+            agent_thread_id,
+            agent_path,
+        } => {
+            use atlas_engine_app_server_protocol::SubAgentActivityKind as K;
+            let (activity, verb) = match kind {
+                K::Started => ("started", "Start"),
+                K::Interacted => ("interacted", "Interact with"),
+                K::Interrupted => ("interrupted", "Interrupt"),
+            };
+            let name = agent_path
+                .trim_end_matches('/')
+                .rsplit('/')
+                .next()
+                .unwrap_or(agent_path.as_str());
+            Some(
+                acp::ToolCall::new(id.clone(), format!("{verb} subagent {name}"))
+                    .kind(acp::ToolKind::Other)
+                    // The activity is a fact about the child, not work the
+                    // user waits on: the engine has already done it by the
+                    // time the item arrives.
+                    .status(acp::ToolCallStatus::Completed)
+                    .raw_input(serde_json::json!({
+                        "agentThreadId": agent_thread_id,
+                        "agentPath": agent_path,
+                        "activityKind": activity,
+                    })),
+            )
+        }
         ThreadItem::CommandExecution {
             id,
             command,
@@ -1030,6 +1075,49 @@ fn notification_name(notification: &ServerNotification) -> String {
 
 #[cfg(test)]
 mod tests {
+
+    /// The native agent's children reach the ACP surface in the same shape
+    /// the external adapter for this engine puts on the wire, so one
+    /// detection rule serves both (`atlas_acp_thread::subagent`). The item
+    /// used to fall through to `None`, which made native children invisible.
+    #[test]
+    fn a_subagent_activity_becomes_a_tool_call_the_detector_reads() {
+        use atlas_engine_app_server_protocol::SubAgentActivityKind as K;
+
+        let item = |kind| ThreadItem::SubAgentActivity {
+            id: "sa-1".to_string(),
+            kind,
+            agent_thread_id: "thr-9".to_string(),
+            agent_path: "/root/code_reviewer".to_string(),
+        };
+
+        let call = tool_call_of(&item(K::Started)).expect("a tool call");
+        assert_eq!(call.title, "Start subagent code_reviewer");
+        let input = call.raw_input.clone().expect("the child is named");
+        assert_eq!(input["agentPath"], "/root/code_reviewer");
+        assert_eq!(input["agentThreadId"], "thr-9");
+        assert_eq!(input["activityKind"], "started");
+
+        // And the detector reads it, which is the whole point of the shape.
+        let launch = atlas_acp_thread::subagent::launch_of(
+            None,
+            Some(call.title.as_str()),
+            call.raw_input.as_ref(),
+            None,
+        )
+        .expect("the detector recognises a native child");
+        assert_eq!(launch.name, "Code reviewer");
+        assert_eq!(launch.native_id.as_deref(), Some("/root/code_reviewer"));
+
+        for (kind, expected) in [
+            (K::Started, "started"),
+            (K::Interacted, "interacted"),
+            (K::Interrupted, "interrupted"),
+        ] {
+            let call = tool_call_of(&item(kind)).expect("a tool call");
+            assert_eq!(call.raw_input.unwrap()["activityKind"], expected);
+        }
+    }
 
     /// The context gauge reads `last`; every cumulative figure reads `total`.
     /// Mixing them is what made the percentage climb past 100% and keep going.

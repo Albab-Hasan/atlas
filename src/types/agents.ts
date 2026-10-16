@@ -1,4 +1,4 @@
-import type { ToolContentBlock } from "@/types/agent";
+import type { Subagent, ToolContentBlock } from "@/types/agent";
 
 // Wire shapes for the `atlas-agents` Rust surface. These mirror
 // `crates/atlas-agents/src/{session,events,plugin,manager}.rs` — keep in sync
@@ -41,6 +41,9 @@ export interface ToolCall {
   locations: unknown[];
   /** Structural content blocks (P1.4). Omitted by Rust when empty. */
   content_blocks?: ToolContentBlock[];
+  /** The subagent launch this call belongs to, when the agent attributed it.
+   *  Omitted by Rust for the parent's own work, which is almost every call. */
+  parent_tool_call_id?: string;
 }
 
 export interface PlanEntry {
@@ -150,6 +153,11 @@ export interface SessionSnapshot {
   prompt_image_supported: boolean;
   plan: PlanEntry[];
   messages: SessionMessage[];
+  /** Children this session delegated to, in launch order. Carried with the
+   *  transcript — a reloaded session whose subagents were dropped would show
+   *  the same delegated work as plain tool calls. Empty on the metadata-only
+   *  read (`agents_snapshot_meta`), like `messages`. */
+  subagents?: Subagent[];
   usage: Usage;
   created_at: string;
   updated_at: string;
@@ -238,6 +246,14 @@ export type AgentDelta =
       message_id: string;
       tool_call_id: string;
       delta: string;
+    }
+  | {
+      // A subagent was launched, made progress, or ended. The full snapshot
+      // travels, like `tool_call_upserted`, so nothing has to merge fields.
+      kind: "subagent_upserted";
+      agent_id: AgentId;
+      session_id: AcpSessionId;
+      subagent: Subagent;
     }
   | {
       kind: "plan_updated";

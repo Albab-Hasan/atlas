@@ -1730,6 +1730,7 @@ mod tests {
                 locations: vec![],
                 raw_output: None,
                 content_blocks: vec![],
+                parent_tool_call_id: None,
             };
         assert!(is_external(&call("WebFetch", None, Some("fetch"))));
         assert!(is_external(&call("WebSearch", None, None)));

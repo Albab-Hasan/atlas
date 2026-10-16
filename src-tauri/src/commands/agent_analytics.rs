@@ -428,6 +428,7 @@ mod tests {
             result: None,
             raw_output: None,
             content_blocks: Vec::new(),
+            parent_tool_call_id: None,
             locations: Vec::new(),
         }
     }

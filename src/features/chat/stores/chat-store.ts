@@ -304,6 +304,10 @@ function toChatToolCall(tc: AgentToolCall): ChatMessage["toolCalls"][number] {
     // Only present when the agent reported a diff/terminal block; the Rust
     // side omits the field entirely when empty.
     contentBlocks: tc.content_blocks,
+    // Only present when the agent said this call belongs to a subagent, which
+    // is the only thing distinguishing a child's work from its parent's: both
+    // arrive on one session, interleaved.
+    parentToolCallId: tc.parent_tool_call_id,
     status:
       tc.status === "pending"
         ? "pending"
