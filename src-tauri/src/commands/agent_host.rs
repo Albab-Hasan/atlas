@@ -990,17 +990,40 @@ impl AgentHost {
     /// session id".
     pub fn restart_for_update(&self, plugin_id: &str, version: &str) -> Result<()> {
         let agent = self.agent_for(plugin_id)?;
+        self.disconnect_chats(
+            &agent,
+            &format!("updated to v{version}; the next message reconnects"),
+        );
+        self.kill_agent(plugin_id, &agent);
+        Ok(())
+    }
+
+    /// `agent`'s process exited and the manager dropped its connection
+    /// (`AgentManagerEvent::ConnectionExited`).
+    ///
+    /// The manager forgot the sessions; the host and the tabs still held
+    /// them, so a tab's next message went to a session id the respawned agent
+    /// had never heard of and failed with "unknown session id". The same
+    /// notice as an update restart lets each tab rebind instead.
+    pub fn agent_exited(&self, agent: &Agent) {
+        let plugin_id = Self::plugin_id_of(agent);
+        self.disconnect_chats(agent, "the agent stopped; the next message reconnects");
+        self.forget_request_elicitations(&ThreadAgentId::new(plugin_id.as_str()));
+        self.forget_sessions_of(agent);
+    }
+
+    /// Tell every open chat on `agent` it is disconnected, then close its
+    /// projection: the tab rebinds (respawn + `session/load`) on its next send
+    /// with its transcript intact.
+    fn disconnect_chats(&self, agent: &Agent, reason: &str) {
         let sessions: Vec<String> = lock(&self.sessions)
             .iter()
-            .filter(|(_, record)| record.agent == agent)
+            .filter(|(_, record)| &record.agent == agent)
             .map(|(id, _)| id.clone())
             .collect();
         for id in &sessions {
             let session_id = acp::SessionId::new(id.as_str());
-            self.projector.note_agent_disconnected(
-                &session_id,
-                format!("updated to v{version}; the next message reconnects"),
-            );
+            self.projector.note_agent_disconnected(&session_id, reason);
             // The projection holds the session's only strong thread handle,
             // and through it the connection: left in place, the old process
             // outlives the restart until the tab closes — while the update
@@ -1008,8 +1031,6 @@ impl AgentHost {
             // lets the process go now. After the notice, which needs it.
             self.projector.close_session(&session_id);
         }
-        self.kill_agent(plugin_id, &agent);
-        Ok(())
     }
 
     /// Drop the native agent's connection, if one is open.
@@ -3958,6 +3979,35 @@ mod tests {
 
         host.kill(agent_id).expect("kill");
 
+        assert_eq!(record.sessions().unwrap()[0].ended_at, Some(200));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The manager evicting an agent whose process died (`ConnectionExited`)
+    /// must take its sessions out of the host too. Left in, the tab's next
+    /// message went to a session id the respawned agent never knew and failed
+    /// with "unknown session id"; forgotten (after the disconnect notice), the
+    /// tab rebinds through `session/load` instead.
+    #[tokio::test]
+    async fn an_evicted_agents_sessions_are_forgotten_so_the_tab_rebinds() {
+        let (host, dir, project, record) = recording_host(LiveNative::new("s-evict"));
+        let agent_id = host.spawn(ATLAS_AGENT_ID).await.expect("spawn").agent_id;
+        host.new_session(agent_id, project.clone(), Vec::new())
+            .await
+            .expect("a session opens");
+        assert!(
+            lock(&host.sessions).contains_key("s-evict"),
+            "precondition: the host holds the session"
+        );
+
+        // What the manager's event triggers; the manager has already
+        // forgotten the session on its side by then.
+        host.agent_exited(&Agent::Native);
+
+        assert!(
+            !lock(&host.sessions).contains_key("s-evict"),
+            "the host must not keep a session the dead process owned"
+        );
         assert_eq!(record.sessions().unwrap()[0].ended_at, Some(200));
         let _ = std::fs::remove_dir_all(&dir);
     }

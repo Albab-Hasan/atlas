@@ -996,6 +996,9 @@ pub fn install_manager(app: &AppHandle) {
                             }),
                         );
                     }
+                    Ok(AgentManagerEvent::ConnectionExited { agent }) => {
+                        host.agent_exited(&agent);
+                    }
                     Ok(AgentManagerEvent::ConnectionFailed {
                         agent: Agent::Custom { id },
                         error: atlas_acp_thread::LoadError::TimedOut { phase, after, .. },

@@ -176,6 +176,13 @@ pub enum AgentManagerEvent {
     },
     /// The set of connections changed — one was added, dropped, or uninstalled.
     ConnectionsChanged,
+    /// A connected agent's process exited and its connection was dropped
+    /// (`evict_when_exited`). The manager has forgotten its sessions; whoever
+    /// holds them above it has to tell their chats, or each one's next message
+    /// goes to a session id the respawned agent has never heard of.
+    ConnectionExited {
+        agent: Agent,
+    },
 }
 
 /// How a stored session came back.
@@ -724,6 +731,7 @@ impl AgentManager {
             }
             tracing::warn!(agent = ?key, "the agent process exited; its connection was dropped");
             this.forget_sessions_for(&key);
+            this.emit(AgentManagerEvent::ConnectionExited { agent: key });
             this.emit(AgentManagerEvent::ConnectionsChanged);
         });
     }
