@@ -1259,3 +1259,48 @@ async fn a_cancel_racing_the_prompt_is_still_seen() {
         .expect("a cancelled turn is a normal stop, not an error");
     assert_eq!(response.stop_reason, acp::StopReason::Cancelled);
 }
+
+/// The other half of the stuck start: the agent answers `initialize` and
+/// then never answers `session/new`. The fake agent is exactly that — it
+/// completes the handshake and sits — so the bind path's own deadline for
+/// the hop is what this pins, at its value, with the phase named.
+/// The clock is paused only AFTER the handshake: a paused runtime treats
+/// waiting on the child's stdout as idle and jumps straight to the initialize
+/// deadline, before a real python process can answer. Once connected, the
+/// child will never write again, so from there the jump is to the right timer.
+#[tokio::test]
+async fn an_agent_that_never_answers_session_new_times_out_at_the_deadline() {
+    let Some(command) = fake_agent_command(1) else {
+        eprintln!("skipping: no python3 on this machine");
+        return;
+    };
+    use atlas_acp_thread::AgentConnection as _;
+    let connection = Arc::new(connect(command).await.expect("the handshake completes"));
+
+    tokio::time::pause();
+    let started = tokio::time::Instant::now();
+    let error = match connection.new_session(vec![std::env::temp_dir()]).await {
+        Ok(_) => panic!("a session/new nobody answers must fail, not park the bind"),
+        Err(error) => error,
+    };
+    let elapsed = started.elapsed();
+
+    let load_error = error
+        .downcast_ref::<LoadError>()
+        .expect("expected a LoadError the manager can carry");
+    match load_error {
+        LoadError::TimedOut { phase, after, .. } => {
+            assert_eq!(
+                phase.as_ref(),
+                "session/new",
+                "the hop that stalled is named"
+            );
+            assert_eq!(after.to_owned(), REQUEST_TIMEOUT);
+        }
+        other => panic!("expected TimedOut, got {other:?}"),
+    }
+    assert!(
+        elapsed >= REQUEST_TIMEOUT && elapsed < REQUEST_TIMEOUT * 2,
+        "gave up after {elapsed:?}, not at the {REQUEST_TIMEOUT:?} deadline"
+    );
+}

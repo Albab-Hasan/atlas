@@ -651,12 +651,14 @@ impl AgentManager {
                     if !this.is_current(&key, &entry) {
                         return;
                     }
+                    let connection = state.connection.clone();
                     let mut slot = lock(&entry);
                     if matches!(&*slot, AgentConnectionEntry::Connecting { .. }) {
                         *slot = AgentConnectionEntry::Connected(state);
                     }
                     drop(slot);
-                    this.emit(AgentManagerEvent::Connected { agent: key });
+                    this.emit(AgentManagerEvent::Connected { agent: key.clone() });
+                    this.evict_when_exited(key, entry, connection);
                 }
                 Err(error) => {
                     // Checked, marked and dropped under one `entries` guard.
@@ -682,6 +684,47 @@ impl AgentManager {
                     this.emit(AgentManagerEvent::ConnectionsChanged);
                 }
             }
+        });
+    }
+
+    /// Drop the entry the moment its process exits.
+    ///
+    /// A connection's child dying used to reach only the sessions open on it
+    /// (`emit_load_error`); the manager kept the entry as `Connected`, so the
+    /// next request — a new tab, a prewarm, the sidebar sync — was handed a
+    /// transport with nobody behind it and waited out `REQUEST_TIMEOUT` to
+    /// learn so. With zero sessions open nothing ever told the manager at
+    /// all. Now the exit evicts, and the next request starts fresh.
+    fn evict_when_exited(
+        self: &Arc<Self>,
+        key: Agent,
+        entry: Entry,
+        connection: Arc<dyn AgentConnection>,
+    ) {
+        let this = Arc::downgrade(self);
+        let entry = Arc::downgrade(&entry);
+        tokio::spawn(async move {
+            connection.exited().await;
+            let Some(this) = this.upgrade() else {
+                return;
+            };
+            let Some(entry) = entry.upgrade() else {
+                return;
+            };
+            {
+                let mut entries = this.lock_entries();
+                let current = entries
+                    .get(&key)
+                    .is_some_and(|current| Arc::ptr_eq(current, &entry));
+                // Replaced already (a restart, an uninstall): not ours to drop.
+                if !current || !matches!(&*lock(&entry), AgentConnectionEntry::Connected(_)) {
+                    return;
+                }
+                entries.remove(&key);
+            }
+            tracing::warn!(agent = ?key, "the agent process exited; its connection was dropped");
+            this.forget_sessions_for(&key);
+            this.emit(AgentManagerEvent::ConnectionsChanged);
         });
     }
 

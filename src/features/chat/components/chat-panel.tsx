@@ -11,7 +11,7 @@ import { useDetailPanelStore } from "../stores/detail-panel-store";
 import { appendNextStepsDirective } from "../lib/next-steps";
 import { stripInjectedContext } from "../lib/atlas-context";
 import { agents, ensureAgent, resetAgent } from "../lib/agents-api";
-import { isDeadlineError, withDeadline } from "../lib/with-deadline";
+import { isDeadlineError, progressSince, withDeadline } from "../lib/with-deadline";
 import { drainEdge } from "../lib/drain-gate";
 import { isSendHeldElsewhere, useSendHeldForTerminal } from "../stores/live-elsewhere-store";
 import { CHAT_STOP_EVENT, cycleChatAgent, isSwitchPending } from "../lib/switch-agent";
@@ -454,11 +454,13 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
             `${label} has not finished connecting`,
             // A first run downloads Node and `npm install`s the adapter, which
             // can outlast the deadline on a slow disk or connection (Defender
-            // scanning node_modules on Windows). While the manager still reports
-            // install progress the connect is alive: killing it restarts the
-            // install from scratch, forever. The backend's own connect ceiling
-            // still ends a real hang.
-            () => !!useChatStore.getState().agentStartingStatus[pluginId],
+            // scanning node_modules on Windows). While the install keeps
+            // restating its status (it ticks with the elapsed time) the job
+            // is alive and the deadline re-arms; a status that stops moving
+            // is a hang, and the deadline fires. Either way the install
+            // itself is a backend job that outlives this connect, so a
+            // retry joins it rather than restarting it.
+            progressSince(() => useChatStore.getState().agentStartingStatus[pluginId]),
           ),
           label,
           tabId,
