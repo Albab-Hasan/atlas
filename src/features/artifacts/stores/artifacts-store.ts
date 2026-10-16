@@ -10,6 +10,7 @@
 
 import { create } from "zustand";
 import { createSelectors } from "@/lib/create-selectors";
+import type { ProjectFilter } from "../types";
 
 /** Which Session the board is showing, and where inside it to land. */
 export interface OpenSession {
@@ -28,11 +29,11 @@ export interface OpenSession {
 interface ArtifactsState {
   /** The open Session, with the project whose store holds it. */
   open: OpenSession | null;
-  /** Project path the board is narrowed to, or `null` for every project. */
-  projectFilter: string | null;
+  /** The Project the board is narrowed to, or `null` for every project. */
+  projectFilter: ProjectFilter | null;
   actions: {
     openSession: (open: OpenSession | null) => void;
-    setProjectFilter: (projectPath: string | null) => void;
+    setProjectFilter: (filter: ProjectFilter | null) => void;
   };
 }
 

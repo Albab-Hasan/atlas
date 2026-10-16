@@ -1826,8 +1826,42 @@ pub(crate) fn remote_summary(
 /// every refresh to render a screenful.
 const BOARD_LIMIT: usize = 500;
 
+/// What the board is narrowed to, if anything.
+///
+/// Keyed on what the row can actually be found by. A Project with a checkout
+/// here is its folder; one the Organisation has and this machine does not has
+/// no folder at all, only its server id — and before this existed it could not
+/// be chosen, so a teammate's Project was visible on the board but not
+/// filterable to.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum BoardFilter {
+    /// A checkout on this machine, by path.
+    Local(String),
+    /// A server Project with no checkout here, by its id.
+    Remote(String),
+}
+
+/// Whether a remote row belongs on the board.
+///
+/// Unfiltered, everything the Organisation has does. Filtered, only the
+/// narrowed Project's rows: `bound` holds the server ids of the checkouts that
+/// were read, which for a local filter is that one folder's binding — and for
+/// an unbound folder is empty, because no server row can be its.
+fn keep_remote(filter: Option<&BoardFilter>, bound: &HashSet<String>, workspace_id: &str) -> bool {
+    match filter {
+        None => true,
+        Some(BoardFilter::Local(_)) => bound.contains(workspace_id),
+        Some(BoardFilter::Remote(id)) => id == workspace_id,
+    }
+}
+
 #[tauri::command]
-pub async fn artifacts_board(projects: Vec<String>, app: AppHandle) -> Result<BoardPage, String> {
+pub async fn artifacts_board(
+    projects: Vec<String>,
+    filter: Option<BoardFilter>,
+    app: AppHandle,
+) -> Result<BoardPage, String> {
     // Read the cloud cache first, on this thread: it is a lock and a clone, and
     // taking it before the blocking hop keeps the `AppHandle` out of there.
     //
@@ -1845,11 +1879,23 @@ pub async fn artifacts_board(projects: Vec<String>, app: AppHandle) -> Result<Bo
     let remote_ids: HashSet<String> = remote.keys().map(|(_, id)| id.clone()).collect();
 
     tauri::async_runtime::spawn_blocking(move || {
-        // One project means the board is filtered, and the caller wants that
-        // project's history rather than a slice of the newest across all of
-        // them — so the cap does not apply.
-        let single = projects.len() == 1;
-        let limit = if single { usize::MAX } else { BOARD_LIMIT };
+        // A filtered board wants that Project's history rather than a slice of
+        // the newest across all of them — so the cap does not apply.
+        //
+        // The filter is explicit rather than inferred from `projects.len() == 1`:
+        // a developer with exactly one folder open is NOT filtering, and must
+        // still see the rest of the Organisation's Projects.
+        let limit = if filter.is_some() {
+            usize::MAX
+        } else {
+            BOARD_LIMIT
+        };
+        let projects = match &filter {
+            None => projects,
+            Some(BoardFilter::Local(path)) => vec![path.clone()],
+            // No checkout to read; the rows are all on the server.
+            Some(BoardFilter::Remote(_)) => Vec::new(),
+        };
         let mut out: Vec<BoardSession> = Vec::new();
         // Which remote Projects this machine has a checkout of, so a teammate's
         // Session lands under the name the developer already knows it by.
@@ -1930,8 +1976,13 @@ pub async fn artifacts_board(projects: Vec<String>, app: AppHandle) -> Result<Bo
                 }
             }
         }
+        // The server Projects the checkouts read above are bound to.
+        let bound: HashSet<String> = local_projects.keys().cloned().collect();
         for (key, row) in remote {
             if seen.contains(&key) || seen_unbound.contains(&key.1) {
+                continue;
+            }
+            if !keep_remote(filter.as_ref(), &bound, &row.workspace_id) {
                 continue;
             }
             let (project_path, project_name) = local_projects
@@ -5071,5 +5122,48 @@ mod sync_worker_tests {
         }
         drop(tx);
         worker.join().unwrap();
+    }
+}
+
+#[cfg(test)]
+mod board_filter_tests {
+    use super::*;
+
+    fn ids(list: &[&str]) -> HashSet<String> {
+        list.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn unfiltered_keeps_every_remote_project() {
+        assert!(keep_remote(None, &ids(&[]), "p1"));
+        assert!(keep_remote(None, &ids(&["p2"]), "p1"));
+    }
+
+    #[test]
+    fn a_local_filter_keeps_only_its_own_binding() {
+        let filter = BoardFilter::Local("/work/app".into());
+        assert!(keep_remote(Some(&filter), &ids(&["p1"]), "p1"));
+        assert!(!keep_remote(Some(&filter), &ids(&["p1"]), "p2"));
+    }
+
+    #[test]
+    fn an_unbound_local_filter_keeps_no_remote_rows() {
+        let filter = BoardFilter::Local("/work/scratch".into());
+        assert!(!keep_remote(Some(&filter), &ids(&[]), "p1"));
+    }
+
+    #[test]
+    fn a_remote_filter_keeps_only_that_project() {
+        let filter = BoardFilter::Remote("p2".into());
+        assert!(keep_remote(Some(&filter), &ids(&[]), "p2"));
+        assert!(!keep_remote(Some(&filter), &ids(&[]), "p1"));
+    }
+
+    #[test]
+    fn the_filter_deserializes_from_the_wire_shape() {
+        let local: BoardFilter = serde_json::from_str(r#"{"local":"/a"}"#).unwrap();
+        let remote: BoardFilter = serde_json::from_str(r#"{"remote":"p1"}"#).unwrap();
+        assert_eq!(local, BoardFilter::Local("/a".into()));
+        assert_eq!(remote, BoardFilter::Remote("p1".into()));
     }
 }

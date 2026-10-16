@@ -22,7 +22,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/ui/dropdown-menu";
-import type { BoardSession } from "../types";
+import {
+  projectFilterFor,
+  projectFilterKey,
+  type BoardSession,
+  type ProjectFilter,
+} from "../types";
 import { agentLabel } from "../lib/board";
 import { authorOf, type AuthorDirectory } from "../lib/author-directory";
 
@@ -111,17 +116,34 @@ export function BoardFilters({
   /** Every row the board holds, BEFORE narrowing — so the counts are honest. */
   sessions: BoardSession[];
   directory: AuthorDirectory;
-  projectFilter: string | null;
-  onProjectFilter: (path: string | null) => void;
+  projectFilter: ProjectFilter | null;
+  onProjectFilter: (filter: ProjectFilter | null) => void;
   agentFilter: string | null;
   onAgentFilter: (agent: string | null) => void;
   /** Author ids; empty is "anyone". `null` stands for your own rows. */
   peopleFilter: (string | null)[];
   onPeopleFilter: (people: (string | null)[]) => void;
 }) {
-  const projects = tally(sessions, (s) => s.projectPath || null);
-  const projectName = (path: string) =>
-    sessions.find((s) => s.projectPath === path)?.projectName ?? path;
+  // Keyed on the folder when there is one and the server id when there is
+  // not, so a teammate's Project with no checkout here is choosable too.
+  const filterOf = new Map<string, ProjectFilter>();
+  const nameOf = new Map<string, string>();
+  for (const s of sessions) {
+    const f = projectFilterFor(s);
+    if (!f) continue;
+    const key = projectFilterKey(f);
+    if (!filterOf.has(key)) {
+      filterOf.set(key, f);
+      nameOf.set(key, s.projectName);
+    }
+  }
+  const projects = tally(sessions, (s) => {
+    const f = projectFilterFor(s);
+    return f ? projectFilterKey(f) : null;
+  });
+  const selectedKey = projectFilter ? projectFilterKey(projectFilter) : null;
+  const projectName = (key: string, fallback: ProjectFilter) =>
+    nameOf.get(key) ?? ("local" in fallback ? fallback.local : fallback.remote);
   const agents = tally(sessions, (s) => s.agent);
 
   // People are keyed by author id, and `null` — your own local rows — is a
@@ -151,7 +173,9 @@ export function BoardFilters({
           render={
             <CompoundFilter label="Project" aria-label="Filter by project">
               <span className="max-w-40 truncate">
-                {projectFilter === null ? "All" : projectName(projectFilter)}
+                {projectFilter === null || selectedKey === null
+                  ? "All"
+                  : projectName(selectedKey, projectFilter)}
               </span>
               <ChevronDown size={12} className="shrink-0 text-muted-foreground" />
             </CompoundFilter>
@@ -164,11 +188,13 @@ export function BoardFilters({
           {projects.map((p) => (
             <Option
               key={p.value}
-              selected={projectFilter === p.value}
+              selected={selectedKey === p.value}
               count={p.count}
-              onSelect={() => onProjectFilter(projectFilter === p.value ? null : p.value)}
+              onSelect={() =>
+                onProjectFilter(selectedKey === p.value ? null : (filterOf.get(p.value) ?? null))
+              }
             >
-              {projectName(p.value)}
+              {projectName(p.value, filterOf.get(p.value)!)}
             </Option>
           ))}
         </DropdownMenuContent>

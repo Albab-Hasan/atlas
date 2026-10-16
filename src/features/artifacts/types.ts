@@ -195,6 +195,27 @@ export interface BoardSession extends SessionSummary {
 }
 
 /**
+ * What the board is narrowed to — mirrors `commands::capture::BoardFilter`.
+ *
+ * A Project with a checkout here is its folder; one the Organisation has and
+ * this machine does not has no folder, only its server id.
+ */
+export type ProjectFilter = { local: string } | { remote: string };
+
+/** The filter that selects a row's Project, or `null` for a row that names
+ *  neither a folder nor a server Project. */
+export function projectFilterFor(row: BoardSession): ProjectFilter | null {
+  if (row.projectPath) return { local: row.projectPath };
+  if (row.remoteProjectId) return { remote: row.remoteProjectId };
+  return null;
+}
+
+/** A string that identifies a filter, for keys and equality. */
+export function projectFilterKey(filter: ProjectFilter): string {
+  return "local" in filter ? `local:${filter.local}` : `remote:${filter.remote}`;
+}
+
+/**
  * Where a board row was read from.
  *
  * `both` is the normal state of your own work once a Project is synced. It

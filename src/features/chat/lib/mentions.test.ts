@@ -135,7 +135,7 @@ beforeEach(() => {
         return binding;
       case "artifacts_board":
         boardReads += 1;
-        expect(args).toEqual({ projects: [PROJECT] });
+        expect(args).toEqual({ projects: [PROJECT], filter: { local: PROJECT } });
         return {
           sessions: [
             row("rs-ada", "Wire the org tools", "ws-atlas"),

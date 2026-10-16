@@ -385,6 +385,10 @@ export function ArtifactsPanel() {
     lastOrg.current = activeOrganisationId;
     clearDetailCache();
     openSession(null);
+    // A server Project belongs to the Organisation it was chosen in; kept, it
+    // would narrow the next tenant's board to nothing.
+    const filter = useArtifactsStore.getState().projectFilter;
+    if (filter && "remote" in filter) setProjectFilter(null);
     setError(null);
     // Back to the loading state rather than the previous tenant's rows. The
     // refresh below repopulates; leaving them up means one Organisation's work
@@ -395,12 +399,13 @@ export function ArtifactsPanel() {
     // A new tenant gets its own notice if it also fails.
     cloudFailureToldFor.current = null;
     toast.dismiss("timeline-cloud-failed");
-  }, [activeOrganisationId, openSession]);
+  }, [activeOrganisationId, openSession, setProjectFilter]);
 
   // A filter naming a project that is no longer open would hide everything with
   // no way back, so it is dropped rather than left dangling.
   useEffect(() => {
-    if (projectFilter && !projectPaths.includes(projectFilter)) setProjectFilter(null);
+    if (projectFilter && "local" in projectFilter && !projectPaths.includes(projectFilter.local))
+      setProjectFilter(null);
   }, [projectFilter, projectPaths, setProjectFilter]);
 
   const refresh = useCallback(async () => {
@@ -411,7 +416,10 @@ export function ArtifactsPanel() {
       // share of the newest few hundred; asking for one project reads its
       // history whole.
       const page = await invoke<BoardPage>("artifacts_board", {
-        projects: projectFilter ? [projectFilter] : projectPaths,
+        projects: projectPaths,
+        // Explicit, not `[path]`: one open folder is not a filter, and a
+        // server Project with no checkout has no path to send.
+        filter: projectFilter,
       });
       if (seq !== listSeq.current) return; // a newer read owns the state now
       const rows = page.sessions;

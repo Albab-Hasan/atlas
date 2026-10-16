@@ -31,6 +31,7 @@ import type {
   TimelineEntry,
   ToolTally,
   BoardPage,
+  ProjectFilter,
 } from "@/features/artifacts/types";
 import type { Comment, CommentThreads } from "@/features/artifacts/lib/comments-api";
 import type { ArtifactShare } from "@/features/artifacts/lib/shares-api";
@@ -1470,12 +1471,28 @@ export const artifactsHandlers: TypedHandlers<ArtifactsResponses> = {
       deletedAt: new Date().toISOString(),
     })),
 
-  artifacts_board: ({ projects }): BoardPage => {
-    const paths = Array.isArray(projects) ? (projects as string[]) : [];
+  artifacts_board: ({ projects, filter }): BoardPage => {
+    const scope = (filter ?? null) as ProjectFilter | null;
+    const paths = !scope
+      ? Array.isArray(projects)
+        ? (projects as string[])
+        : []
+      : "local" in scope
+        ? [scope.local]
+        : [];
     const local = SEEDS.filter((seed) => paths.includes(seed.project.path)).map(boardRow);
     // The merge the real command does: local rows, plus whatever the
-    // Organisation has that this machine does not.
-    const sessions = [...local, ...teammateBoardRows()].sort((a, b) =>
+    // Organisation has that this machine does not — narrowed to the filtered
+    // Project when there is one.
+    const bound = new Set(local.map((row) => row.remoteProjectId).filter(Boolean));
+    const remote = teammateBoardRows().filter((row) =>
+      !scope
+        ? true
+        : "local" in scope
+          ? bound.has(row.remoteProjectId)
+          : row.remoteProjectId === scope.remote,
+    );
+    const sessions = [...local, ...remote].sort((a, b) =>
       b.lastActivityAt.localeCompare(a.lastActivityAt),
     );
     // The fixture answers in one tick, so the remote half is never outstanding
