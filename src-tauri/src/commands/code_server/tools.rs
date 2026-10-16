@@ -38,9 +38,7 @@ literal=true); find_files finds paths by glob or fuzzy name. Both read the worki
 now, including your own edits, respect .gitignore, and skip binary and secret files (.env, keys). \
 Prefer them to rg, grep or find in a shell: they are faster, read-only, and page their \
 output, so follow next_offset instead of re-running a broader search. Paths are relative to your cwd. \
-Searching: grep for exact identifiers and strings; find_symbol for definitions by name; \
-semantic_search for behaviour described in words; related/impact_of_diff before edits; \
-task_context once at the start of an unfamiliar task.";
+These two are the whole surface: there is no symbol, semantic or impact tool here (ADR-0021).";
 
 /// How long one call may search before it answers with what it has.
 pub(crate) const DEADLINE: Duration = Duration::from_secs(15);

@@ -277,8 +277,8 @@ pub async fn collect_corpus(project_path: &str) -> Vec<MemoryDoc> {
     }
 
     // Code is not folded in: agents search it through the `atlas_code` tools
-    // (`semantic_search`, `find_symbol`, grep), and memory keeps what code
-    // can't say (code-index plan Phase 4).
+    // (grep, find_files — ADR-0021 removed the index-backed ones), and memory
+    // keeps what code can't say.
     docs.extend(read_shared_memory_docs(&project_path));
     // Fold the knowledge base in (source "note") so KB notes are retrievable by
     // every agent through the same embedding + the `memory_search` tool — they

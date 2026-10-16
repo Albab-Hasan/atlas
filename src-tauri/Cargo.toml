@@ -139,9 +139,6 @@ atlas-embed = { path = "../crates/atlas-embed" }
 atlas-memory = { path = "../crates/atlas-memory" }
 # CLAUDE.md + .claude/rules mirrored into AGENTS.md (commands::instruction_sync).
 atlas-instruction-sync = { path = "../crates/atlas-instruction-sync" }
-# The per-project code index (tree-sitter → SQLite + FTS5), updated per file
-# from the watchers. Drives `commands::code_index` and the atlas_code symbol tools.
-# The sparse n-gram grep prefilter for large git projects (Phase 5).
 # Structured side-by-side git diff engine (vendors delta's word-diff). Drives
 # `commands::gitdiff` (diff viewer + editor gutter).
 atlas-gitdiff = { path = "../crates/atlas-gitdiff" }
