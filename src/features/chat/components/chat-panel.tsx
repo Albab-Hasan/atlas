@@ -178,6 +178,7 @@ import { cn } from "@/lib/utils";
 import { useAppStore } from "@/features/app/stores/app-store";
 import { loadCachedAcpModels } from "../lib/acp-models-cache";
 import { resolveEffectiveMode, applyModeOnResume, holdUnrestoredMode } from "../lib/resume-mode";
+import { snapshotMessageToWire } from "../lib/snapshot-message";
 
 interface ChatPanelProps {
   tabId: string;
@@ -221,15 +222,35 @@ async function respawnAndRebind(tabId: string): Promise<boolean> {
       useAppStore.getState().currentProject?.path ||
       "/";
     let key: SessionKey;
+    let loaded = false;
     if (sess.acpSessionId) {
       try {
         key = await agents.loadSession(agent.agent_id, sess.acpSessionId, cwd);
+        loaded = true;
       } catch (err) {
         console.warn("resume after disconnect failed; starting fresh:", err);
         key = (await agents.newSession(agent.agent_id, cwd)).key;
       }
     } else {
       key = (await agents.newSession(agent.agent_id, cwd)).key;
+    }
+    // `session/load` replays the whole conversation, and each replayed
+    // message arrives as an append — onto a tab that is still showing it, so
+    // every earlier message came back a second time. Repaint from the
+    // reloaded thread, as opening a history row does (`resume-session.ts`).
+    // An agent that resumed without replaying hands back an empty thread;
+    // then what is on screen is the record, and stays.
+    if (loaded) {
+      try {
+        const snapshot = await agents.snapshot(key);
+        if (snapshot.messages.length > 0) {
+          useChatStore
+            .getState()
+            .actions.replaceMessages(tabId, snapshot.messages.map(snapshotMessageToWire));
+        }
+      } catch (err) {
+        console.warn("repaint after agent restart failed:", err);
+      }
     }
     // The respawned agent starts on its OWN default, and a bind does not
     // reset `acpModeExplicit`/`acpCurrentMode` — so without this the pill kept
