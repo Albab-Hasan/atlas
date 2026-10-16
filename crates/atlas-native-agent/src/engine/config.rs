@@ -392,6 +392,19 @@ impl EngineSettings {
                 "memories.generate_memories".to_string(),
                 TomlValue::Boolean(false),
             ),
+            // Subagents reach the transcript only through v2. The engine's
+            // default is v1 (`multi_agent`), which reports a child as a
+            // `CollabAgentToolCall` the sink has no shape for; v2 also emits
+            // `SubAgentActivity {agentPath, …}`, which the sink maps to the
+            // same tool call the external adapter for this engine sends, so
+            // `atlas_acp_thread::subagent` reads a native child like any
+            // other. v2 wins over v1 whenever it is on
+            // (`multi_agent_version_override`), so `multi_agent` is left
+            // alone.
+            (
+                "features.multi_agent_v2".to_string(),
+                TomlValue::Boolean(true),
+            ),
         ];
         if cfg!(target_os = "windows") {
             // Windows shell commands ran with no sandbox at all. File writes
@@ -534,6 +547,27 @@ mod tests {
                 .map(|(_, v)| v.clone()),
             Some(TomlValue::Boolean(false)),
         );
+    }
+
+    /// v1 children never reach ACP (the sink drops `CollabAgentToolCall`), so
+    /// a native chat that delegated showed no subagent at all. The override
+    /// layer sits above the home config, so a stale `config.toml` that turns
+    /// v2 off cannot bring that back.
+    #[tokio::test]
+    async fn subagents_run_on_multi_agent_v2_whatever_the_home_config_says() {
+        use atlas_engine_features::Feature;
+
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let s = settings(tmp.path());
+        std::fs::create_dir_all(s.home.path()).expect("engine home");
+        std::fs::write(
+            s.home.path().join("config.toml"),
+            "[features]\nmulti_agent_v2 = false\n",
+        )
+        .expect("config file");
+
+        let config = s.build_config(None).await.expect("config loads");
+        assert!(config.features.enabled(Feature::MultiAgentV2));
     }
 
     /// The legacy alias `features.memory_tool` is applied after the canonical
