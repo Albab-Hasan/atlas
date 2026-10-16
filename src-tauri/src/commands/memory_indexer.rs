@@ -586,6 +586,10 @@ async fn handle(app: &AppHandle, registry: &MemoryRegistry, job: Job) {
                     tracing::info!(target: "atlas::memory_indexer", "dream {id} for {cwd}");
                 }
                 Ok(None) => {}
+                // Not a failure: the dream stays due and runs on a later job.
+                Err(e) if e.contains(super::memory_extract::GATEWAY_PAUSED) => {
+                    tracing::debug!(target: "atlas::memory_indexer", "Dream {cwd} skipped: {e}");
+                }
                 Err(e) => tracing::warn!(target: "atlas::memory_indexer", "Dream {cwd}: {e}"),
             }
         }
