@@ -95,12 +95,12 @@ def agent_command(agent_id: str, data_dir: Path) -> list[str]:
         sidecar = install_dir / ".atlas-wanted"
         if not sidecar.is_file():
             raise SystemExit(f"{agent_id} has no .atlas-wanted; start it once in Atlas first")
-        spec = sidecar.read_text().strip().split("#", 1)[0]
+        spec = sidecar.read_text(encoding="utf-8").strip().split("#", 1)[0]
         package_name = spec[: spec.rindex("@")] if "@" in spec[1:] else spec
         manifest = npx_dir / package_name / "package.json"
         if not manifest.is_file():
             raise SystemExit(f"{package_name} is not under {npx_dir}")
-        binaries = json.loads(manifest.read_text()).get("bin")
+        binaries = json.loads(manifest.read_text(encoding="utf-8")).get("bin")
         entry = binaries if isinstance(binaries, str) else next(iter((binaries or {}).values()), None)
         if entry is None:
             raise SystemExit(f"{package_name} declares no entry point")
@@ -130,6 +130,10 @@ def capture(argv: list[str], cwd: Path, prompt: str, deadline: float) -> dict:
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
+        # ACP is UTF-8 JSON. Without this, Windows decodes the pipe with the
+        # locale codepage (cp1252) and the first non-ASCII byte crashes it.
+        encoding="utf-8",
+        errors="replace",
         bufsize=1,
     )
     stderr: list[str] = []
@@ -196,7 +200,7 @@ def capture(argv: list[str], cwd: Path, prompt: str, deadline: float) -> dict:
                     )
                 elif method == "fs/read_text_file":
                     try:
-                        answer(message["id"], {"content": Path(message["params"]["path"]).read_text()})
+                        answer(message["id"], {"content": Path(message["params"]["path"]).read_text(encoding="utf-8")})
                     except OSError:
                         answer(message["id"], {"content": ""})
                 else:
@@ -276,7 +280,7 @@ def main() -> None:
     text = SECRET.sub("REDACTED", json.dumps(calls, indent=1)) + "\n"
 
     out = args.out or Path(f"{args.agent}-subagents.json")
-    out.write_text(text)
+    out.write_text(text, encoding="utf-8")
     print(f"  {len(captured['updates'])} updates, {len(calls)} tool calls -> {out}")
     if not calls:
         print("  no tool calls: the agent answered without using any tool")
