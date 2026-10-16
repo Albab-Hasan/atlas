@@ -43,6 +43,7 @@
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 
+use atlas_engine_protocol::models::AgentMessageInputContent;
 use atlas_engine_protocol::models::ContentItem;
 use atlas_engine_protocol::models::ResponseItem;
 use serde::Serialize;
@@ -480,6 +481,39 @@ fn push_item(messages: &mut Vec<ChatMessage>, item: &ResponseItem, keep_images: 
         // replayed reasoning item would be a `400` at best. This is the
         // accepted loss recorded in the gateway-fit research, not an oversight.
         ResponseItem::Reasoning { .. } => {}
+        // Inter-agent mail (multi-agent v2): a spawned child's task, a parent's
+        // follow-up, a child's FINAL_ANSWER. The Responses wire carries it as
+        // an item of its own; Chat Completions has no such thing, so it rides
+        // as a user message — which is the form the engine's own agent charter
+        // tells the model to expect ("messages in the analysis channel: Message
+        // Type / Task name / Sender / Payload").
+        //
+        // `encrypted_content` is not encrypted on this path. The engine uses
+        // `new_encrypted` for any message that did not come straight from a
+        // user's plaintext, and the gateway does no envelope encryption, so
+        // the field holds the message itself (the rollouts show it verbatim).
+        //
+        // Before this arm the item fell through to the drop below. A child then
+        // never saw its task — it ran on its system prompt alone, which is why
+        // "count the files" became a hundred-call tour of the repository — and
+        // the parent never saw a result, so it polled `wait_agent` until the
+        // user stopped it.
+        ResponseItem::AgentMessage { content, .. } => {
+            let text: String = content
+                .iter()
+                .map(|part| match part {
+                    AgentMessageInputContent::InputText { text } => text.as_str(),
+                    AgentMessageInputContent::EncryptedContent { encrypted_content } => {
+                        encrypted_content.as_str()
+                    }
+                })
+                .collect();
+            if !text.is_empty() {
+                messages.push(ChatMessage::User {
+                    content: vec![ContentPart::Text { text }],
+                });
+            }
+        }
         // Responses-native items with no Chat Completions counterpart. The
         // authored catalogue turns off every feature that produces one, so
         // reaching this arm means something was configured on that this wire

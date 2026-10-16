@@ -5132,7 +5132,7 @@ mod board_filter_tests {
     use super::*;
 
     fn ids(list: &[&str]) -> HashSet<String> {
-        list.iter().map(|s| s.to_string()).collect()
+        list.iter().map(std::string::ToString::to_string).collect()
     }
 
     #[test]

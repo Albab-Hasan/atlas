@@ -196,13 +196,18 @@ fn opencode_delegating_twice_is_two_named_subagents() {
     replay.feed(&fixture("opencode"));
 
     let subagents = replay.subagents();
-    let names: Vec<_> = subagents.iter().map(|s| s.name.as_str()).collect();
-    assert_eq!(
-        names,
-        vec!["counter", "greeter"],
-        "both children, named from the input that arrived after the launch"
-    );
+    assert_eq!(subagents.len(), 2, "both children");
     for subagent in &subagents {
+        // Named from the description, which arrives in a LATER update than
+        // the launch — the whole reason detection re-runs. Asserted as "not
+        // the fallback" rather than as a literal: the description is model
+        // output, and the same prompt produced "counter" on one run and
+        // "Count files in directory" on the next. Both are correct, and a
+        // test pinning either fails on the other.
+        assert_ne!(
+            subagent.name, "Subagent",
+            "the late-arriving description names the child"
+        );
         assert_eq!(subagent.role.as_deref(), Some("general"));
         assert!(subagent.prompt.is_some(), "the child's instructions travel");
         assert_eq!(
@@ -211,6 +216,8 @@ fn opencode_delegating_twice_is_two_named_subagents() {
             "a synchronous delegation ends when its call does"
         );
     }
+    let names: Vec<_> = subagents.iter().map(|s| s.name.as_str()).collect();
+    assert_ne!(names[0], names[1], "two children, two names");
 }
 
 /// Claude Code, on the signed-in account, captured TWICE — because it does

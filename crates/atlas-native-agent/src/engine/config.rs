@@ -133,6 +133,18 @@ pub const GATEWAY_PROVIDER_ID: &str = "atlas";
 /// server states how long to wait and a second blind attempt buys little.
 pub const GATEWAY_STREAM_MAX_RETRIES: usize = 1;
 
+/// The developer message every spawned child runs under. See the
+/// `features.multi_agent_v2.subagent_developer_instructions` override for
+/// why it exists; the content is the brief a delegated task needs and no
+/// more, because everything else it could read is a reason to wander.
+pub const SUBAGENT_DEVELOPER_INSTRUCTIONS: &str = "\
+You are a subagent running one delegated task. The task is the message addressed to you; \
+it is your whole brief. Do only that: no orientation calls first (no memory briefing, no \
+survey of the repository), no exploration beyond what the task itself needs, and no fixes \
+or suggestions outside it. When you have the result, reply once with the result and nothing \
+else; that final message is delivered to the agent that spawned you, and nothing you do \
+after it is seen.";
+
 impl EngineProvider {
     /// A developer-configured provider for the Phase 2 tracer bullet.
     pub fn dev(
@@ -402,8 +414,40 @@ impl EngineSettings {
             // (`multi_agent_version_override`), so `multi_agent` is left
             // alone.
             (
-                "features.multi_agent_v2".to_string(),
+                "features.multi_agent_v2.enabled".to_string(),
                 TomlValue::Boolean(true),
+            ),
+            // What a spawned child is told, as its developer message. The
+            // engine ships this empty and expects a server-side config to fill
+            // it; with nothing here a child ran on the team charter alone,
+            // and the first thing in its context was the memory server's
+            // "call memory_briefing before anything else" — fifteen thousand
+            // tokens of other sessions' plans, which a small model then
+            // treated as the job. "Count the files" became a hundred-call tour
+            // of the repository. The charter itself (mailbox format, wait
+            // guidance, slot count) is untouched: that lives in the usage
+            // hints, and a configured hint would REPLACE it.
+            (
+                "features.multi_agent_v2.subagent_developer_instructions".to_string(),
+                TomlValue::String(SUBAGENT_DEVELOPER_INSTRUCTIONS.to_string()),
+            ),
+            // The gateway admits four requests per user at once, and the
+            // engine's default of four threads per session (parent + 3) is
+            // exactly that: one delegating chat lawfully consumed the whole
+            // account, and a second tab, a memory pass or one stale slot
+            // answered the parent itself `429`. Three leaves one.
+            (
+                "features.multi_agent_v2.max_concurrent_threads_per_session".to_string(),
+                TomlValue::Integer(3),
+            ),
+            // The engine lets a parent ask `wait_agent` for up to an hour, and
+            // a parent that has lost track of its children escalates toward
+            // it — a session that ran forty minutes doing nothing was six
+            // waits of 30s → 600s. Two minutes bounds one wait to something a
+            // person watching the composer will sit through.
+            (
+                "features.multi_agent_v2.max_wait_timeout_ms".to_string(),
+                TomlValue::Integer(120_000),
             ),
         ];
         if cfg!(target_os = "windows") {
@@ -568,6 +612,17 @@ mod tests {
 
         let config = s.build_config(None).await.expect("config loads");
         assert!(config.features.enabled(Feature::MultiAgentV2));
+        // The table form, merged over the home config's bool: the child's
+        // brief, the budget under the gateway's four slots, the wait cap.
+        assert_eq!(
+            config
+                .multi_agent_v2
+                .subagent_developer_instructions
+                .as_deref(),
+            Some(SUBAGENT_DEVELOPER_INSTRUCTIONS),
+        );
+        assert_eq!(config.multi_agent_v2.max_concurrent_threads_per_session, 3);
+        assert_eq!(config.multi_agent_v2.max_wait_timeout_ms, 120_000);
     }
 
     /// The legacy alias `features.memory_tool` is applied after the canonical
