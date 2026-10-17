@@ -2170,6 +2170,23 @@ impl AgentConnection for EngineConnection {
 
     fn cancel(&self, session_id: &acp::SessionId) {
         let thread_id = session_id.to_string();
+        // Stop reaches the subagents too. Each child is a thread of its own,
+        // which the parent's interrupt never touches: a stopped parent left
+        // them working, and their rows still closed as "Complete" afterwards.
+        // Sent whether or not the parent has a turn — a child can outlive the
+        // turn that spawned it — and with no turn id, which the server reads
+        // as "interrupt whatever is running": the child's turn ids are never
+        // ours to know, and an idle child takes it as a no-op.
+        let descendants = self.sessions.descendants_of(&thread_id);
+        if !descendants.is_empty() {
+            let requests = self.requests.clone();
+            let request_ids = self.request_ids.clone();
+            self.runtime.handle().spawn(async move {
+                for child in descendants {
+                    interrupt_child(&requests, &request_ids, child).await;
+                }
+            });
+        }
         let Some(turn_id) = self.turns.active_turn(&thread_id) else {
             // No turn is registered — but one may be mid-`turn/start`, with
             // no id to interrupt yet. That stop used to be silently dropped,
@@ -2228,6 +2245,36 @@ async fn send_interrupt(
             target: "atlas_native_agent::engine",
             "interrupting the engine turn failed: {e}",
         );
+    }
+}
+
+/// Interrupt whatever a spawned child is running. An empty turn id is the
+/// server's "no particular turn" form: it skips the active-turn check and
+/// answers at once. A child the engine has already closed is not an error
+/// worth more than a debug line — there is nothing left to stop.
+async fn interrupt_child(
+    requests: &InProcessAppServerRequestHandle,
+    request_ids: &RequestIds,
+    thread_id: String,
+) {
+    let result = requests
+        .request_typed::<v2::TurnInterruptResponse>(ClientRequest::TurnInterrupt {
+            request_id: request_ids.next(),
+            params: v2::TurnInterruptParams {
+                thread_id: thread_id.clone(),
+                turn_id: String::new(),
+            },
+        })
+        .await;
+    match result {
+        Ok(_) => tracing::info!(
+            target: "atlas_native_agent::engine",
+            "stop cascaded to subagent thread {thread_id}",
+        ),
+        Err(e) => tracing::debug!(
+            target: "atlas_native_agent::engine",
+            "interrupting subagent thread {thread_id} failed: {e}",
+        ),
     }
 }
 

@@ -166,10 +166,30 @@ impl EngineSessions {
         // is bounded by live sessions rather than by every session the
         // process ever opened.
         sessions.retain(|_, session| session.thread.strong_count() > 0);
-        self.children
+        // A child stays while its chain of parents leads back to a live
+        // session: a subagent's own children are recorded under the
+        // subagent's thread, which is no session of ours.
+        let mut children = self
+            .children
             .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .retain(|_, child| sessions.contains_key(&child.parent));
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut live: std::collections::HashSet<String> =
+            sessions.keys().map(ToString::to_string).collect();
+        loop {
+            let reached: Vec<String> = children
+                .iter()
+                .filter(|(id, child)| {
+                    !live.contains(*id) && live.contains(&child.parent.to_string())
+                })
+                .map(|(id, _)| id.clone())
+                .collect();
+            if reached.is_empty() {
+                break;
+            }
+            live.extend(reached);
+        }
+        children.retain(|id, _| live.contains(id));
+        drop(children);
         sessions.insert(
             session_id,
             EngineSession {
@@ -417,6 +437,27 @@ impl EngineSessions {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .get(child_thread_id)
             .map(|child| (child.parent.clone(), child.agent_path.clone()))
+    }
+
+    /// Every child `parent_thread_id` spawned, and theirs in turn — what a
+    /// stop on the parent has to reach. The engine's own interrupt stops only
+    /// the thread it is sent to; a v2 child runs on as its own thread.
+    pub(crate) fn descendants_of(&self, parent_thread_id: &str) -> Vec<String> {
+        let children = self
+            .children
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut found: Vec<String> = Vec::new();
+        let mut frontier = vec![parent_thread_id.to_string()];
+        while let Some(parent) = frontier.pop() {
+            for (child, spawned) in children.iter() {
+                if spawned.parent.to_string() == parent && !found.contains(child) {
+                    found.push(child.clone());
+                    frontier.push(child.clone());
+                }
+            }
+        }
+        found
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, HashMap<acp::SessionId, EngineSession>> {
@@ -937,11 +978,13 @@ pub fn apply_notification(
         // what the deltas already rendered, so it is skipped; for one that does
         // not stream it is the only place the answer ever appears.
         ServerNotification::ItemCompleted(params) => {
+            // Before the session check: a child's own spawns arrive on the
+            // child's thread, which is no session, and a stop must reach them.
+            sessions.note_spawned_child(&params.thread_id, &params.item);
             let id = session_id(&params.thread_id);
             let Some(thread) = sessions.thread(&id) else {
                 return;
             };
-            sessions.note_spawned_child(&params.thread_id, &params.item);
             match &params.item {
                 ThreadItem::AgentMessage {
                     id: item_id, text, ..
@@ -1005,11 +1048,11 @@ pub fn apply_notification(
         // themselves: the row appears the moment work starts, not when it
         // ends.
         ServerNotification::ItemStarted(params) => {
+            sessions.note_spawned_child(&params.thread_id, &params.item);
             let session = session_id(&params.thread_id);
             let Some(thread) = sessions.thread(&session) else {
                 return;
             };
-            sessions.note_spawned_child(&params.thread_id, &params.item);
             if let ThreadItem::ContextCompaction { id } = &params.item {
                 lock(&thread).upsert_context_compaction(
                     atlas_acp_thread::ContextCompactionId(id.as_str().into()),
@@ -1720,6 +1763,49 @@ mod command_output {
             format!("{:?}", end.content).contains("There are 42 files."),
             "the child's reply is what the row reports"
         );
+    }
+
+    #[test]
+    fn a_stop_reaches_every_subagent_the_session_spawned_and_theirs() {
+        use atlas_engine_app_server_protocol::SubAgentActivityKind;
+
+        let f = fixture();
+        let spawn = |on: &str, child: &str| {
+            f.apply(ServerNotification::ItemStarted(ItemStartedNotification {
+                item: ThreadItem::SubAgentActivity {
+                    id: format!("call-{child}"),
+                    kind: SubAgentActivityKind::Started,
+                    agent_thread_id: child.into(),
+                    agent_path: format!("/root/{child}"),
+                },
+                thread_id: on.into(),
+                turn_id: "turn-1".into(),
+                started_at_ms: 0,
+            }));
+        };
+        let parent = f.session.to_string();
+        spawn(&parent, "child-1");
+        spawn(&parent, "child-2");
+        spawn("child-1", "grandchild");
+        // Another session's child is not this stop's to reach.
+        spawn("thread-2", "elsewhere");
+
+        let mut reached = f.sessions.descendants_of(&parent);
+        reached.sort();
+        assert_eq!(reached, ["child-1", "child-2", "grandchild"]);
+        assert_eq!(f.sessions.descendants_of("child-1"), ["grandchild"]);
+        assert!(f.sessions.descendants_of("grandchild").is_empty());
+
+        // The sweep at the next insert keeps the whole chain under a live
+        // session, and drops the child of a session that is gone.
+        let other = acp::SessionId::new("thread-3");
+        let other_thread = crate::engine::test_support::detached_thread(other.clone());
+        f.sessions
+            .insert(other, &other_thread, "/tmp/project".to_string());
+        let mut reached = f.sessions.descendants_of(&parent);
+        reached.sort();
+        assert_eq!(reached, ["child-1", "child-2", "grandchild"]);
+        assert!(f.sessions.spawned_child("elsewhere").is_none());
     }
 
     #[test]
