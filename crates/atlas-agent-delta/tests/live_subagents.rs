@@ -134,6 +134,33 @@ impl Replay {
         }
     }
 
+    /// Opens a turn, as sending a prompt does: a capture is what an agent sent
+    /// while one was running, and a child launched to run on its own runs for
+    /// exactly as long as its turn.
+    fn begin_turn(&self) {
+        self.lock_thread().begin_turn();
+        self.pump();
+    }
+
+    /// Ends the turn the capture ran in.
+    fn end_turn(&self, stop_reason: acp::StopReason) {
+        self.lock_thread().end_turn(stop_reason);
+        self.pump();
+    }
+
+    fn lock_thread(&self) -> std::sync::MutexGuard<'_, atlas_acp_thread::AcpThread> {
+        self.thread
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    fn pump(&self) {
+        let mut events = self.events.lock().unwrap();
+        while let Ok(event) = events.try_recv() {
+            self.projector.apply(&self.session_id, event);
+        }
+    }
+
     /// Each subagent as it last stood, in launch order.
     fn subagents(&self) -> Vec<Subagent> {
         let mut out: Vec<Subagent> = Vec::new();
@@ -239,6 +266,7 @@ fn a_claude_child_ends_when_its_work_does_not_when_its_launch_returns() {
         ("claude-sync", SubagentStatus::Completed),
     ] {
         let replay = Replay::start();
+        replay.begin_turn();
         replay.feed(&fixture(fixture_name));
 
         let subagents = replay.subagents();
@@ -265,6 +293,47 @@ fn a_claude_child_ends_when_its_work_does_not_when_its_launch_returns() {
             "{fixture_name}: the child's role travels"
         );
     }
+}
+
+/// Nothing Claude sends a client like Atlas says an async child ended: its end
+/// goes only to a client that takes the agent's draft task updates. But the
+/// agent holds the turn open until such children settle, so the turn ending
+/// is their end — and a Stop is theirs too. Live, both rows sat on "running"
+/// after the reply was in.
+#[test]
+fn an_async_claude_child_ends_with_its_turn() {
+    for (stop_reason, expected) in [
+        (acp::StopReason::EndTurn, SubagentStatus::Completed),
+        (acp::StopReason::Cancelled, SubagentStatus::Interrupted),
+    ] {
+        let replay = Replay::start();
+        replay.begin_turn();
+        replay.feed(&fixture("claude-async"));
+        replay.end_turn(stop_reason);
+
+        let statuses: Vec<_> = replay.subagents().iter().map(|s| s.status).collect();
+        assert_eq!(statuses, vec![expected; 2], "{stop_reason:?}");
+        assert!(
+            replay.subagents().iter().all(|s| s.ended_at_ms.is_some()),
+            "a child that ended says when"
+        );
+        assert!(
+            replay.subagents().iter().all(|s| s.result.is_none()),
+            "the launch's receipt, written for the model, is not the child's answer"
+        );
+    }
+
+    // A reopened session ends no turn: the replay is the whole of it, and
+    // nothing in it is still running.
+    let reopened = Replay::start();
+    reopened.feed(&fixture("claude-async"));
+    assert!(
+        reopened
+            .subagents()
+            .iter()
+            .all(|s| s.status == SubagentStatus::Completed),
+        "a replayed async child is not left running forever"
+    );
 }
 
 /// The other half of what only a live run shows: a child's own tool calls

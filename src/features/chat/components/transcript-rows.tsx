@@ -679,17 +679,37 @@ export const SubagentRowView = memo(function SubagentRowView({
           {row.name}
         </span>
         <span className="ml-auto flex shrink-0 items-center gap-1.5 font-mono text-2xs text-[var(--atlas-text-disabled)] tabular-nums">
+          {/* Only when the child reported work: a mail child's count is 0
+              however much it did, and "0 calls" would say it did nothing. */}
+          {row.workCount > 0 && <span>{formatCalls(row.workCount)}</span>}
           {SUBAGENT_STATE[row.status]}
           {row.endedAt === undefined ? (
             <LiveElapsed startedAt={row.startedAt} minMs={1000} />
           ) : (
-            <span>{formatWorked(row.endedAt - row.startedAt)}</span>
+            settledFigure(row.endedAt - row.startedAt)
           )}
         </span>
       </button>
     </Column>
   );
 });
+
+/**
+ * A settled child's duration, or nothing when there is none to state.
+ *
+ * Under a second is what a child reads when nothing measured it — a reopened
+ * session's async child, whose launch returned at once and whose own report
+ * never reaches this session — and "0s" would be a claim, not a figure. The
+ * live counter blanks below a second for the same reason.
+ */
+export function settledFigure(ms: number) {
+  return ms >= 1000 ? <span>{formatWorked(ms)}</span> : null;
+}
+
+/** "1 call", "12 calls" — a child's work as the gutter counts it. */
+export function formatCalls(n: number): string {
+  return `${n} ${n === 1 ? "call" : "calls"}`;
+}
 
 /** What the gutter says after the name. Terminal states are words, not icons:
  *  "stopped" and "failed" are different facts and no glyph tells them apart at

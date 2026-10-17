@@ -141,6 +141,11 @@ pub struct Subagent {
     /// Set once it reached a terminal status.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ended_at_ms: Option<i64>,
+    /// The child ran on an agent thread of its own (the engine's subagents),
+    /// so its work is not in this session: `tool_call_count` stays 0 however
+    /// much it did. Omitted when false.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub own_thread: bool,
 }
 
 /// A tool-content block the UI renders structurally rather than as text.

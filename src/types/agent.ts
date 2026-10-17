@@ -563,6 +563,10 @@ export interface Subagent {
    *  from it rather than sent as a duration that is stale on arrival. */
   startedAtMs: number;
   endedAtMs?: number;
+  /** The child ran on an agent thread of its own (the engine's subagents), so
+   *  its work is not in this session and `toolCallCount` stays 0 however much
+   *  it did. Absent when false. */
+  ownThread?: boolean;
 }
 
 export interface FileChange {

@@ -11,7 +11,7 @@ use atlas_acp_thread::{
 use atlas_agent_servers::ThreadEventSink;
 use atlas_agent_wire::{
     AgentId, DeltaSink, Emitter, RateLimitWindow, SessionDelta, SessionDeltaEnvelope,
-    SessionStatus, ToolCall, Usage,
+    SessionStatus, SubagentStatus, ToolCall, Usage,
 };
 use uuid::Uuid;
 
@@ -602,6 +602,12 @@ struct SessionProjection {
     /// unchanged one is not re-sent. Like `plan`: the set is derived from the
     /// thread on every tool-call change, and only what moved goes out.
     subagents: HashMap<String, serde_json::Value>,
+    /// When each child was first seen to end, by its launching call's id.
+    /// The thread keeps no such time (it stamps an entry once, on creation),
+    /// so it is taken here, the first time a child announced as running comes
+    /// back terminal — and kept, because every later sync re-derives the
+    /// child and would otherwise fall back to `project`'s floor.
+    subagent_ends: HashMap<String, i64>,
 }
 
 impl SessionProjection {
@@ -621,6 +627,7 @@ impl SessionProjection {
             announced_elicitations: Vec::new(),
             new_elicitations: Vec::new(),
             subagents: HashMap::new(),
+            subagent_ends: HashMap::new(),
         }
     }
 
@@ -643,11 +650,27 @@ impl SessionProjection {
                 .unwrap_or_else(chrono::Utc::now)
                 .timestamp_millis()
         };
-        let current = project::subagents(&thread, message_id_at, started_at);
+        let current = project::subagents_timed(&thread, message_id_at, started_at);
         drop(thread);
 
         let mut deltas = Vec::new();
-        for subagent in current {
+        for (mut subagent, timed_by_agent) in current {
+            // The child's own report beats this clock: it measured the run
+            // itself, and it is what a reopened session will show.
+            if subagent.status != SubagentStatus::Running && !timed_by_agent {
+                if let Some(&ended) = self.subagent_ends.get(&subagent.tool_call_id) {
+                    subagent.ended_at_ms = Some(ended);
+                } else if self
+                    .subagents
+                    .get(&subagent.tool_call_id)
+                    .is_some_and(|announced| announced["status"] == "running")
+                {
+                    let ended = chrono::Utc::now().timestamp_millis();
+                    self.subagent_ends
+                        .insert(subagent.tool_call_id.clone(), ended);
+                    subagent.ended_at_ms = Some(ended);
+                }
+            }
             let Ok(value) = serde_json::to_value(&subagent) else {
                 continue;
             };
@@ -740,6 +763,9 @@ impl SessionProjection {
                     turn_seq: self.turn_seq,
                 }];
                 deltas.extend(self.status_deltas());
+                // A child launched to run on its own ends with the turn: no
+                // tool call changes to say so.
+                deltas.extend(self.sync_subagents());
                 deltas
             }
             // Carries no message: the failure text lives with whoever awaited

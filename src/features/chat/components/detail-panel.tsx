@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
 import { useSubagent } from "../hooks/use-subagents";
 import { elapsedMs } from "../lib/subagents";
 import { CachedMarkdown } from "@/lib/markdown-cache";
-import { formatWorked, SUBAGENT_STATE } from "./transcript-rows";
+import { settledFigure, SUBAGENT_STATE } from "./transcript-rows";
 import { HintGroup, HintItem } from "@/ui/hint-group";
 import type { ChatMessage, ToolCallDisplay } from "@/types/agent";
 import {
@@ -265,6 +265,16 @@ function SubagentBody({
           </div>
         )}
 
+        {/* A child on a thread of its own (the engine's) did its work where
+            this session cannot see it. Said in the work's place, so an
+            answer with nothing above it does not read as a child that did
+            nothing — and never as a count of 0. */}
+        {calls.length === 0 && child.ownThread && child.result && (
+          <p className="mb-3 text-xs text-[var(--muted-foreground)]">
+            Ran on its own thread — its steps are not shown here.
+          </p>
+        )}
+
         {/* Its work, as markers — the same line a tool call gets in the
             transcript, so a child's run reads like any other. */}
         {calls.length > 0 && (
@@ -316,7 +326,7 @@ function SubagentBody({
               </button>
             </HintItem>
             <span className="font-mono text-2xs text-[var(--atlas-text-disabled)] tabular-nums">
-              {formatWorked(elapsedMs(child, Date.now()))}
+              {settledFigure(elapsedMs(child, Date.now()))}
             </span>
           </div>
         )}

@@ -135,6 +135,9 @@ pub struct EngineSessions {
     /// `TurnCompleted` — and `wait_agent` names no child at all. This is what
     /// carries that end back to the parent's transcript.
     children: Mutex<HashMap<String, SpawnedChild>>,
+    /// Signalled whenever `children` learns a child — what a request from a
+    /// child the sink has not placed yet waits on ([`Self::wait_for_owner`]).
+    children_changed: tokio::sync::Notify,
 }
 
 /// Where a spawned child's end is reported, and under which identity.
@@ -427,6 +430,59 @@ impl EngineSessions {
                     agent_path: agent_path.clone(),
                 },
             );
+        self.children_changed.notify_waiters();
+    }
+
+    /// The open session `thread_id` belongs to: itself when it is one, else
+    /// the session that spawned it — through any depth of children.
+    ///
+    /// A v2 child runs on an engine thread of its own that is never a session
+    /// here, but asks for approval under that thread's id; the card belongs
+    /// on the session the user is looking at.
+    pub(crate) fn owning_session(&self, thread_id: &str) -> Option<acp::SessionId> {
+        /// Far deeper than any real delegation; a bound so a cycle (which the
+        /// engine never makes) cannot spin.
+        const MAX_DEPTH: usize = 32;
+        let mut current = session_id(thread_id);
+        for _ in 0..MAX_DEPTH {
+            if self.lock().contains_key(&current) {
+                return Some(current);
+            }
+            current = self
+                .children
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .get(current.to_string().as_str())?
+                .parent
+                .clone();
+        }
+        None
+    }
+
+    /// [`Self::owning_session`], waiting up to `limit` for the child to be
+    /// placed.
+    ///
+    /// A spawned child starts working before its parent's `Started` activity
+    /// — the only thing that names its parent — has been reported: the engine
+    /// emits it after the spawn returns. A child that asks at once asks under
+    /// a thread nobody here knows yet, for a few milliseconds.
+    pub(crate) async fn wait_for_owner(
+        &self,
+        thread_id: &str,
+        limit: std::time::Duration,
+    ) -> Option<acp::SessionId> {
+        let wait = async {
+            loop {
+                let notified = self.children_changed.notified();
+                tokio::pin!(notified);
+                notified.as_mut().enable();
+                if let Some(owner) = self.owning_session(thread_id) {
+                    return owner;
+                }
+                notified.await;
+            }
+        };
+        tokio::time::timeout(limit, wait).await.ok()
     }
 
     /// The parent session and agent path of the child running on
@@ -656,6 +712,7 @@ pub(crate) fn tool_call_of(item: &ThreadItem) -> Option<acp::ToolCall> {
             kind,
             agent_thread_id,
             agent_path,
+            prompt,
         } => {
             use atlas_engine_app_server_protocol::SubAgentActivityKind as K;
             let (activity, verb) = match kind {
@@ -664,6 +721,17 @@ pub(crate) fn tool_call_of(item: &ThreadItem) -> Option<acp::ToolCall> {
                 K::Interrupted => ("interrupted", "Interrupt"),
             };
             let name = subagent_name(agent_path);
+            let mut input = serde_json::json!({
+                "agentThreadId": agent_thread_id,
+                "agentPath": agent_path,
+                "activityKind": activity,
+            });
+            // The task, on a start: the panel's prompt bubble. The spawn call
+            // that carries it is never an item of its own, so the engine
+            // puts it on the activity.
+            if let Some(prompt) = prompt.as_deref().filter(|p| !p.trim().is_empty()) {
+                input["prompt"] = serde_json::Value::String(prompt.to_owned());
+            }
             Some(
                 acp::ToolCall::new(id.clone(), format!("{verb} subagent {name}"))
                     .kind(acp::ToolKind::Other)
@@ -671,11 +739,7 @@ pub(crate) fn tool_call_of(item: &ThreadItem) -> Option<acp::ToolCall> {
                     // user waits on: the engine has already done it by the
                     // time the item arrives.
                     .status(acp::ToolCallStatus::Completed)
-                    .raw_input(serde_json::json!({
-                        "agentThreadId": agent_thread_id,
-                        "agentPath": agent_path,
-                        "activityKind": activity,
-                    })),
+                    .raw_input(input),
             )
         }
         ThreadItem::CommandExecution {
@@ -1254,6 +1318,7 @@ mod tests {
             kind,
             agent_thread_id: "thr-9".to_string(),
             agent_path: "/root/code_reviewer".to_string(),
+            prompt: Some("Review the diff.".to_string()),
         };
 
         let call = tool_call_of(&item(K::Started)).expect("a tool call");
@@ -1273,6 +1338,10 @@ mod tests {
         .expect("the detector recognises a native child");
         assert_eq!(launch.name, "Code reviewer");
         assert_eq!(launch.native_id.as_deref(), Some("/root/code_reviewer"));
+        // The task rides along, so the panel has a prompt to show, and the
+        // child is marked as running on a thread of its own.
+        assert_eq!(launch.prompt.as_deref(), Some("Review the diff."));
+        assert!(launch.own_thread);
 
         for (kind, expected) in [
             (K::Started, "started"),
@@ -1700,6 +1769,7 @@ mod command_output {
                 kind: SubAgentActivityKind::Started,
                 agent_thread_id: "child-1".into(),
                 agent_path: "/root/counter".into(),
+                prompt: None,
             },
             thread_id: f.session.to_string(),
             turn_id: "turn-1".into(),
@@ -1777,6 +1847,7 @@ mod command_output {
                     kind: SubAgentActivityKind::Started,
                     agent_thread_id: child.into(),
                     agent_path: format!("/root/{child}"),
+                    prompt: None,
                 },
                 thread_id: on.into(),
                 turn_id: "turn-1".into(),
@@ -1806,6 +1877,62 @@ mod command_output {
         reached.sort();
         assert_eq!(reached, ["child-1", "child-2", "grandchild"]);
         assert!(f.sessions.spawned_child("elsewhere").is_none());
+    }
+
+    /// A subagent asks for approval under its own engine thread. The card
+    /// belongs on the session that spawned it — and a child that asks before
+    /// its parent's `Started` activity has placed it is waited for, not
+    /// refused (live, its command failed "no open thread for this approval").
+    #[tokio::test]
+    async fn a_childs_approval_finds_the_session_that_spawned_it() {
+        use atlas_engine_app_server_protocol::SubAgentActivityKind;
+
+        let f = std::sync::Arc::new(fixture());
+        let parent = f.session.to_string();
+        let spawn = |on: &str, child: &str| {
+            f.apply(ServerNotification::ItemStarted(ItemStartedNotification {
+                item: ThreadItem::SubAgentActivity {
+                    id: format!("call-{child}"),
+                    kind: SubAgentActivityKind::Started,
+                    agent_thread_id: child.into(),
+                    agent_path: format!("/root/{child}"),
+                    prompt: None,
+                },
+                thread_id: on.into(),
+                turn_id: "turn-1".into(),
+                started_at_ms: 0,
+            }));
+        };
+
+        assert_eq!(f.sessions.owning_session(&parent), Some(f.session.clone()));
+        assert_eq!(f.sessions.owning_session("child-1"), None, "not placed yet");
+
+        // Asked first, placed a moment later.
+        let waiting = {
+            let f = f.clone();
+            tokio::spawn(async move {
+                f.sessions
+                    .wait_for_owner("child-1", std::time::Duration::from_secs(5))
+                    .await
+            })
+        };
+        tokio::task::yield_now().await;
+        spawn(&parent, "child-1");
+        assert_eq!(waiting.await.unwrap(), Some(f.session.clone()));
+
+        spawn("child-1", "grandchild");
+        assert_eq!(
+            f.sessions.owning_session("grandchild"),
+            Some(f.session.clone())
+        );
+
+        // A thread no session spawned stays unowned, and the wait gives up.
+        assert_eq!(
+            f.sessions
+                .wait_for_owner("stranger", std::time::Duration::from_millis(50))
+                .await,
+            None
+        );
     }
 
     #[test]

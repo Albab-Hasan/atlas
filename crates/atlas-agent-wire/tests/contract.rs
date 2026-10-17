@@ -348,6 +348,7 @@ fn sample_subagent() -> Subagent {
         tool_call_count: 2,
         started_at_ms: 1_700_000_000_000,
         ended_at_ms: None,
+        own_thread: true,
     }
 }
 
@@ -428,6 +429,7 @@ fn golden() -> BTreeMap<&'static str, serde_json::Value> {
                     "role": "code-reviewer",
                     "toolCallCount": 2,
                     "startedAtMs": 1_700_000_000_000i64,
+                    "ownThread": true,
                 },
             }),
         ),

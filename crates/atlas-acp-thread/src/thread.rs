@@ -1064,6 +1064,10 @@ pub struct AcpThread {
     plan: Plan,
     turn_id: u32,
     running_turn: Option<RunningTurn>,
+    /// Why the last turn ended, once one has. What a child launched to run on
+    /// its own ended as: the agent holds a turn open until such children
+    /// settle, so the turn's end is theirs too — a Stop stopped them.
+    last_stop_reason: Option<acp::StopReason>,
     connection: Arc<dyn AgentConnection>,
     token_usage: Option<TokenUsage>,
     cost: Option<SessionCost>,
@@ -1098,6 +1102,7 @@ impl AcpThread {
             plan: Plan::default(),
             turn_id: 0,
             running_turn: None,
+            last_stop_reason: None,
             connection,
             token_usage: None,
             cost: None,
@@ -1239,6 +1244,12 @@ impl AcpThread {
 
     pub fn is_generating(&self) -> bool {
         self.running_turn.is_some()
+    }
+
+    /// Why the last turn ended; `None` before any has (and for a thread
+    /// rebuilt by a replay, which ends no turn).
+    pub fn last_stop_reason(&self) -> Option<acp::StopReason> {
+        self.last_stop_reason
     }
 
     fn emit(&self, event: AcpThreadEvent) {
@@ -2059,6 +2070,7 @@ impl AcpThread {
     /// reaches. Checked while fixing `cancel_inner` below (ATL-218 finding 4).
     pub fn end_turn(&mut self, stop_reason: acp::StopReason) {
         self.running_turn = None;
+        self.last_stop_reason = Some(stop_reason);
         self.emit(AcpThreadEvent::Stopped(stop_reason));
         self.emit(AcpThreadEvent::StatusChanged);
     }

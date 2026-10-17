@@ -34,7 +34,7 @@ import {
 import { useSubagents } from "../hooks/use-subagents";
 import { elapsedMs, isRunning, tallySubagents } from "../lib/subagents";
 import { formatDiffStat, tallyChanges } from "../lib/thread-overview";
-import { formatWorked, LiveElapsed } from "./transcript-rows";
+import { LiveElapsed, settledFigure } from "./transcript-rows";
 
 // ── Section chrome ─────────────────────────────────────────────────────────
 
@@ -149,7 +149,7 @@ function SubagentsSection({ tabId }: { tabId: string }) {
                   {isRunning(child) ? (
                     <LiveElapsed startedAt={child.startedAtMs} minMs={1000} />
                   ) : (
-                    formatWorked(elapsedMs(child, Date.now()))
+                    settledFigure(elapsedMs(child, Date.now()))
                   )}
                 </span>
               </button>

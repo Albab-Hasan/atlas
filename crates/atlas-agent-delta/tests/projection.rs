@@ -1869,6 +1869,99 @@ async fn a_named_launch_becomes_a_subagent_and_its_work_nests_under_it() {
     assert!(done.ended_at_ms.is_some(), "a finished child is stamped");
 }
 
+/// A launch that is itself the whole child (Claude's synchronous `Agent`)
+/// ends when that call does — not when it was created, which is all the
+/// thread remembers of it. Live, every such child read "done 0s".
+#[tokio::test(flavor = "multi_thread")]
+async fn a_child_that_finishes_later_states_how_long_it_ran() {
+    let harness = Harness::start();
+
+    harness.update(serde_json::json!({
+        "sessionUpdate": "tool_call",
+        "toolCallId": "toolu_counter",
+        "title": "counter",
+        "kind": "think",
+        "status": "in_progress",
+        "rawInput": { "description": "counter", "prompt": "Count the files." },
+        "_meta": { "claudeCode": { "toolName": "Agent" } },
+    }));
+    harness.pump();
+    let started = subagents(&harness).last().expect("announced").started_at_ms;
+
+    std::thread::sleep(std::time::Duration::from_millis(1100));
+    harness.update(serde_json::json!({
+        "sessionUpdate": "tool_call_update",
+        "toolCallId": "toolu_counter",
+        "status": "completed",
+        "content": [{ "type": "content", "content": { "type": "text", "text": "92" } }],
+    }));
+    harness.pump();
+
+    let done = subagents(&harness).pop().expect("a terminal update");
+    let ended = done.ended_at_ms.expect("a finished child is stamped");
+    assert!(
+        ended - started >= 1000,
+        "it ran for over a second, not {}ms",
+        ended - started
+    );
+
+    // A later, unrelated change re-derives every child; the end it was given
+    // must survive that rather than fall back to its launch time.
+    harness.update(serde_json::json!({
+        "sessionUpdate": "tool_call",
+        "toolCallId": "toolu_other",
+        "title": "Read README.md",
+        "kind": "read",
+        "status": "completed",
+    }));
+    harness.pump();
+    let all = subagents(&harness);
+    let latest = all
+        .iter()
+        .rev()
+        .find(|s| s.tool_call_id == "toolu_counter")
+        .expect("still announced");
+    assert_eq!(latest.ended_at_ms, Some(ended));
+}
+
+/// A reopened session: the launch and its result are replayed back to back,
+/// so the thread's clock says the child took no time. The child's own report
+/// is the duration, and its count of the work this session never saw.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_replayed_child_keeps_the_time_and_work_it_reported() {
+    let harness = Harness::start();
+
+    harness.update(serde_json::json!({
+        "sessionUpdate": "tool_call",
+        "toolCallId": "toolu_counter",
+        "title": "counter",
+        "kind": "think",
+        "status": "pending",
+        "rawInput": { "description": "counter", "subagent_type": "Explore", "prompt": "Count." },
+        "_meta": { "claudeCode": { "toolName": "Agent" } },
+    }));
+    harness.update(serde_json::json!({
+        "sessionUpdate": "tool_call_update",
+        "toolCallId": "toolu_counter",
+        "status": "completed",
+        "rawOutput": [{
+            "type": "text",
+            "text": "There are 92 files.\nagentId: a1\n<usage>subagent_tokens: 27872\ntool_uses: 2\nduration_ms: 17145</usage>",
+        }],
+        "_meta": { "claudeCode": { "toolName": "Agent" } },
+    }));
+    harness.pump();
+
+    let done = subagents(&harness).pop().expect("announced");
+    assert_eq!(done.status, atlas_agent_delta::SubagentStatus::Completed);
+    assert_eq!(
+        done.ended_at_ms.expect("stamped") - done.started_at_ms,
+        17145,
+        "the child's own clock, not the replay's"
+    );
+    assert_eq!(done.tool_call_count, 2, "work the replay never showed");
+}
+
 /// An agent that models children as a tree reports each thing it does to one
 /// as its own call. The child's identity is its path, so several calls
 /// collapse into one row.

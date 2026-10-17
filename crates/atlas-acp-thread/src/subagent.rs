@@ -136,6 +136,11 @@ pub struct SubagentLaunch {
     /// the launching call (an agent path, a child agent id). `None` means the
     /// launching call's id is the only identity available.
     pub native_id: Option<String>,
+    /// The child runs on an agent thread of its own, which this session never
+    /// sees — the engine's lifecycle steps (natively and over ACP). Its calls
+    /// are not attributed here, so a count of them reads 0 whatever it did;
+    /// a surface says where the work went instead.
+    pub own_thread: bool,
 }
 
 /// Whether this tool call launches (or is a lifecycle step of) a subagent.
@@ -250,6 +255,92 @@ pub fn launched_async(raw_output: Option<&serde_json::Value>, meta: Option<&acp:
 
     raw_output.is_some_and(|output| walk(output, MAX_DEPTH))
         || meta.is_some_and(|meta| meta.values().any(|value| walk(value, MAX_DEPTH)))
+}
+
+/// What a finished child reported about its own run.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ReportedUsage {
+    /// How long the child ran, by its own clock.
+    pub duration_ms: Option<u64>,
+    /// How many tool calls it made, whether or not this session saw them.
+    pub tool_uses: Option<u32>,
+}
+
+/// The child's own account of its run, from the launch's output.
+///
+/// The only timing that survives a replay: the thread stamps an entry when it
+/// is created, and a replayed transcript creates every entry in the same
+/// instant. Claude's `Agent` ends its result with
+/// `<usage>… tool_uses: 2\nduration_ms: 17145</usage>`, and its structured
+/// response carries the same as `totalDurationMs` / `totalToolUseCount`;
+/// both are read, the structured form first.
+pub fn reported_usage(raw_output: Option<&serde_json::Value>) -> ReportedUsage {
+    const MAX_DEPTH: u8 = 4;
+
+    fn number(value: &serde_json::Value) -> Option<u64> {
+        value
+            .as_u64()
+            .or_else(|| value.as_str()?.trim().parse().ok())
+    }
+
+    fn from_text(text: &str, usage: &mut ReportedUsage) {
+        let Some(start) = text.rfind("<usage>") else {
+            return;
+        };
+        let block = &text[start + "<usage>".len()..];
+        let block = block.split("</usage>").next().unwrap_or(block);
+        for line in block.lines() {
+            let Some((key, value)) = line.split_once(':') else {
+                continue;
+            };
+            let value = value.trim().parse::<u64>().ok();
+            match key.trim() {
+                "duration_ms" => usage.duration_ms = usage.duration_ms.or(value),
+                "tool_uses" => {
+                    usage.tool_uses = usage
+                        .tool_uses
+                        .or_else(|| value.and_then(|n| u32::try_from(n).ok()));
+                }
+                _ => {}
+            }
+        }
+    }
+
+    fn walk(value: &serde_json::Value, depth: u8, usage: &mut ReportedUsage) {
+        if depth == 0 {
+            return;
+        }
+        match value {
+            serde_json::Value::String(text) => from_text(text, usage),
+            serde_json::Value::Array(items) => {
+                for item in items {
+                    walk(item, depth - 1, usage);
+                }
+            }
+            serde_json::Value::Object(object) => {
+                if let Some(ms) = object.get("totalDurationMs").and_then(number) {
+                    usage.duration_ms = Some(ms);
+                }
+                if let Some(n) = object
+                    .get("totalToolUseCount")
+                    .and_then(number)
+                    .and_then(|n| u32::try_from(n).ok())
+                {
+                    usage.tool_uses = Some(n);
+                }
+                for nested in object.values() {
+                    walk(nested, depth - 1, usage);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let mut usage = ReportedUsage::default();
+    if let Some(output) = raw_output {
+        walk(output, MAX_DEPTH, &mut usage);
+    }
+    usage
 }
 
 /// Where a lifecycle step is in a child's life.
@@ -427,6 +518,7 @@ fn described_launch(
         prompt,
         role,
         native_id: read(&["agentId", "agent_id", "subagentId", "agentPath"]),
+        own_thread: false,
     }
 }
 
@@ -443,6 +535,7 @@ fn path_activity_launch(raw_input: Option<&serde_json::Value>) -> Option<Subagen
         prompt: field(input, PROMPT_KEYS).map(str::to_owned),
         role: field(input, ROLE_KEYS).map(str::to_owned),
         native_id: Some(path.to_owned()),
+        own_thread: true,
     })
 }
 
@@ -679,6 +772,41 @@ mod tests {
             ))
         ));
         assert!(!launched_async(None, None));
+    }
+
+    /// The tail of a real Claude `Agent` result, as replayed on `session/load`.
+    /// It is the only clock a reopened child has.
+    #[test]
+    fn a_finished_child_reports_its_own_duration_and_work() {
+        let output = serde_json::json!([{
+            "type": "text",
+            "text": "[Subagent hand-back] The report follows:\n  Hello there!\n\
+                     agentId: a2dc4cf7e87baa427\n\
+                     <usage>subagent_tokens: 28731\ntool_uses: 2\nduration_ms: 17145</usage>",
+        }]);
+        assert_eq!(
+            reported_usage(Some(&output)),
+            ReportedUsage {
+                duration_ms: Some(17145),
+                tool_uses: Some(2)
+            }
+        );
+
+        // The structured form, where an agent sends one.
+        let structured = serde_json::json!({ "totalDurationMs": 3283, "totalToolUseCount": 0 });
+        assert_eq!(
+            reported_usage(Some(&structured)),
+            ReportedUsage {
+                duration_ms: Some(3283),
+                tool_uses: Some(0)
+            }
+        );
+
+        // Prose that merely mentions a duration is not a report.
+        let prose =
+            serde_json::json!([{ "type": "text", "text": "duration_ms: 5 was the target" }]);
+        assert_eq!(reported_usage(Some(&prose)), ReportedUsage::default());
+        assert_eq!(reported_usage(None), ReportedUsage::default());
     }
 
     // ── the guard ───────────────────────────────────────────────────────

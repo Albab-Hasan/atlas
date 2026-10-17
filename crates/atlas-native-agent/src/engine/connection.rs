@@ -1005,8 +1005,58 @@ fn handle_server_request(
         }
     };
 
-    let session_id = acp::SessionId::new(thread_id.as_str());
-    let Some(thread) = sessions.thread(&session_id) else {
+    // A subagent asks under its own engine thread, which is never a session
+    // here: the card goes to the session that spawned it. A child that asks
+    // the instant it starts can do so before its parent's `Started` activity
+    // has placed it, so an unknown thread is waited for briefly rather than
+    // refused — refusing failed the child's command outright.
+    if let Some(owner) = sessions.owning_session(&thread_id) {
+        raise_approval(
+            sessions, &owner, request, request_id, prompt, surface, item_id, answers,
+        );
+        return;
+    }
+    let sessions = sessions.clone();
+    let answers = answers.clone();
+    tokio::spawn(async move {
+        match sessions
+            .wait_for_owner(&thread_id, CHILD_PLACEMENT_WAIT)
+            .await
+        {
+            Some(owner) => raise_approval(
+                &sessions, &owner, request, request_id, prompt, surface, item_id, &answers,
+            ),
+            None => {
+                let _ = answers.send(ServerAnswer {
+                    request_id,
+                    result: Err("no open thread for this approval".to_string()),
+                });
+            }
+        }
+    });
+}
+
+/// How long a request from an engine thread nobody here knows waits for its
+/// parent's `Started` activity to place it. That activity follows the spawn by
+/// milliseconds; past this the thread is genuinely no session's.
+const CHILD_PLACEMENT_WAIT: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// Puts a tool approval to the user on `session_id`'s line and answers the
+/// engine with their decision, shaped for the request's kind.
+#[allow(clippy::too_many_arguments)]
+fn raise_approval(
+    sessions: &Arc<EngineSessions>,
+    session_id: &acp::SessionId,
+    request: ServerRequest,
+    request_id: RequestId,
+    prompt: acp::ToolCallUpdate,
+    surface: &'static str,
+    item_id: String,
+    answers: &tokio::sync::mpsc::UnboundedSender<ServerAnswer>,
+) {
+    use atlas_engine_app_server_protocol::ServerRequest as Req;
+
+    let Some(thread) = sessions.thread(session_id) else {
         let _ = answers.send(ServerAnswer {
             request_id,
             result: Err("no open thread for this approval".to_string()),
@@ -1014,7 +1064,7 @@ fn handle_server_request(
         return;
     };
 
-    let answered = raise_in_turn(sessions.join_prompt_line(&session_id), thread, |thread| {
+    let answered = raise_in_turn(sessions.join_prompt_line(session_id), thread, |thread| {
         thread.request_tool_call_authorization(
             prompt,
             approvals::options(),
@@ -1104,8 +1154,11 @@ fn ask_tool_approval(
     params: v2::McpServerElicitationRequestParams,
     answers: &tokio::sync::mpsc::UnboundedSender<ServerAnswer>,
 ) {
-    let session_id = acp::SessionId::new(params.thread_id.as_str());
-    let Some(thread) = sessions.thread(&session_id) else {
+    // A child's ask goes to the session that spawned it, as a command's does.
+    let Some((session_id, thread)) = sessions
+        .owning_session(params.thread_id.as_str())
+        .and_then(|owner| Some((owner.clone(), sessions.thread(&owner)?)))
+    else {
         let _ = answers.send(ServerAnswer {
             request_id,
             result: Err("no open thread for this approval".to_string()),
