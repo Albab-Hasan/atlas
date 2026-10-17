@@ -31,6 +31,7 @@ import {
   useRowHasComments,
 } from "./chat-comment-pills";
 import { ProseRowActions } from "./prose-row-actions";
+import type { SubagentStatus } from "@/types/agent";
 import type {
   UserRow,
   ProseRow,
@@ -38,6 +39,7 @@ import type {
   MarkerRow,
   MarkerGroupRow,
   SeparatorRow,
+  SubagentRow,
   TurnFooterRow,
   WorkHeaderRow,
 } from "../lib/turn-rows";
@@ -636,10 +638,98 @@ export const MarkerGroupRowView = memo(function MarkerGroupRowView({
   );
 });
 
+/**
+ * A delegated child — one line, the same line a tool call gets.
+ *
+ * Minimal on purpose: a subagent is not a card, it is one more thing the turn
+ * did, and the transcript's whole bargain is that work reads as a quiet column
+ * you scan. What sets it apart is the glyph — a filled orb rather than a tool
+ * icon, which is how both Codex and Claude Desktop mark an agent among tool
+ * calls — and nothing else.
+ *
+ * Clicking opens the child in the side panel rather than expanding in place:
+ * its prompt, its calls and its answer are a body, and a row that grows into
+ * one is exactly the unpredictable height the virtualizer cannot absorb.
+ */
+export const SubagentRowView = memo(function SubagentRowView({
+  row,
+  tabId,
+}: {
+  row: SubagentRow;
+  tabId: string;
+}) {
+  const running = row.status === "running";
+  const failed = row.status === "failed";
+  return (
+    <Column>
+      <button
+        type="button"
+        onClick={() => openDetail(tabId, { kind: "subagent", toolCallId: row.toolCallId })}
+        title={`${row.name} — open in side panel`}
+        className={cn(
+          "atlas-marker w-full min-w-0 cursor-pointer text-left text-base",
+          failed ? "text-[var(--atlas-status-error-foreground)]" : "text-[var(--muted-foreground)]",
+          "hover:text-[var(--secondary-foreground)]",
+        )}
+      >
+        <span className="flex w-4 shrink-0 justify-center">
+          <AgentOrb running={running} failed={failed} />
+        </span>
+        <span className={cn("min-w-0 truncate", running && "atlas-marker-running")}>
+          {row.name}
+        </span>
+        <span className="ml-auto flex shrink-0 items-center gap-1.5 font-mono text-2xs text-[var(--atlas-text-disabled)] tabular-nums">
+          {SUBAGENT_STATE[row.status]}
+          {row.endedAt === undefined ? (
+            <LiveElapsed startedAt={row.startedAt} minMs={1000} />
+          ) : (
+            <span>{formatWorked(row.endedAt - row.startedAt)}</span>
+          )}
+        </span>
+      </button>
+    </Column>
+  );
+});
+
+/** What the gutter says after the name. Terminal states are words, not icons:
+ *  "stopped" and "failed" are different facts and no glyph tells them apart at
+ *  this size. */
+const SUBAGENT_STATE: Record<SubagentStatus, string> = {
+  running: "running",
+  completed: "done",
+  failed: "failed",
+  interrupted: "stopped",
+};
+
+/**
+ * The thinking orb that stands in for a tool glyph on a subagent's row.
+ *
+ * A filled disc rather than a line icon, so it reads as a presence among the
+ * outlined tool glyphs instead of as another tool. Live, it breathes on the
+ * shared marker shimmer — OPACITY ONLY, like every other animation in the
+ * transcript: no transform and no layout, so a row's predicted height holds
+ * and the scroll loop has nothing to re-measure.
+ */
+function AgentOrb({ running, failed }: { running: boolean; failed: boolean }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "size-2 rounded-full",
+        failed
+          ? "bg-[var(--atlas-status-error-foreground)]"
+          : running
+            ? "bg-[var(--primary)] atlas-marker-running"
+            : "bg-[var(--atlas-text-disabled)]",
+      )}
+    />
+  );
+}
+
 // ── Work header ────────────────────────────────────────────────────────────
 
 /** "17s", "1m 29s", "7m 37s", "1h 3m" — the Codex desktop app's format. */
-function formatWorked(ms: number): string {
+export function formatWorked(ms: number): string {
   const s = Math.max(0, Math.floor(ms / 1000));
   if (s < 60) return `${s}s`;
   const m = Math.floor(s / 60);
@@ -654,7 +744,7 @@ function formatWorked(ms: number): string {
  * stops painting it (the next visible paint is exact, being derived from
  * `startedAt`).
  */
-function LiveElapsed({ startedAt, minMs = 0 }: { startedAt: number; minMs?: number }) {
+export function LiveElapsed({ startedAt, minMs = 0 }: { startedAt: number; minMs?: number }) {
   const ref = useRef<HTMLSpanElement>(null);
   useEffect(() => {
     const write = () => {

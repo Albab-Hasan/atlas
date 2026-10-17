@@ -8,6 +8,7 @@ import { matchesAction } from "@/features/keybindings/lib/use-scoped-hotkeys";
 import { useChatStore } from "../stores/chat-store";
 import { pinScope, resolvePinIndex, type ChatPin } from "../stores/chat-pins-store";
 import { useDetailPanelStore } from "../stores/detail-panel-store";
+import { useThreadOverviewStore } from "../stores/thread-overview-store";
 import { appendNextStepsDirective } from "../lib/next-steps";
 import { stripInjectedContext } from "../lib/atlas-context";
 import { agents, ensureAgent, resetAgent } from "../lib/agents-api";
@@ -162,6 +163,9 @@ import { requestModelPicker } from "../lib/model-picker-events";
 // Diffs + tool output live here rather than inline in the thread — see the
 // module header for why that's a perf decision as much as a UX one.
 const DetailPanel = lazy(() => import("./detail-panel").then((m) => ({ default: m.DetailPanel })));
+const ThreadOverviewPanel = lazy(() =>
+  import("./thread-overview-panel").then((m) => ({ default: m.ThreadOverviewPanel })),
+);
 // Full-screen side-by-side diff for a turn's changes. Lazy: it pulls the
 // virtualizer + the diff-highlight worker, and most sessions never open it.
 const GitDiffModal = lazy(() =>
@@ -319,6 +323,11 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
   const commentCount = useCommentCount(tabId);
   // Narrow boolean — changes only when the detail panel opens or closes.
   const detailOpen = useDetailPanelStore((s) => !!s.targets[tabId]);
+  // Same bargain for the overview rail: one boolean, so a section collapsing
+  // or a child updating inside it re-renders nothing out here.
+  const overviewOpen = useThreadOverviewStore((s) => !!s.open[tabId]);
+  const toggleOverview = useThreadOverviewStore.use.actions().toggle;
+  const onToggleOverviewStable = useCallback(() => toggleOverview(tabId), [toggleOverview, tabId]);
 
   // Full-screen diff. Driven by a window event rather than a prop chain so a row
   // opening it re-renders nothing in the transcript.
@@ -1593,6 +1602,8 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
                 commentCount={commentCount}
                 commentsPanelOpen={commentsPanelOpen}
                 onToggleComments={onToggleCommentsStable}
+                overviewOpen={overviewOpen}
+                onToggleOverview={onToggleOverviewStable}
                 // Zero-arg wrapper, NOT a bare reference: React would call
                 // openNewAgentChat(SyntheticMouseEvent) and the event object
                 // sailed through `agent?` into the store as agentType —
@@ -1676,6 +1687,15 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
       {detailOpen && (
         <Suspense fallback={null}>
           <DetailPanel tabId={tabId} messages={session.messages} />
+        </Suspense>
+      )}
+
+      {/* The thread overview, outermost on the right: a docked column, so the
+          conversation (and the detail panel beside it) reflow narrower rather
+          than being covered by the thing describing them. */}
+      {overviewOpen && (
+        <Suspense fallback={null}>
+          <ThreadOverviewPanel tabId={tabId} />
         </Suspense>
       )}
 

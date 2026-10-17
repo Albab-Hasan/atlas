@@ -234,6 +234,23 @@ export interface ChatSession {
    *  streaming frame. Set on `plan_updated`, reset at each turn start. The dock
    *  hides itself when this is empty or fully completed while idle. */
   livePlan?: PlanStep[];
+  /** Children this session delegated to, keyed by the id of the tool call that
+   *  launched each one (`Subagent.toolCallId`), which is a child's identity
+   *  here — ACP has no subagent concept, so the launch IS the record.
+   *
+   *  Unlike `livePlan` this is NOT per-turn: a child belongs to the message
+   *  that launched it (`Subagent.messageId`) and stays in the transcript with
+   *  it, so an earlier turn's children remain readable. Cleared only when the
+   *  transcript itself is replaced — a New Chat reset, or a rebind onto a
+   *  different backend session — and re-seeded from the snapshot
+   *  (`hydrateSessionSnapshot`), which carries them for exactly that reason.
+   *
+   *  A map rather than an array because the wire ships whole records keyed on
+   *  that id (`subagent_upserted`, like `tool_call_upserted`): an upsert is
+   *  then one assignment and cannot duplicate a row. Read it through
+   *  `orderedSubagents` — object key order is insertion order, which is
+   *  arrival order, which is not launch order once a child updates. */
+  subagents?: Record<string, Subagent>;
   /** Per-turn scratch: files the current turn has read/edited, keyed by tool
    *  call id so repeated pending→completed upserts are idempotent (no message
    *  rescans). Reset at turn start, frozen into the trailing message's

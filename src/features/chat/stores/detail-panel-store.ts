@@ -23,6 +23,11 @@ import { createSelectors } from "@/lib/create-selectors";
 export type PanelTarget =
   | { kind: "tool"; toolCallId: string }
   | { kind: "output"; toolCallId: string }
+  /** A delegated child, addressed by the call that launched it — which is its
+   *  identity (ACP has no subagent concept, so the launch IS the record). The
+   *  panel reads the child from the chat store; a transcript row carries no
+   *  more than its id, as every other target does. */
+  | { kind: "subagent"; toolCallId: string }
   | null;
 
 interface DetailPanelState {

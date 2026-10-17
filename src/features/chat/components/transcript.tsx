@@ -59,6 +59,7 @@ import {
   ThinkingRowView,
   MarkerRowView,
   MarkerGroupRowView,
+  SubagentRowView,
   WorkHeaderRowView,
   SeparatorRowView,
   TurnFooterRowView,
@@ -346,6 +347,12 @@ export const Transcript = forwardRef<TranscriptHandle, TranscriptProps>(function
   const supportsRewind = agentCatalogEntry(agent)?.supportsRewind === true;
   const canRetry = useChatStore((s) => sessionCanRetry(s.sessions[tabId], supportsRewind));
 
+  // Delegated children, keyed by their launching call. A stable reference —
+  // immer re-identifies it only when a child changes — so this subscription
+  // settles, and it is `undefined` for the overwhelming majority of sessions,
+  // where the projection then behaves exactly as it did before.
+  const subagents = useChatStore((s) => s.sessions[tabId]?.subagents);
+
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
   /** Tool sequences the reader has opened. */
   const [expandedTurns, setExpandedTurns] = useState<ReadonlySet<string>>(() => new Set());
@@ -383,12 +390,22 @@ export const Transcript = forwardRef<TranscriptHandle, TranscriptProps>(function
     if (!live && prevProjectionRef.current) return prevProjectionRef.current;
     const next = projectRows(
       messages,
-      { expanded, expandedTurns, streaming: isStreaming, turnInProgress },
+      {
+        expanded,
+        expandedTurns,
+        streaming: isStreaming,
+        turnInProgress,
+        subagents,
+        // One opened-disclosure set for both, keyed by row id: a marker group
+        // is `mg:…` and a subagent `sa:…`, so they cannot collide, and the
+        // reader's gesture is the same gesture.
+        expandedSubagents: expandedTurns,
+      },
       prevProjectionRef.current,
     );
     prevProjectionRef.current = next;
     return next;
-  }, [messages, expanded, expandedTurns, isStreaming, turnInProgress, live]);
+  }, [messages, expanded, expandedTurns, isStreaming, turnInProgress, live, subagents]);
   const rows: Row[] = projection.rows;
 
   // ── Is the live turn still silent? ───────────────────────────────────
@@ -1081,6 +1098,8 @@ function RowView({
       return <MarkerRowView row={row} tabId={tabId} />;
     case RowKind.MarkerGroup:
       return <MarkerGroupRowView row={row} tabId={tabId} onExpandTurn={onExpandTurn} />;
+    case RowKind.Subagent:
+      return <SubagentRowView row={row} tabId={tabId} />;
     case RowKind.Separator:
       return <SeparatorRowView row={row} />;
     case RowKind.WorkHeader:

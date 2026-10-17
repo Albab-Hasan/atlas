@@ -18,6 +18,8 @@
 import { useCallback, useMemo, useRef, useEffect } from "react";
 import { ChevronRight, TerminalSquare, Copy } from "lucide-react";
 import { copyText } from "@/lib/clipboard";
+import { cn } from "@/lib/utils";
+import { useSubagent } from "../hooks/use-subagents";
 import { HintGroup, HintItem } from "@/ui/hint-group";
 import type { ChatMessage, ToolCallDisplay } from "@/types/agent";
 import {
@@ -95,7 +97,11 @@ export function DetailPanel({ tabId, messages }: { tabId: string; messages: Chat
         className="absolute -left-px top-0 z-10 h-full w-px cursor-col-resize bg-border transition-colors hover:bg-primary"
         title="Drag to resize"
       />
-      <PanelBody target={target} byId={byId} onClose={onClose} />
+      {target.kind === "subagent" ? (
+        <SubagentBody tabId={tabId} toolCallId={target.toolCallId} byId={byId} onClose={onClose} />
+      ) : (
+        <PanelBody target={target} byId={byId} onClose={onClose} />
+      )}
     </div>
   );
 }
@@ -150,6 +156,119 @@ function PanelBody({
         ) : (
           <Empty>
             {tc?.status === "running" || tc?.status === "pending" ? "Still running…" : "No output."}
+          </Empty>
+        )}
+      </div>
+    </>
+  );
+}
+
+/**
+ * A delegated child's own body: what it was asked, what it did, what it said.
+ *
+ * The Codex desktop app's subagent view, which opens the child beside the
+ * thread rather than unfolding it inside one. Two shapes of child land here
+ * and the panel must not lie about either:
+ *
+ *   * a STREAMING child (Claude's) has its calls attributed to this session,
+ *     so "what it did" is a real list that grows while you watch;
+ *   * a MAIL child (the native engine's) runs on a thread this session never
+ *     sees. Its calls are not missing, they are elsewhere — so the panel says
+ *     so rather than showing an empty list, which would read as "did nothing".
+ */
+function SubagentBody({
+  tabId,
+  toolCallId,
+  byId,
+  onClose,
+}: {
+  tabId: string;
+  toolCallId: string;
+  byId: Map<string, ToolCallDisplay>;
+  onClose: () => void;
+}) {
+  const child = useSubagent(tabId, toolCallId);
+  // Its own calls, in transcript order. Read from the same map the panel
+  // already built rather than re-scanning the thread.
+  const calls = useMemo(
+    () => [...byId.values()].filter((call) => call.parentToolCallId === toolCallId),
+    [byId, toolCallId],
+  );
+  if (!child) return null;
+
+  const running = child.status === "running";
+  return (
+    <>
+      <Header
+        icon={
+          <span
+            aria-hidden
+            className={cn(
+              "size-2 rounded-full",
+              child.status === "failed"
+                ? "bg-[var(--atlas-status-error-foreground)]"
+                : running
+                  ? "bg-[var(--primary)] atlas-marker-running"
+                  : "bg-[var(--atlas-text-disabled)]",
+            )}
+          />
+        }
+        title={child.name.trim() || "Subagent"}
+        onClose={onClose}
+        action={
+          child.result ? (
+            <HintItem label="Copy result">
+              <button
+                type="button"
+                onClick={() => void copyText(child.result ?? "")}
+                className="flex h-5 w-5 cursor-pointer items-center justify-center rounded text-[var(--muted-foreground)] transition-colors hover:bg-[var(--atlas-element-hover)] hover:text-[var(--foreground)]"
+              >
+                <Copy size={11} />
+              </button>
+            </HintItem>
+          ) : undefined
+        }
+      />
+      <div className="hide-scrollbar flex-1 overflow-auto">
+        {child.prompt && (
+          <div className="border-b border-[var(--atlas-border-subtle)] px-3 py-2">
+            <div className="pb-1 text-3xs uppercase tracking-wider text-[var(--muted-foreground)]">
+              Task
+            </div>
+            <p className="select-text whitespace-pre-wrap text-xs leading-snug text-[var(--secondary-foreground)]">
+              {child.prompt}
+            </p>
+          </div>
+        )}
+        {calls.length > 0 && (
+          <div className="border-b border-[var(--atlas-border-subtle)] px-3 py-2">
+            <div className="pb-1 text-3xs uppercase tracking-wider text-[var(--muted-foreground)]">
+              Work
+            </div>
+            <ul className="m-0 list-none space-y-0.5 p-0">
+              {calls.map((call) => (
+                <li
+                  key={call.id}
+                  className="truncate text-xs text-[var(--muted-foreground)]"
+                  title={call.toolName}
+                >
+                  {call.toolName}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {child.result ? (
+          <pre className="select-text whitespace-pre-wrap break-words px-3 py-2 font-mono text-xs leading-snug text-[var(--secondary-foreground)]">
+            {child.result}
+          </pre>
+        ) : (
+          <Empty>
+            {running
+              ? "Still working…"
+              : calls.length === 0 && child.toolCallCount === 0
+                ? "This agent ran on its own thread and reported nothing back."
+                : "No result."}
           </Empty>
         )}
       </div>

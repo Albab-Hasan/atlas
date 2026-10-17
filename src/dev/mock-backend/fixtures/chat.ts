@@ -46,7 +46,10 @@ export function tools(calls: ToolCall[], at = t(0)): SessionMessage {
   };
 }
 
-type Opts = Partial<Pick<ToolCall, "status" | "result" | "id">>;
+/** `parent_tool_call_id` is here because a subagent's own calls are ordinary
+ *  tool calls that happen to name the launch they belong to — the only thing
+ *  that tells a child's work apart from its parent's. */
+type Opts = Partial<Pick<ToolCall, "status" | "result" | "id" | "parent_tool_call_id">>;
 
 function call(base: Omit<ToolCall, "id" | "status" | "result" | "locations">, o: Opts): ToolCall {
   return {
@@ -54,6 +57,7 @@ function call(base: Omit<ToolCall, "id" | "status" | "result" | "locations">, o:
     status: o.status ?? "completed",
     result: o.result ?? null,
     locations: [],
+    ...(o.parent_tool_call_id ? { parent_tool_call_id: o.parent_tool_call_id } : {}),
     ...base,
   };
 }

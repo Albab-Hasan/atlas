@@ -29,6 +29,7 @@ import {
   ClipboardList,
   ListFilter,
   MessageSquare,
+  PanelRight,
   User,
   Sparkles,
   Check,
@@ -91,6 +92,9 @@ interface ChatHeaderProps {
    *  session is not in the cloud — then there is no button at all. */
   commentCount: number | null;
   commentsPanelOpen: boolean;
+  /** The thread overview rail — subagents, changes, memories. */
+  overviewOpen: boolean;
+  onToggleOverview: () => void;
   onToggleComments: () => void;
   /** P3.4: only rendered when the agent advertised `sessionCapabilities.fork`.
    *  Absent for every agent that did not, so the menu never offers a branch
@@ -118,6 +122,8 @@ function ChatHeaderImpl({
   onTogglePlans,
   commentCount,
   commentsPanelOpen,
+  overviewOpen,
+  onToggleOverview,
   onToggleComments,
   onForkSession,
   onNewSession,
@@ -226,6 +232,17 @@ function ChatHeaderImpl({
               )}
             </HeaderCircleButton>
           )}
+
+          <HeaderCircleButton
+            title={overviewOpen ? "Close overview" : "Thread overview"}
+            onClick={onToggleOverview}
+            aria-pressed={overviewOpen}
+            className={cn(
+              overviewOpen && "bg-[var(--atlas-element-active)] text-[var(--foreground)]",
+            )}
+          >
+            <PanelRight size={13} />
+          </HeaderCircleButton>
 
           <HeaderCircleButton
             title={findHint ? `Find in chat (${findHint})` : "Find in chat"}

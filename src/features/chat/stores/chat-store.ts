@@ -11,6 +11,7 @@ import type {
   SwitchableAgent,
   AgentType,
   PendingSend,
+  Subagent,
 } from "@/types/agent";
 import { CLAUDE_PERMISSION_MODES, isBusyAgentStatus, pluginIdForAgent } from "@/types/agent";
 import type { PendingPermission } from "@/types/acp";
@@ -517,6 +518,10 @@ interface ChatActions {
       tabId: string,
       status: AgentStatus,
       plan: Array<{ content: string; status: string }>,
+      /** The session's delegated children, from the same snapshot. Absent on
+       *  the metadata-only read, like `messages`; an empty array is a session
+       *  that delegated nothing, and both clear what the rebind left. */
+      subagents?: Subagent[],
     ) => void;
     /** Mirror the composer's plain text into the per-tab draft slot. */
     setDraft: (tabId: string, text: string) => void;
@@ -1121,6 +1126,10 @@ export const useChatStore = createSelectors(
               // isn't rejected as stale by `isStaleTurn` (see `setAcpBinding`).
               session.currentTurnSeq = 0;
               session.livePlan = undefined;
+              // The transcript these belonged to is gone with `messages`;
+              // leaving them would hang the old chat's children off the new
+              // one's first message.
+              session.subagents = undefined;
               session.turnScratch = undefined;
               // Commands belong to the ACP session being dropped; the next
               // binding re-advertises its own list.
@@ -1519,7 +1528,7 @@ export const useChatStore = createSelectors(
             // in the sidebar. Real activity (addMessage, applyAcpEvent's
             // streaming chunks, etc.) bumps it elsewhere.
           }),
-        hydrateSessionSnapshot: (tabId, status, plan) =>
+        hydrateSessionSnapshot: (tabId, status, plan, subagents) =>
           set((s) => {
             const session = s.sessions[tabId];
             if (!session) return;
@@ -1538,6 +1547,23 @@ export const useChatStore = createSelectors(
                     status: (e.status as "pending" | "in_progress" | "completed") ?? "pending",
                   }))
                 : undefined;
+            // Re-seed the children the same way. This is what makes a resumed
+            // or switched-back-to chat show its delegated work as subagents
+            // rather than as the bare launching tool calls — the rebind above
+            // cleared them, and live deltas only describe what changes FROM
+            // here, so a finished child would otherwise never be re-announced.
+            //
+            // ABSENT and EMPTY are different, and the difference is load-bearing:
+            // `agents_snapshot_meta` omits `subagents` exactly as it omits
+            // `messages`, so treating absent as empty would wipe a live
+            // session's children on every metadata refresh. Only an array that
+            // is present — and says the session has none — clears.
+            if (subagents) {
+              session.subagents =
+                subagents.length > 0
+                  ? Object.fromEntries(subagents.map((child) => [child.toolCallId, child]))
+                  : undefined;
+            }
           }),
         removeSession: (sessionId) => {
           dropBackendSession(get().sessions[sessionId]);
@@ -1685,6 +1711,11 @@ export const useChatStore = createSelectors(
             if (session.acpSessionId !== acpSessionId) {
               session.currentTurnSeq = 0;
               session.livePlan = undefined;
+              // Per backend session, like the plan: the snapshot for the
+              // session being bound re-seeds them (`hydrateSessionSnapshot`),
+              // and without this a resumed chat would show the previous
+              // binding's children until its own first delta.
+              session.subagents = undefined;
               session.turnScratch = undefined;
               // Usage is per backend session; a different one starts from
               // nothing (its cached context gauge is restored by
@@ -2331,6 +2362,19 @@ function applyDeltaToDraft(s: ChatDraft, env: AgentDelta): void {
       if (found) {
         found.tc.result = (found.tc.result ?? "") + env.delta;
       }
+      return;
+    }
+    case "subagent_upserted": {
+      // Whole-record upsert, keyed on the launching call — the same contract
+      // as `tool_call_upserted`, so nothing here merges fields. The projector
+      // re-derives a child on every thread change and only sends what differs,
+      // which is why a late attribution (a call the agent assigns to a child
+      // after announcing it) arrives as an ordinary update rather than needing
+      // a patch path of its own.
+      //
+      // Not gated on `isStaleTurn`: a child can outlive the turn that spawned
+      // it, and the record belongs to its launching message, not to the turn.
+      (session.subagents ??= {})[env.subagent.toolCallId] = env.subagent;
       return;
     }
     case "plan_updated": {
