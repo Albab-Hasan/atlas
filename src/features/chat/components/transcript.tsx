@@ -396,10 +396,6 @@ export const Transcript = forwardRef<TranscriptHandle, TranscriptProps>(function
         streaming: isStreaming,
         turnInProgress,
         subagents,
-        // One opened-disclosure set for both, keyed by row id: a marker group
-        // is `mg:…` and a subagent `sa:…`, so they cannot collide, and the
-        // reader's gesture is the same gesture.
-        expandedSubagents: expandedTurns,
       },
       prevProjectionRef.current,
     );

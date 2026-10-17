@@ -99,17 +99,24 @@ describe("a launching call becomes the child it launched", () => {
     });
     expect(row.name).toBe("Subagent");
   });
-
-  it("reads its open state from the reader's set", () => {
-    const [row] = subagentRows(turn([LAUNCH]), {
-      subagents,
-      expandedSubagents: new Set(["sa:task-a"]),
-    });
-    expect(row.open).toBe(true);
-  });
 });
 
 describe("a child's own calls", () => {
+  it("neither count as the parent's work nor fail its turn", () => {
+    // A child's failed grep is the child's failure. Counted on the parent it
+    // turned the whole turn red and inflated its tool count with work the
+    // parent never did.
+    const { turns } = projectRows(
+      turn(
+        [LAUNCH, toolCall({ id: "own" })],
+        [toolCall({ id: "c1", toolName: "grep", status: "failed", parentToolCallId: "task-a" })],
+      ),
+      { ...OPTS, subagents: { "task-a": child({ toolCallId: "task-a" }) } },
+    );
+    expect(turns[0].status).toBe("settled");
+    expect(turns[0].toolCount).toBe(2);
+  });
+
   const subagents = {
     "task-a": child({ toolCallId: "task-a", toolCallCount: 2 }),
   };

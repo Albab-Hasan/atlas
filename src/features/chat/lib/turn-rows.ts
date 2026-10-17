@@ -259,7 +259,6 @@ export interface SubagentRow extends RowBase {
    *  to this session. Zero means "nothing visible", so a row renders no count
    *  rather than "0" — which would be a claim about the child that is false. */
   workCount: number;
-  open: boolean;
 }
 
 export interface SeparatorRow extends RowBase {
@@ -880,8 +879,6 @@ export interface ProjectOptions {
    *  sessions, and then this projection behaves exactly as it did before:
    *  no subagent rows, and nothing re-attributed. */
   subagents?: Record<string, Subagent>;
-  /** Subagent rows the reader has opened, keyed by row id. */
-  expandedSubagents?: ReadonlySet<string>;
 }
 
 /**
@@ -1037,14 +1034,19 @@ export function projectRows(
 
       for (const tc of msg.toolCalls) {
         if (isInternalTool(tc)) continue;
-        toolCount += 1;
-        if (tc.status === "failed") sawError = true;
 
         // A child's own call belongs under its parent's row, not in the
         // turn's stream: left here it would read as the parent's work, and
         // three children running at once would interleave into one
         // unattributable block. Collected by `childCalls` above.
+        //
+        // BEFORE the counters: a child's failed grep is the child's failure,
+        // and counted here it set the whole turn to "error" and inflated the
+        // parent's tool count with work it never did.
         if (tc.parentToolCallId && opts.subagents?.[tc.parentToolCallId]) continue;
+
+        toolCount += 1;
+        if (tc.status === "failed") sawError = true;
 
         // A launching call becomes the child it launched. Its own shape says
         // nothing a reader wants — see `SubagentRow`.
@@ -1073,7 +1075,6 @@ export function projectRows(
             endedAt: child.endedAtMs,
             markers: own,
             workCount: child.toolCallCount,
-            open: opts.expandedSubagents?.has(id) ?? false,
           });
           continue;
         }
