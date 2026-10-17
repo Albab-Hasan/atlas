@@ -15,13 +15,15 @@
 // Nothing here writes to the chat store, and the rail's own state lives in
 // `thread-overview-store`.
 
-import { lazy, Suspense, useMemo } from "react";
-import { ChevronRight, PanelRightClose } from "lucide-react";
+import { useMemo } from "react";
+import { ChevronDown } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/features/app/stores/app-store";
+import { useSessionMemoryWrites } from "@/features/memory/lib/use-session-memory-writes";
 
 import { openDetail } from "../stores/detail-panel-store";
+import { HEADER_INSET } from "../lib/row-metrics";
 import { useChatStore } from "../stores/chat-store";
 import {
   OVERVIEW_SECTIONS,
@@ -34,19 +36,21 @@ import { elapsedMs, isRunning, tallySubagents } from "../lib/subagents";
 import { formatDiffStat, tallyChanges } from "../lib/thread-overview";
 import { formatWorked, LiveElapsed } from "./transcript-rows";
 
-const MemoryUpdatedCard = lazy(() =>
-  import("@/features/memory/components/memory-updated-card").then((m) => ({
-    default: m.MemoryUpdatedCard,
-  })),
-);
-
 // ── Section chrome ─────────────────────────────────────────────────────────
 
 /**
- * One collapsible section. The header is always a row with a count on the
- * right, whether or not the section is open — that count is the whole value of
- * a collapsed rail, and a section that hid it would have to be opened to be
- * read.
+ * One section, as its own card.
+ *
+ * Separate cards rather than a bordered panel of stacked rows, which is how
+ * Claude Desktop's rail reads and why it reads well: the sections are
+ * unrelated — a subagent has nothing to do with a diff stat — and a shared
+ * frame implies they belong to one list you read top to bottom. Floating each
+ * one lets a reader take in just the card they came for, and lets a section
+ * with nothing in it simply not be there.
+ *
+ * The title row always carries its count, open or collapsed. That count is
+ * the whole value of a collapsed card: a section that hid it would have to be
+ * opened before it said anything.
  */
 function Section({
   id,
@@ -61,28 +65,31 @@ function Section({
   const collapsed = useThreadOverviewStore((s) => Boolean(s.collapsed[id]));
   const { toggleSection } = useThreadOverviewStore.use.actions();
   return (
-    <section className="border-b border-[var(--border)] last:border-b-0">
+    <section className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--card)]">
       <button
         type="button"
         aria-expanded={!collapsed}
         onClick={() => toggleSection(id)}
         className="flex w-full cursor-pointer items-center gap-1.5 px-3 py-2 text-left hover:bg-[var(--muted)]"
       >
-        <ChevronRight
-          size={12}
-          strokeWidth={2}
-          className={cn("shrink-0 text-[var(--muted-foreground)]", !collapsed && "rotate-90")}
-        />
         <span className="min-w-0 flex-1 truncate text-xs font-medium text-[var(--secondary-foreground)]">
           {SECTION_TITLE[id]}
         </span>
+        <ChevronDown
+          size={12}
+          strokeWidth={2}
+          className={cn(
+            "shrink-0 text-[var(--muted-foreground)] transition-transform",
+            collapsed && "-rotate-90",
+          )}
+        />
         {status && (
-          <span className="shrink-0 font-mono text-2xs text-[var(--atlas-text-disabled)] tabular-nums">
+          <span className="ml-1 shrink-0 font-mono text-2xs text-[var(--atlas-text-disabled)] tabular-nums">
             {status}
           </span>
         )}
       </button>
-      {!collapsed && <div className="px-3 pb-2">{children}</div>}
+      {!collapsed && <div className="px-1 pb-1.5">{children}</div>}
     </section>
   );
 }
@@ -90,7 +97,7 @@ function Section({
 /** What a section says when it has nothing — one muted line, never an empty
  *  box with a heading over it. */
 function Empty({ children }: { children: React.ReactNode }) {
-  return <p className="py-1 text-2xs text-[var(--atlas-text-disabled)]">{children}</p>;
+  return <p className="px-2 py-1 text-2xs text-[var(--atlas-text-disabled)]">{children}</p>;
 }
 
 // ── Sections ───────────────────────────────────────────────────────────────
@@ -109,7 +116,7 @@ function SubagentsSection({ tabId }: { tabId: string }) {
       {children.length === 0 ? (
         <Empty>No agents delegated to.</Empty>
       ) : (
-        <ul className="m-0 list-none space-y-0.5 p-0">
+        <ul className="m-0 list-none p-0">
           {children.map((child) => (
             <li key={child.toolCallId}>
               {/* Opens the child's own body beside the thread, the same target
@@ -119,11 +126,15 @@ function SubagentsSection({ tabId }: { tabId: string }) {
                 onClick={() =>
                   openDetail(tabId, { kind: "subagent", toolCallId: child.toolCallId })
                 }
-                className="flex w-full cursor-pointer items-center gap-2 rounded-sm py-0.5 text-left hover:bg-[var(--muted)]"
+                // The hover rectangle is the row, so it carries the row's
+                // padding: hanging it on a `py-0.5` line inside the card's own
+                // padding put the highlight hard against the card's border
+                // with the orb sitting on the edge of it.
+                className="flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-[var(--muted)]"
               >
                 <span
                   className={cn(
-                    "size-1.5 shrink-0 rounded-full",
+                    "size-2 shrink-0 rounded-full",
                     child.status === "running"
                       ? "bg-[var(--primary)] atlas-marker-running"
                       : child.status === "failed"
@@ -160,9 +171,9 @@ function ChangesSection({ tabId }: { tabId: string }) {
           {tally.readCount > 0 ? `${tally.readCount} files read, none changed.` : "No changes yet."}
         </Empty>
       ) : (
-        <ul className="m-0 list-none space-y-0.5 p-0">
+        <ul className="m-0 list-none p-0">
           {tally.files.map((file) => (
-            <li key={file.path} className="flex items-center gap-2 py-0.5">
+            <li key={file.path} className="flex items-center gap-2 px-2 py-1">
               <span
                 className="min-w-0 flex-1 truncate text-xs text-[var(--secondary-foreground)]"
                 title={file.path}
@@ -190,14 +201,25 @@ function ChangesSection({ tabId }: { tabId: string }) {
 function MemoriesSection({ tabId }: { tabId: string }) {
   const projectPath = useAppStore.use.currentProject()?.path ?? null;
   const acpSessionId = useChatStore((s) => s.sessions[tabId]?.acpSessionId ?? null);
+  const { writes } = useSessionMemoryWrites(projectPath, acpSessionId);
+  // No card at all when this thread remembered nothing — which is most
+  // threads. A card carrying only its own title is the empty-section problem
+  // these cards exist to avoid, and separate cards make "not there" an option
+  // a bordered panel of stacked rows never had.
+  if (writes.length === 0) return null;
   return (
-    <Section id="memories" status="">
-      <Suspense fallback={null}>
-        {/* The card renders nothing when the session wrote no memories, which
-            is its own emptiness rule — duplicating one here would mean two
-            answers to the same question. */}
-        <MemoryUpdatedCard projectPath={projectPath} sessionId={acpSessionId} />
-      </Suspense>
+    <Section id="memories" status={`${writes.length}`}>
+      <ul className="m-0 list-none p-0">
+        {writes.map((write) => (
+          <li
+            key={write.id}
+            className="truncate px-2 py-1 text-xs text-[var(--secondary-foreground)]"
+            title={write.content}
+          >
+            {write.content}
+          </li>
+        ))}
+      </ul>
     </Section>
   );
 }
@@ -212,33 +234,25 @@ const SECTION_VIEW: Record<OverviewSection, (props: { tabId: string }) => React.
 
 export function ThreadOverviewPanel({ tabId }: { tabId: string }) {
   const width = useThreadOverviewStore.use.width();
-  const { close } = useThreadOverviewStore.use.actions();
 
   return (
+    // No panel chrome: no border, no header, no fill of its own. The cards ARE
+    // the surface, floating on the conversation's own background — which is
+    // what lets the subagent view open OVER this as a full panel without two
+    // competing frames on the same edge.
     <aside
       aria-label="Thread overview"
-      style={{ width }}
-      className="relative flex h-full max-w-[50%] shrink-0 flex-col border-l border-[var(--border)] bg-[var(--sidebar)] animate-slide-in-right"
+      // The header bar floats over the CONVERSATION column only, so a rail
+      // starting at y=0 sits beside its icons rather than under them. Reserve
+      // the bar's height here too and the first card begins on the same line
+      // the transcript's first row does.
+      style={{ width, paddingTop: HEADER_INSET }}
+      className="hide-scrollbar flex h-full max-w-[50%] shrink-0 flex-col gap-2 overflow-y-auto px-2 pb-2"
     >
-      <header className="flex h-9 shrink-0 items-center gap-1.5 border-b border-[var(--border)] px-3">
-        <span className="min-w-0 flex-1 truncate text-xs font-medium text-[var(--secondary-foreground)]">
-          Overview
-        </span>
-        <button
-          type="button"
-          aria-label="Close overview"
-          onClick={() => close(tabId)}
-          className="shrink-0 cursor-pointer rounded-sm p-1 text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--secondary-foreground)]"
-        >
-          <PanelRightClose size={14} strokeWidth={2} />
-        </button>
-      </header>
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        {OVERVIEW_SECTIONS.map((id) => {
-          const View = SECTION_VIEW[id];
-          return <View key={id} tabId={tabId} />;
-        })}
-      </div>
+      {OVERVIEW_SECTIONS.map((id) => {
+        const View = SECTION_VIEW[id];
+        return <View key={id} tabId={tabId} />;
+      })}
     </aside>
   );
 }

@@ -694,7 +694,7 @@ export const SubagentRowView = memo(function SubagentRowView({
 /** What the gutter says after the name. Terminal states are words, not icons:
  *  "stopped" and "failed" are different facts and no glyph tells them apart at
  *  this size. */
-const SUBAGENT_STATE: Record<SubagentStatus, string> = {
+export const SUBAGENT_STATE: Record<SubagentStatus, string> = {
   running: "running",
   completed: "done",
   failed: "failed",

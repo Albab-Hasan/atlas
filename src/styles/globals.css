@@ -1393,6 +1393,26 @@
   mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent calc(100% - 5px));
 }
 
+/* A scroll list that fades its own rows out at the bottom edge.
+ *
+ * For surfaces an opaque gradient cannot sit on: the session dropdown is
+ * translucent and blurred, so `ScrollFade`'s colour ramp would punch a solid
+ * strip through the blur (the rule the search row and the sticky headings
+ * already follow). A mask fades the CONTENT instead of painting over it, so
+ * there is no colour to get wrong and nothing to flatten the blur.
+ *
+ * Static, not measured: this is a `mask-image` on the scroller, so the fade
+ * follows the viewport's bottom edge and resolves itself — at the end of the
+ * list the last row simply scrolls into the clear part of the mask. Nothing
+ * to subscribe to, and no state that can disagree with the scroll position.
+ *
+ * Prefixed as well as not: WKWebView is the target and the two have differed
+ * on mask-image before. */
+.atlas-scroll-mask-b {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent 100%);
+}
+
 .atlas-pill-in {
   animation: atlas-pill-in 200ms ease-out both;
 }

@@ -172,6 +172,24 @@ describe("a mail child, whose work is never attributed", () => {
   });
 });
 
+describe("the fold", () => {
+  it("leaves subagent rows visible on a settled turn", () => {
+    // A folded turn hides what it DID; a child is not that. It has its own
+    // state, it can outlive the turn, and it is the one thing a delegating
+    // turn exists to report — folded away, the turn reads as "Worked ›" and
+    // nothing else.
+    const rows = rowsOf(turn([LAUNCH, toolCall({ id: "own" })]), {
+      subagents: { "task-a": child({ toolCallId: "task-a", status: "completed" }) },
+      // The work block is CLOSED here, unlike every other case in this file.
+      expandedTurns: new Set<string>(),
+    });
+    expect(rows.some((r) => r.kind === RowKind.WorkHeader)).toBe(true);
+    expect(rows.filter((r) => r.kind === RowKind.Subagent)).toHaveLength(1);
+    // The parent's own call still folds away.
+    expect(rows.some((r) => r.kind === RowKind.MarkerGroup)).toBe(false);
+  });
+});
+
 describe("a session that delegated nothing", () => {
   it("projects exactly as before — no rows, no attribution pass", () => {
     const rows = rowsOf(turn([LAUNCH, toolCall({ id: "own" })]));

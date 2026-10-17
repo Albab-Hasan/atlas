@@ -16,10 +16,13 @@
 // clipped lines or with the whole box scrolling sideways.
 
 import { useCallback, useMemo, useRef, useEffect } from "react";
-import { ChevronRight, TerminalSquare, Copy } from "lucide-react";
+import { ArrowLeft, ChevronRight, TerminalSquare, Copy } from "lucide-react";
 import { copyText } from "@/lib/clipboard";
 import { cn } from "@/lib/utils";
 import { useSubagent } from "../hooks/use-subagents";
+import { elapsedMs } from "../lib/subagents";
+import { CachedMarkdown } from "@/lib/markdown-cache";
+import { formatWorked, SUBAGENT_STATE } from "./transcript-rows";
 import { HintGroup, HintItem } from "@/ui/hint-group";
 import type { ChatMessage, ToolCallDisplay } from "@/types/agent";
 import {
@@ -176,6 +179,25 @@ function PanelBody({
  *     sees. Its calls are not missing, they are elsewhere — so the panel says
  *     so rather than showing an empty list, which would read as "did nothing".
  */
+/**
+ * A delegated child's own thread — the agent chat, scoped to one child.
+ *
+ * The Codex desktop app's subagent view: a bar naming the child, then its
+ * conversation. That shape is the point. A child IS a thread — it was given a
+ * task and it answered — so reading it as a transcript, in the transcript's
+ * own idiom (the task as the prompt, the answer as prose, its calls as
+ * markers between them), means a reader already knows how to read it. The
+ * first version of this panel rendered the answer into a `<pre>`, which turned
+ * every list, heading and code fence the child wrote into one grey blob.
+ *
+ * Two shapes of child land here and the panel must not lie about either:
+ *
+ *   * a STREAMING child (Claude's) has its calls attributed to this session,
+ *     so its work is a real list that grows while you watch;
+ *   * a MAIL child (the native engine's) runs on a thread this session never
+ *     sees. Its calls are not missing, they are elsewhere — so the panel says
+ *     so rather than showing an empty list, which would read as "did nothing".
+ */
 function SubagentBody({
   tabId,
   toolCallId,
@@ -188,8 +210,8 @@ function SubagentBody({
   onClose: () => void;
 }) {
   const child = useSubagent(tabId, toolCallId);
-  // Its own calls, in transcript order. Read from the same map the panel
-  // already built rather than re-scanning the thread.
+  // Its own calls, in transcript order. Read from the map the panel already
+  // built rather than re-scanning the thread.
   const calls = useMemo(
     () => [...byId.values()].filter((call) => call.parentToolCallId === toolCallId),
     [byId, toolCallId],
@@ -197,79 +219,106 @@ function SubagentBody({
   if (!child) return null;
 
   const running = child.status === "running";
+  const name = child.name.trim() || "Subagent";
   return (
     <>
-      <Header
-        icon={
-          <span
-            aria-hidden
-            className={cn(
-              "size-2 rounded-full",
-              child.status === "failed"
-                ? "bg-[var(--atlas-status-error-foreground)]"
-                : running
-                  ? "bg-[var(--primary)] atlas-marker-running"
-                  : "bg-[var(--atlas-text-disabled)]",
-            )}
-          />
-        }
-        title={child.name.trim() || "Subagent"}
-        onClose={onClose}
-        action={
-          child.result ? (
-            <HintItem label="Copy result">
-              <button
-                type="button"
-                onClick={() => void copyText(child.result ?? "")}
-                className="flex h-5 w-5 cursor-pointer items-center justify-center rounded text-[var(--muted-foreground)] transition-colors hover:bg-[var(--atlas-element-hover)] hover:text-[var(--foreground)]"
-              >
-                <Copy size={11} />
-              </button>
-            </HintItem>
-          ) : undefined
-        }
-      />
-      <div className="hide-scrollbar flex-1 overflow-auto">
+      {/* The chat's own bar: back out of the child, the child's name, and what
+          it is on the right — the slot the agent chat puts the model in. */}
+      <div className="flex h-[32px] shrink-0 items-center gap-2 border-b border-[var(--border)] px-2">
+        <button
+          type="button"
+          aria-label="Back"
+          onClick={onClose}
+          className="flex size-5 shrink-0 cursor-pointer items-center justify-center rounded text-[var(--muted-foreground)] transition-colors hover:bg-[var(--atlas-element-hover)] hover:text-[var(--foreground)]"
+        >
+          <ArrowLeft size={13} />
+        </button>
+        <span
+          aria-hidden
+          className={cn(
+            "size-2 shrink-0 rounded-full",
+            child.status === "failed"
+              ? "bg-[var(--atlas-status-error-foreground)]"
+              : running
+                ? "bg-[var(--primary)] atlas-marker-running"
+                : "bg-[var(--atlas-text-disabled)]",
+          )}
+        />
+        <span className="min-w-0 flex-1 truncate text-xs font-medium text-[var(--foreground)]">
+          {name}
+        </span>
+        <span className="shrink-0 font-mono text-2xs text-[var(--muted-foreground)]">
+          {child.role ? `${child.role} · ` : ""}
+          {SUBAGENT_STATE[child.status]}
+        </span>
+      </div>
+
+      <div className="hide-scrollbar flex-1 overflow-auto px-4 py-3">
+        {/* The task, as the prompt that started this thread. Right-aligned in
+            the same bubble a user message wears, because that is what it is
+            from the child's side. */}
         {child.prompt && (
-          <div className="border-b border-[var(--atlas-border-subtle)] px-3 py-2">
-            <div className="pb-1 text-3xs uppercase tracking-wider text-[var(--muted-foreground)]">
-              Task
-            </div>
-            <p className="select-text whitespace-pre-wrap text-xs leading-snug text-[var(--secondary-foreground)]">
+          <div className="mb-4 flex justify-end">
+            <p className="max-w-full min-w-0 select-text rounded-xl bg-[var(--atlas-primary-muted)] px-3.5 py-2 text-sm whitespace-pre-wrap text-[var(--foreground)]">
               {child.prompt}
             </p>
           </div>
         )}
+
+        {/* Its work, as markers — the same line a tool call gets in the
+            transcript, so a child's run reads like any other. */}
         {calls.length > 0 && (
-          <div className="border-b border-[var(--atlas-border-subtle)] px-3 py-2">
-            <div className="pb-1 text-3xs uppercase tracking-wider text-[var(--muted-foreground)]">
-              Work
-            </div>
-            <ul className="m-0 list-none space-y-0.5 p-0">
-              {calls.map((call) => (
-                <li
-                  key={call.id}
-                  className="truncate text-xs text-[var(--muted-foreground)]"
-                  title={call.toolName}
-                >
-                  {call.toolName}
-                </li>
-              ))}
-            </ul>
+          <div className="mb-3">
+            {calls.map((call) => (
+              <p
+                key={call.id}
+                className="atlas-marker text-xs text-[var(--muted-foreground)]"
+                title={call.toolName}
+              >
+                <span
+                  aria-hidden
+                  className="size-1 shrink-0 rounded-full bg-[var(--atlas-text-disabled)]"
+                />
+                <span className="min-w-0 truncate">{call.toolName}</span>
+              </p>
+            ))}
           </div>
         )}
+
+        {/* The answer, rendered as prose. `atlas-prose` is the transcript's own
+            block styling, so a child's lists and code fences look exactly like
+            the parent's. */}
         {child.result ? (
-          <pre className="select-text whitespace-pre-wrap break-words px-3 py-2 font-mono text-xs leading-snug text-[var(--secondary-foreground)]">
-            {child.result}
-          </pre>
+          <div className="select-text">
+            <CachedMarkdown source={child.result} unstyled priority={0} className="atlas-prose" />
+          </div>
         ) : (
-          <Empty>
+          <p className="text-xs leading-relaxed text-[var(--muted-foreground)]">
             {running
               ? "Still working…"
               : calls.length === 0 && child.toolCallCount === 0
                 ? "This agent ran on its own thread and reported nothing back."
                 : "No result."}
-          </Empty>
+          </p>
+        )}
+
+        {/* The footer the agent chat puts under a reply: what you can do with
+            it, and how long it took. */}
+        {child.result && (
+          <div className="mt-3 flex items-center gap-2">
+            <HintItem label="Copy result">
+              <button
+                type="button"
+                onClick={() => void copyText(child.result ?? "")}
+                className="flex size-5 cursor-pointer items-center justify-center rounded text-[var(--muted-foreground)] transition-colors hover:bg-[var(--atlas-element-hover)] hover:text-[var(--foreground)]"
+              >
+                <Copy size={11} />
+              </button>
+            </HintItem>
+            <span className="font-mono text-2xs text-[var(--atlas-text-disabled)] tabular-nums">
+              {formatWorked(elapsedMs(child, Date.now()))}
+            </span>
+          </div>
         )}
       </div>
     </>

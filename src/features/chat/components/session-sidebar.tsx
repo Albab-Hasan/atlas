@@ -776,7 +776,14 @@ export const SessionSidebar = memo(function SessionSidebar({
         <div
           ref={listRef}
           data-testid="session-list"
-          className="flex flex-1 flex-col gap-1.5 overflow-y-auto p-2 hide-scrollbar"
+          className={cn(
+            "flex flex-1 flex-col gap-1.5 overflow-y-auto p-2 hide-scrollbar",
+            // The dropdown gets a mask instead of the sidebar's colour fades:
+            // its panel is blurred, and an opaque gradient over it would be a
+            // solid strip. Clipped mid-row with nothing, the list reads as
+            // finished when it is not.
+            asDropdown && "atlas-scroll-mask-b",
+          )}
           {...frozenListProps}
         >
           {isLoading && <div className="px-1 py-1 text-xs text-muted-foreground">Loading…</div>}

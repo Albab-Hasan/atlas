@@ -1275,8 +1275,23 @@ function foldWork(
     expandedTurns: ReadonlySet<string>;
   },
 ): void {
+  // The trailing run that is NOT work: the answer, and the children the turn
+  // delegated to.
+  //
+  // Subagents survive the fold deliberately. A folded turn hides what it did
+  // because the answer is what remains worth reading — but a child is not
+  // something the turn did and finished with: it has its own state, it may
+  // still be running after the turn settles, and it is the one thing a
+  // delegating turn exists to report. Claude Desktop keeps them visible for
+  // the same reason, between the answer and the footer.
   let answerStart = rows.length;
-  while (answerStart > rowStart && rows[answerStart - 1].kind === RowKind.Prose) answerStart -= 1;
+  while (
+    answerStart > rowStart &&
+    (rows[answerStart - 1].kind === RowKind.Prose ||
+      rows[answerStart - 1].kind === RowKind.Subagent)
+  ) {
+    answerStart -= 1;
+  }
   const foldable = !o.live && answerStart > rowStart;
   // A settled prose-only turn with no timing has nothing to say.
   if (!o.live && !foldable && o.workedMs === null) return;

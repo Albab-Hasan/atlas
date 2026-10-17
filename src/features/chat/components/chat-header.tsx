@@ -30,6 +30,7 @@ import {
   ListFilter,
   MessageSquare,
   PanelRight,
+  PanelLeft,
   User,
   Sparkles,
   Check,
@@ -95,6 +96,9 @@ interface ChatHeaderProps {
   /** The thread overview rail — subagents, changes, memories. */
   overviewOpen: boolean;
   onToggleOverview: () => void;
+  /** The chat-history rail on the left (`layout.chatSidebar.visible`). */
+  sidebarOpen: boolean;
+  onToggleSidebar: () => void;
   onToggleComments: () => void;
   /** P3.4: only rendered when the agent advertised `sessionCapabilities.fork`.
    *  Absent for every agent that did not, so the menu never offers a branch
@@ -124,6 +128,8 @@ function ChatHeaderImpl({
   commentsPanelOpen,
   overviewOpen,
   onToggleOverview,
+  sidebarOpen,
+  onToggleSidebar,
   onToggleComments,
   onForkSession,
   onNewSession,
@@ -140,6 +146,21 @@ function ChatHeaderImpl({
     <div className="relative shrink-0">
       <HintGroup>
         <div className="flex h-[46px] items-center gap-2 px-6">
+          {/* The chat-history rail, on the side it opens — the mirror of the
+              overview button at the other end of the bar. It was reachable
+              only from the command palette and a chord, which is to say it
+              was reachable only by someone who already knew it existed. */}
+          <HeaderCircleButton
+            title={sidebarOpen ? "Hide chat history" : "Chat history"}
+            onClick={onToggleSidebar}
+            aria-pressed={sidebarOpen}
+            className={cn(
+              sidebarOpen && "bg-[var(--atlas-element-active)] text-[var(--foreground)]",
+            )}
+          >
+            <PanelLeft size={13} />
+          </HeaderCircleButton>
+
           <HeaderCircleButton title="New session" onClick={onNewSession}>
             <Plus size={13} />
           </HeaderCircleButton>
