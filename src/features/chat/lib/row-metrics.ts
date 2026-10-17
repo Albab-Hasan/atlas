@@ -26,6 +26,19 @@
  */
 export const HEADER_INSET = 46;
 
+/**
+ * The conversation's content frame: centred, 760px at most, padded the same on
+ * both sides.
+ *
+ * Shared because the composer stack has to line up with the transcript text at
+ * every width, not just the wide one. It used to be `px-4` around a 720px box,
+ * which coincides with this frame only when the column is at least 760px wide;
+ * opening the overview rail (or a narrow window or split) put the composer's
+ * left edge 7px outside the text above it. One string now frames the rows, the
+ * composer, the cards tucked above it and the banners over it.
+ */
+export const CONTENT_COLUMN = "mx-auto w-full max-w-[760px] px-6";
+
 export const M = {
   /** Lines a user prompt shows before clamping behind "Show more". */
   userMaxLines: 12,

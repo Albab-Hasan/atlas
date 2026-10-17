@@ -15,6 +15,8 @@
 
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { EASE_PANEL } from "@/lib/motion";
+import { cn } from "@/lib/utils";
+import { CONTENT_COLUMN } from "../lib/row-metrics";
 
 /** Long enough to read as an object moving, short enough not to delay an
  *  answer. Matches the panel timings the rest of the chrome uses. */
@@ -80,7 +82,7 @@ export function ComposerDrawer({ children }: { children: React.ReactNode }) {
             animate={{ y: 0 }}
             exit={reduce ? undefined : { y: 10 }}
             transition={{ duration: reduce ? 0 : OPEN_S, ease: EASE_PANEL }}
-            className="px-4 pt-2"
+            className={cn(CONTENT_COLUMN, "pt-2")}
           >
             {children}
           </motion.div>

@@ -115,7 +115,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { prefetchTextDiff } from "@/features/git/lib/git-diff-api";
 import { OPEN_TURN_DIFF_EVENT, type TurnDiffRequest } from "../lib/open-turn-diff";
 import { collectTurnEdits } from "../lib/turn-edits";
-import { HEADER_INSET } from "../lib/row-metrics";
+import { CONTENT_COLUMN, HEADER_INSET } from "../lib/row-metrics";
 
 /** When this app run first saw each bound session (ms). The "Memory updated"
  *  card lists only what the session wrote since then, so a session resumed
@@ -1688,8 +1688,11 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
             // rail to the left of this element's own centre — so a composer
             // left to centre itself drifted right of the conversation it
             // belongs to. Reserving the rail's width here makes the two
-            // centres the same number.
-            style={overviewWidth > 0 ? { paddingRight: overviewWidth } : undefined}
+            // centres the same number. Capped the way the rail is
+            // (`max-w-[50%]`, of this same column): reserving the stored width
+            // once the rail had hit its cap starved the composer of the
+            // difference — at a 900px window, a third of the thread's width.
+            style={overviewWidth > 0 ? { paddingRight: `min(${overviewWidth}px, 50%)` } : undefined}
           >
             {/* Anchored to this whole stack, not to the composer: the card below
               sits directly on top of the composer, so a pill anchored there
@@ -1826,7 +1829,7 @@ function DisconnectedBanner({ tabId }: { tabId: string }) {
     !agentCatalogEntry(pluginId)?.installed;
   if (removed) return null;
   return (
-    <div className="max-w-[720px] mx-auto mb-2 flex items-center justify-between gap-3 px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--card)] text-sm">
+    <div className="mb-2 flex items-center justify-between gap-3 px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--card)] text-sm">
       <span className="select-text text-[var(--secondary-foreground)]">
         {bindError
           ? `The agent exited while starting (${bindError.slice(0, 160)}). Your message is back in the queue — restart to try again.`
@@ -1904,8 +1907,11 @@ const ChatComposer = memo(function ChatComposer({
   return (
     <>
       <div className="relative">
-        <AgentUpdateBar tabId={tabId} />
-        <DisconnectedBanner tabId={tabId} />
+        {/* The composer's own frame, so a banner lines up with the input. */}
+        <div className={CONTENT_COLUMN}>
+          <AgentUpdateBar tabId={tabId} />
+          <DisconnectedBanner tabId={tabId} />
+        </div>
         <MessageInput
           tabId={tabId}
           onSend={onSend}

@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } fr
 import { createPortal } from "react-dom";
 import { useActionShortcut } from "@/features/keybindings/lib/use-action-shortcut";
 import { cn } from "@/lib/utils";
+import { CONTENT_COLUMN } from "../lib/row-metrics";
 import { insertedDraft, type ChatInsertDetail } from "../lib/response-selection";
 import { Hint } from "@/ui/tooltip";
 import {
@@ -1819,8 +1820,8 @@ export function MessageInput({
   const effectivePlaceholder = placeholder;
 
   return (
-    <div className="px-4 pb-4 pt-2 bg-transparent">
-      <div className="max-w-[720px] mx-auto">
+    <div className="pb-4 pt-2 bg-transparent">
+      <div className={CONTENT_COLUMN}>
         {/* Queued messages above the input */}
         {queue.length > 0 && (
           <div className="mb-2 flex flex-col gap-1">

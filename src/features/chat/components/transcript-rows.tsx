@@ -44,11 +44,11 @@ import type {
   WorkHeaderRow,
 } from "../lib/turn-rows";
 import { userRowMessageId } from "../lib/turn-rows";
-import { M } from "../lib/row-metrics";
+import { CONTENT_COLUMN, M } from "../lib/row-metrics";
 
 /** Shared by every row: the centred content column. */
 function Column({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <div className={cn("mx-auto w-full max-w-[760px] px-6", className)}>{children}</div>;
+  return <div className={cn(CONTENT_COLUMN, className)}>{children}</div>;
 }
 
 // ── User ───────────────────────────────────────────────────────────────────

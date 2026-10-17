@@ -49,6 +49,7 @@ import { saveThreadToKb } from "../lib/turn-actions";
 import { sessionCanRetry } from "../lib/retry-gate";
 import { pinScope } from "../stores/chat-pins-store";
 import { cn } from "@/lib/utils";
+import { CONTENT_COLUMN } from "../lib/row-metrics";
 import { isScrollHot } from "@/lib/scroll-hot";
 import { GradualBlur } from "@/components/gradual-blur";
 import { LoadingState, WAITING_LABEL } from "./loading-state";
@@ -215,7 +216,7 @@ function WorkingIndicator({
       />
     ) : undefined;
   return (
-    <div className="mx-auto w-full max-w-[760px] px-6 pt-2 pb-3">
+    <div className={cn(CONTENT_COLUMN, "pt-2 pb-3")}>
       <LoadingState label={label} stalledContent={stall} />
     </div>
   );
