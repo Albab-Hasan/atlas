@@ -4,11 +4,15 @@ import { cn } from "@/lib/utils";
 import { useLayoutStore } from "@/features/layout/stores/layout-store";
 import { LAYOUT_TEMPLATES, type LayoutTemplate } from "@/features/layout/templates";
 import { LayoutThumbnail } from "@/features/layout/components/layout-thumbnail";
+import { SettingRow, Toggle } from "./settings-controls";
 
 /** Settings → Layouts: the same predefined templates the ⌘⌥L switcher offers,
  *  applied with a click. */
 export function LayoutsSettings() {
   const switcherHint = useActionShortcut("nav.layoutSwitcher")?.label ?? "⌘⌥L";
+  const tabBarHint = useActionShortcut("panels.tabBar")?.label ?? "⌘⌥T";
+  const tabBarVisible = useLayoutStore.use.tabBarVisible();
+  const { setTabBarVisible } = useLayoutStore.use.actions();
   const apply = (t: LayoutTemplate) => {
     useLayoutStore.getState().actions.applyLayoutTemplate(t);
     toast.success(`Applied “${t.name}” layout`);
@@ -26,6 +30,13 @@ export function LayoutsSettings() {
           anytime to switch layouts.
         </p>
       </div>
+
+      <SettingRow
+        label="Show tab bar"
+        description={`The strip of tabs above each column. ${tabBarHint} toggles it too; either way the choice is remembered across restarts.`}
+      >
+        <Toggle checked={tabBarVisible} onChange={setTabBarVisible} label="Show tab bar" />
+      </SettingRow>
 
       <div className="grid grid-cols-2 gap-3">
         {LAYOUT_TEMPLATES.map((t) => (

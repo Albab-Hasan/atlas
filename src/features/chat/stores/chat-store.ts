@@ -41,12 +41,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
 import { extractPlanMarkdown, type PlanRecord } from "../lib/plans";
 import { extractNextSteps } from "../lib/next-steps";
-import {
-  getFilePathFromInput,
-  classifyToolFileKind,
-  countEditLines,
-  isFileCreated,
-} from "../lib/tool-files";
+import { turnFileOfToolCall } from "../lib/tool-files";
 import type { TurnFile } from "@/types/agent";
 
 /** `firstUserContent` is a preview field, never the full text — see the note
@@ -71,20 +66,20 @@ function reconstructTurnSummaries(messages: ChatMessage[]): void {
       if (m.role !== "assistant") continue;
       lastAsst = i;
       for (const tc of m.toolCalls) {
-        const args = (tc.arguments ?? {}) as Record<string, unknown>;
-        const path = getFilePathFromInput(args);
-        const kind = classifyToolFileKind(tc.kind, tc.toolName);
-        if (!path || !kind) continue;
-        const counts =
-          kind === "edit" ? countEditLines(tc.toolName, args) : { added: 0, removed: 0 };
-        const created = kind === "edit" ? isFileCreated(tc.toolName, args) : undefined;
-        const ex = byPath.get(path);
-        if (!ex) byPath.set(path, { path, kind, ...counts, created });
+        const file = turnFileOfToolCall({
+          toolName: tc.toolName,
+          kind: tc.kind,
+          arguments: (tc.arguments ?? {}) as Record<string, unknown>,
+          locations: tc.locations,
+        });
+        if (!file) continue;
+        const ex = byPath.get(file.path);
+        if (!ex) byPath.set(file.path, file);
         else {
-          ex.added += counts.added;
-          ex.removed += counts.removed;
-          if (kind === "edit") ex.kind = "edit";
-          if (created === false) ex.created = false;
+          ex.added += file.added;
+          ex.removed += file.removed;
+          if (file.kind === "edit") ex.kind = "edit";
+          if (file.created === false) ex.created = false;
         }
       }
     }
@@ -292,6 +287,19 @@ function pushNativeEffortToAgent(state: ChatState, sessionId: string): void {
 // through `agents_set_compress`. Both are gone (#54): the ported engine has no
 // tool-output compressor, so there was nothing on the other end of the command.
 
+/** The paths in a wire call's ACP `locations` (`[{ path, line? }]`), or
+ *  undefined when it carried none — the field stays absent rather than an
+ *  empty array, like the other optional tool-call fields. */
+function toolLocations(raw: unknown): string[] | undefined {
+  if (!Array.isArray(raw) || raw.length === 0) return undefined;
+  const paths: string[] = [];
+  for (const l of raw) {
+    const path = (l as { path?: unknown } | null)?.path;
+    if (typeof path === "string" && path.length > 0) paths.push(path);
+  }
+  return paths.length > 0 ? paths : undefined;
+}
+
 /** Convert an atlas-agents wire ToolCall into the in-store ChatMessage shape. */
 function toChatToolCall(tc: AgentToolCall): ChatMessage["toolCalls"][number] {
   return {
@@ -309,6 +317,7 @@ function toChatToolCall(tc: AgentToolCall): ChatMessage["toolCalls"][number] {
     // is the only thing distinguishing a child's work from its parent's: both
     // arrive on one session, interleaved.
     parentToolCallId: tc.parent_tool_call_id,
+    locations: toolLocations(tc.locations),
     status:
       tc.status === "pending"
         ? "pending"
@@ -2298,21 +2307,15 @@ function applyDeltaToDraft(s: ChatDraft, env: AgentDelta): void {
       // message rescan). Frozen into the trailing message at turn_finished.
       if (session.turnScratch) {
         const tc = env.tool_call;
-        const args = (tc.arguments ?? {}) as Record<string, unknown>;
-        const path = getFilePathFromInput(args);
-        const kind = classifyToolFileKind(tc.kind, tc.tool_name);
-        if (path && kind) {
-          const { added, removed } =
-            kind === "edit" ? countEditLines(tc.tool_name, args) : { added: 0, removed: 0 };
-          const created = kind === "edit" ? isFileCreated(tc.tool_name, args) : undefined;
-          session.turnScratch.tools[tc.id] = {
-            path,
-            kind,
-            added,
-            removed,
-            created,
-          };
-        }
+        const file = turnFileOfToolCall({
+          toolName: tc.tool_name,
+          kind: tc.kind,
+          arguments: (tc.arguments ?? {}) as Record<string, unknown>,
+          locations: toolLocations(tc.locations),
+        });
+        // A later sighting that names no file (a bare status update) must not
+        // erase what an earlier one recorded.
+        if (file) session.turnScratch.tools[tc.id] = file;
       }
       // Incremental in-flight index — the O(1) source for the composer's
       // busy check (hasInFlightToolCalls), replacing a per-frame scan of

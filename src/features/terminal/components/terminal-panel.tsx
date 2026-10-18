@@ -14,18 +14,8 @@ import { BlockTerminal } from "./block-terminal";
 import { terminalSessions } from "../lib/terminal-session";
 import { useIsFocusedTerminal } from "../lib/focus";
 import { pickPaneInDirection, type Direction, type RectLike } from "../lib/pane-navigation";
-import {
-  Plus,
-  Columns2,
-  Rows2,
-  X,
-  Terminal as TerminalIcon,
-  Loader2,
-  Maximize2,
-} from "lucide-react";
+import { TerminalSidebar } from "./terminal-sidebar";
 import { cn } from "@/lib/utils";
-import { HintGroup, HintItem } from "@/ui/hint-group";
-import { Hint } from "@/ui/tooltip";
 
 // Sessions close when their terminal leaves the store — every close path in
 // one place. Bound once for the app's lifetime.
@@ -272,136 +262,27 @@ function PaneView({
   panelVisible: boolean;
   zoomed?: boolean;
 }) {
-  const {
-    addTerminalToPane,
-    splitPane,
-    closeTerminalInPane,
-    closePane,
-    setActiveTerminalInPane,
-    setActivePane,
-    toggleZoom,
-  } = useTerminalStore.use.actions();
   // Only this pane's slice — a sibling's tab switch must not re-render us.
   const isActivePane = useTerminalStore((s) => s.tabs[tabId]?.activePaneId === pane.id);
   const hasSplits = useTerminalStore((s) => s.tabs[tabId]?.root.type === "split");
-  const busy = useTerminalStore((s) => s.busy);
   const groupFocused = useLayoutStore((s) => {
     const t = s.tabs.find((x) => x.id === tabId);
     return !!t && s.focusedGroupId === (t.groupId ?? "main");
   });
-  const activePty = pane.activeTerminalId;
 
   return (
+    // A size container: the side list folds to glyphs in a narrow pane.
     <div
       className={cn(
-        "h-full flex flex-col",
+        "@container/pane h-full flex",
         isActivePane && groupFocused && "ring-1 ring-[var(--atlas-element-hover)] ring-inset",
       )}
     >
-      <div className="flex items-center h-control-lg shrink-0 border-b border-border bg-background px-1 gap-0.5">
-        <div className="flex items-center gap-0.5 flex-1 min-w-0 overflow-x-auto hide-scrollbar">
-          {pane.terminals.map((ptyId) => (
-            <div
-              key={ptyId}
-              onClick={() => {
-                setActiveTerminalInPane(tabId, pane.id, ptyId);
-                setActivePane(tabId, pane.id);
-              }}
-              className={cn(
-                "group flex items-center gap-1 px-1.5 h-5 rounded text-2xs font-mono cursor-pointer shrink-0",
-                ptyId === activePty
-                  ? "text-foreground bg-element-selected"
-                  : "text-muted-foreground hover:text-secondary-foreground hover:bg-element-hover",
-              )}
-            >
-              {busy[ptyId] ? (
-                <Loader2 size={9} className="animate-spin text-[var(--primary)]" />
-              ) : (
-                <TerminalIcon size={9} />
-              )}
-              <span>~</span>
-              {pane.terminals.length > 1 && (
-                <Hint label="Close terminal">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      closeTerminalInPane(tabId, pane.id, ptyId);
-                    }}
-                    className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:text-foreground"
-                  >
-                    <X size={8} />
-                  </button>
-                </Hint>
-              )}
-            </div>
-          ))}
-        </div>
-        <HintGroup>
-          <div className="flex items-center gap-0.5 shrink-0">
-            {zoomed && (
-              <span className="mr-1 rounded bg-element-selected px-1.5 py-px text-3xs text-muted-foreground">
-                zoomed
-              </span>
-            )}
-            <HintItem label="New tab">
-              <button
-                onClick={() => {
-                  addTerminalToPane(tabId, pane.id);
-                  setActivePane(tabId, pane.id);
-                }}
-                className="flex items-center justify-center w-5 h-5 rounded text-muted-foreground hover:text-secondary-foreground hover:bg-element-hover transition-colors cursor-pointer"
-              >
-                <Plus size={11} />
-              </button>
-            </HintItem>
-            <HintItem label="Split right">
-              <button
-                onClick={() => splitPane(tabId, pane.id, "horizontal")}
-                className="flex items-center justify-center w-5 h-5 rounded text-muted-foreground hover:text-secondary-foreground hover:bg-element-hover transition-colors cursor-pointer"
-              >
-                <Columns2 size={11} />
-              </button>
-            </HintItem>
-            <HintItem label="Split down">
-              <button
-                onClick={() => splitPane(tabId, pane.id, "vertical")}
-                className="flex items-center justify-center w-5 h-5 rounded text-muted-foreground hover:text-secondary-foreground hover:bg-element-hover transition-colors cursor-pointer"
-              >
-                <Rows2 size={11} />
-              </button>
-            </HintItem>
-            {hasSplits && (
-              <HintItem label={zoomed ? "Unzoom pane" : "Zoom pane"}>
-                <button
-                  onClick={() => toggleZoom(tabId, pane.id)}
-                  className={cn(
-                    "flex items-center justify-center w-5 h-5 rounded hover:bg-element-hover transition-colors cursor-pointer",
-                    zoomed
-                      ? "text-foreground"
-                      : "text-muted-foreground hover:text-secondary-foreground",
-                  )}
-                >
-                  <Maximize2 size={11} />
-                </button>
-              </HintItem>
-            )}
-            {hasSplits && (
-              <HintItem label="Close pane">
-                <button
-                  onClick={() => closePane(tabId, pane.id)}
-                  className="flex items-center justify-center w-5 h-5 rounded text-muted-foreground hover:text-foreground hover:bg-element-hover transition-colors cursor-pointer"
-                >
-                  <X size={11} />
-                </button>
-              </HintItem>
-            )}
-          </div>
-        </HintGroup>
-      </div>
+      <TerminalSidebar pane={pane} tabId={tabId} zoomed={zoomed} hasSplits={hasSplits} />
       {/* The pane's terminals, in the DOM where they belong. Inactive ones stay
           laid out (`visibility:hidden`, not `display:none`) so their fit is
           real and switching is instant. */}
-      <div className="flex-1 min-h-0 relative" data-pane-container={pane.id}>
+      <div className="flex-1 min-w-0 min-h-0 relative" data-pane-container={pane.id}>
         {pane.terminals.map((ptyId) => (
           <TerminalSlot
             key={ptyId}

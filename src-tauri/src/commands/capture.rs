@@ -1719,6 +1719,144 @@ pub async fn capture_session_summary(
     .map_err(|e| e.to_string())?
 }
 
+/// One file a Session changed, as the record has it.
+///
+/// The chat's thread overview reads this instead of re-deriving the list from
+/// tool arguments in the renderer. The two disagree whenever an edit arrives
+/// as something other than recognisable Write/Edit arguments — a `sed -i`, a
+/// heredoc, a script — which the recorder attributes by watching the tree
+/// around the shell call (`attribute_shell_writes`) and the renderer cannot
+/// see at all. One answer, from the layer that has it.
+#[derive(Debug, Clone, serde::Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionFile {
+    /// Project-relative, NFC-normalised — git's spelling of the path.
+    pub path: String,
+    /// The Session brought the file into being: its first touch found nothing
+    /// on disk. Git will report it as `A`.
+    pub created: bool,
+    /// The Session's last word on the file was to delete it.
+    pub deleted: bool,
+    /// Written outside the project root, so it can never match a commit.
+    pub out_of_repo: bool,
+    /// Turns that touched it, and the last one — so a reader can tell "this
+    /// turn" from "earlier in the thread".
+    pub turns: i64,
+    pub last_turn_seq: i64,
+    /// Line counts summed over the patches the record holds for the path.
+    /// `None` when the record has no patch for it — a shell edit leaves a
+    /// touch and no diff, and a made-up zero would read as "no change".
+    pub added: Option<i64>,
+    pub removed: Option<i64>,
+}
+
+/// Line counts of a unified diff: `+`/`-` body lines, headers excluded.
+fn patch_line_counts(patch: &str) -> (i64, i64) {
+    let mut added = 0;
+    let mut removed = 0;
+    for line in patch.lines() {
+        if line.starts_with("+++") || line.starts_with("---") {
+            continue;
+        }
+        match line.as_bytes().first() {
+            Some(b'+') => added += 1,
+            Some(b'-') => removed += 1,
+            _ => {}
+        }
+    }
+    (added, removed)
+}
+
+/// Fold a Session's touches and patches into one row per path, in the order
+/// the Session first touched each. Pure, so the shape is testable without a
+/// store.
+pub fn session_files(
+    touches: &[atlas_checkpoint::FileTouch],
+    edits: &[atlas_checkpoint::AgentEdit],
+) -> Vec<SessionFile> {
+    let mut order: Vec<String> = Vec::new();
+    let mut by_path: HashMap<String, SessionFile> = HashMap::new();
+    for touch in touches {
+        match by_path.get_mut(&touch.path) {
+            Some(file) => {
+                file.deleted = touch.deleted;
+                if file.last_turn_seq != touch.turn_seq {
+                    file.turns += 1;
+                    file.last_turn_seq = touch.turn_seq;
+                }
+            }
+            None => {
+                order.push(touch.path.clone());
+                by_path.insert(
+                    touch.path.clone(),
+                    SessionFile {
+                        path: touch.path.clone(),
+                        created: !touch.existed_before,
+                        deleted: touch.deleted,
+                        out_of_repo: touch.out_of_repo,
+                        turns: 1,
+                        last_turn_seq: touch.turn_seq,
+                        added: None,
+                        removed: None,
+                    },
+                );
+            }
+        }
+    }
+    for edit in edits {
+        let Some(patch) = edit.patch.as_deref() else {
+            continue;
+        };
+        let Some(file) = by_path.get_mut(&edit.path) else {
+            continue;
+        };
+        let (a, r) = patch_line_counts(patch);
+        file.added = Some(file.added.unwrap_or(0) + a);
+        file.removed = Some(file.removed.unwrap_or(0) + r);
+    }
+    order
+        .into_iter()
+        .filter_map(|path| by_path.remove(&path))
+        .collect()
+}
+
+/// Every file a Session changed, looked up by the AGENT's own session id —
+/// the same lookup as [`capture_session_summary`], for the same caller. Empty
+/// when capture is off for the project or the session was never recorded.
+#[tauri::command]
+pub async fn capture_session_files(
+    project_path: String,
+    session_id: String,
+) -> Result<Vec<SessionFile>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let Some(store) = open_reader(&project_path)? else {
+            return Ok(Vec::new());
+        };
+        let workspace_id = project_id_for(Path::new(&project_path));
+        let mut row_id = None;
+        for source in [Source::Acp, Source::Native] {
+            row_id = store
+                .session_id_for(&workspace_id, source, &session_id)
+                .map_err(|e| e.to_string())?;
+            if row_id.is_some() {
+                break;
+            }
+        }
+        let Some(row_id) = row_id else {
+            return Ok(Vec::new());
+        };
+        let touches = store
+            .file_touches_for_session(&row_id)
+            .map_err(|e| e.to_string())?;
+        let edits = store
+            .agent_edits_for_session(&row_id)
+            .map_err(|e| e.to_string())?;
+        Ok(session_files(&touches, &edits))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 /// Where a board row was read from.
 ///
 /// `Both` is the normal state of your own work once a Project is synced: it is
@@ -5167,5 +5305,82 @@ mod board_filter_tests {
         let remote: BoardFilter = serde_json::from_str(r#"{"remote":"p1"}"#).unwrap();
         assert_eq!(local, BoardFilter::Local("/a".into()));
         assert_eq!(remote, BoardFilter::Remote("p1".into()));
+    }
+}
+
+#[cfg(test)]
+mod session_files_tests {
+    use super::*;
+    use atlas_checkpoint::{AgentEdit, FileTouch};
+    use chrono::Utc;
+
+    fn touch(path: &str, turn: i64, seq: i64, existed: bool, deleted: bool) -> FileTouch {
+        FileTouch {
+            id: format!("ft-{seq}"),
+            tool_call_id: format!("tc-{seq}"),
+            session_id: "as-1".into(),
+            turn_seq: turn,
+            seq,
+            path: path.into(),
+            sha256_after: None,
+            existed_before: existed,
+            deleted,
+            out_of_repo: false,
+            created_at: Utc::now(),
+            sketch_after: None,
+        }
+    }
+
+    fn edit(path: &str, patch: Option<&str>) -> AgentEdit {
+        AgentEdit {
+            id: "ae".into(),
+            tool_call_id: "tc".into(),
+            session_id: "as-1".into(),
+            turn_seq: 1,
+            path: path.into(),
+            patch: patch.map(str::to_owned),
+            patch_ref: None,
+            created_at: Utc::now(),
+        }
+    }
+
+    #[test]
+    fn one_row_per_path_in_first_touch_order_with_turn_count_and_last_word() {
+        let touches = [
+            touch("b.ts", 1, 1, true, false),
+            touch("a.ts", 1, 2, false, false),
+            touch("b.ts", 2, 3, true, false),
+            touch("a.ts", 3, 4, true, true),
+        ];
+        let files = session_files(&touches, &[]);
+        assert_eq!(
+            files.iter().map(|f| f.path.as_str()).collect::<Vec<_>>(),
+            ["b.ts", "a.ts"]
+        );
+        // Created is the FIRST touch's verdict; deleted is the LAST's.
+        assert!(!files[0].created && !files[0].deleted);
+        assert!(files[1].created && files[1].deleted);
+        assert_eq!((files[0].turns, files[0].last_turn_seq), (2, 2));
+        assert_eq!((files[1].turns, files[1].last_turn_seq), (2, 3));
+    }
+
+    #[test]
+    fn counts_come_only_from_patches_and_skip_diff_headers() {
+        let touches = [
+            touch("a.ts", 1, 1, true, false),
+            touch("s.sh", 1, 2, true, false),
+        ];
+        let patch = "--- a/a.ts\n+++ b/a.ts\n@@ -1,2 +1,3 @@\n-old\n+new\n+more\n context\n";
+        let edits = [
+            edit("a.ts", Some(patch)),
+            edit("s.sh", None),
+            edit("ghost.ts", Some("+x\n")),
+        ];
+        let files = session_files(&touches, &edits);
+        assert_eq!((files[0].added, files[0].removed), (Some(2), Some(1)));
+        // A shell edit has a touch and no patch: absent, not zero.
+        assert_eq!((files[1].added, files[1].removed), (None, None));
+        // A patch for a path with no touch is not a file the Session changed.
+        assert_eq!(files.len(), 2);
     }
 }

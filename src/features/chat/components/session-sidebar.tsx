@@ -455,8 +455,18 @@ export const SessionSidebar = memo(function SessionSidebar({
   // The list is newest-first (Rust sorts by recency), so "latest" is the TOP
   // of it and the way back is up — which is why the pill shows while there is
   // something scrolled off above (`edges.top`) rather than below.
+  //
+  // `chatSidebar.visible` is a dep because hidden, this component stays mounted
+  // and renders null: the list element is a NEW node every time the sidebar
+  // reopens, and without it the hook kept listening to the detached old one —
+  // the fades and the pill never showed after a ⌘⌥J toggle or a hidden start.
   const listRef = useRef<HTMLDivElement>(null);
-  const edges = useScrollEdges(listRef, [filtered.length, search, isLoading]);
+  const edges = useScrollEdges(listRef, [
+    filtered.length,
+    search,
+    isLoading,
+    asDropdown || chatSidebar.visible,
+  ]);
   const jumpToLatest = useCallback(() => {
     listRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   }, []);

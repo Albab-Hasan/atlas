@@ -45,7 +45,7 @@ import {
 import { AgentMark } from "@/components/agent-mark";
 import { loadNativeEffort } from "../lib/native-model-pref";
 import { loadCachedAcpModels } from "../lib/acp-models-cache";
-import { modelLabel } from "../lib/model-label";
+import { capitalizeModelName, modelLabel } from "../lib/model-label";
 import { ModelPicker, type PickerAgent } from "./model-picker";
 import { onModelPickerRequest } from "../lib/model-picker-events";
 // `ChatInput` pulls in CodeMirror (~870 KB) via `cm-mention-extension`.
@@ -673,7 +673,9 @@ function ComposerGroupsMenu({
         >
           {currentModelInfo
             ? modelLabel(currentModelInfo)
-            : (currentModel ?? agentMeta(currentAgent).label)}
+            : currentModel
+              ? capitalizeModelName(currentModel)
+              : agentMeta(currentAgent).label}
         </span>
         <ChevronDown size={10} className="ml-0.5 shrink-0 text-[var(--muted-foreground)]" />
       </button>

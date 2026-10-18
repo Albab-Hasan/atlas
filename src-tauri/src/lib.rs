@@ -630,6 +630,7 @@ pub fn run() {
             commands::git::git_workspace_summary,
             commands::usage_dashboard::usage_dashboard,
             commands::capture::capture_session_summary,
+            commands::capture::capture_session_files,
             commands::usage_dashboard::usage_export_markdown,
             commands::usage_dashboard::usage_write_file,
             commands::git::git_diff_file,

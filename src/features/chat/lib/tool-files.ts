@@ -11,7 +11,23 @@ export function getFilePathFromInput(input: Record<string, unknown>): string | n
     const v = input[k];
     if (typeof v === "string" && v.length > 0) return v;
   }
+  // The native engine's edit names its files as a list.
+  const paths = input.paths;
+  if (Array.isArray(paths) && typeof paths[0] === "string" && paths[0].length > 0) {
+    return paths[0];
+  }
   return null;
+}
+
+/** The file a tool call is about: its arguments first, then the ACP
+ *  `locations` the agent attached — the same order Rust's
+ *  `tool_stats::extract_path` reads them in, so the two layers name the same
+ *  file for the same call. */
+export function getToolFilePath(
+  input: Record<string, unknown>,
+  locations: readonly string[] | undefined,
+): string | null {
+  return getFilePathFromInput(input) ?? locations?.find((l) => l.length > 0) ?? null;
 }
 
 /** Tools that mutate files (Claude Code, Codex, native). */
@@ -33,8 +49,18 @@ export interface EditPart {
 
 const asStr = (v: unknown): string | null => (typeof v === "string" ? v : null);
 
-/** Before/after text pairs for an edit tool call, straight from its args. */
-export function getEditParts(toolName: string, args: Record<string, unknown>): EditPart[] {
+/** Before/after text pairs for an edit tool call, straight from its args.
+ *
+ *  `kind` is the ACP class. A whole-file write is recognised by the tool's
+ *  NAME, and the name on the wire is whatever the agent put in the call's
+ *  `_meta` — for most adapters the ACP title, "Write src/x.ts", which is not
+ *  "write". Without the kind, every Write counted as zero lines while every
+ *  Edit (recognised by its `old_string`) counted correctly. */
+export function getEditParts(
+  toolName: string,
+  args: Record<string, unknown>,
+  kind?: string | null,
+): EditPart[] {
   const parts: EditPart[] = [];
   const edits = args.edits;
   if (Array.isArray(edits)) {
@@ -52,7 +78,7 @@ export function getEditParts(toolName: string, args: Record<string, unknown>): E
   const neu = asStr(args.new_string) ?? asStr(args.newString) ?? asStr(args.new_str);
   if (old != null || neu != null) return [{ old: old ?? "", neu: neu ?? "" }];
   // Whole-file write/create — only when the tool is actually an editor.
-  if (EDIT_TOOLS.has(toolName.toLowerCase())) {
+  if (kind === "edit" || EDIT_TOOLS.has(toolName.toLowerCase())) {
     const content =
       asStr(args.content) ?? asStr(args.new_content) ?? asStr(args.text) ?? asStr(args.file_text);
     if (content != null) return [{ old: "", neu: content }];
@@ -79,8 +105,13 @@ export function classifyToolFileKind(
  *  same, or the same change reads as a different size depending on which
  *  shape the agent happened to send. */
 export function countChangedLines(oldStr: string, neu: string): { added: number; removed: number } {
-  const o = oldStr.split("\n");
-  const n = neu.split("\n");
+  // Lines as a diff counts them: an empty side is zero lines, not one empty
+  // line, and a trailing newline ends the last line rather than starting an
+  // empty one. A created file is then "+N", not "+N −1" — what a unified diff
+  // of it says, and what the capture record counts for the same write.
+  const lines = (text: string) => (text === "" ? [] : text.replace(/\n$/, "").split("\n"));
+  const o = lines(oldStr);
+  const n = lines(neu);
   let start = 0;
   while (start < o.length && start < n.length && o[start] === n[start]) start++;
   let eo = o.length;
@@ -94,8 +125,12 @@ export function countChangedLines(oldStr: string, neu: string): { added: number;
 
 /** True when an edit tool call CREATED the file (every edit op had empty prior
  *  content) → git-status "A". A normal edit (non-empty `old`) is "M". */
-export function isFileCreated(toolName: string, args: Record<string, unknown>): boolean {
-  const parts = getEditParts(toolName, args);
+export function isFileCreated(
+  toolName: string,
+  args: Record<string, unknown>,
+  kind?: string | null,
+): boolean {
+  const parts = getEditParts(toolName, args, kind);
   return parts.length > 0 && parts.every((p) => p.old === "");
 }
 
@@ -103,13 +138,42 @@ export function isFileCreated(toolName: string, args: Record<string, unknown>): 
 export function countEditLines(
   toolName: string,
   args: Record<string, unknown>,
+  kind?: string | null,
 ): { added: number; removed: number } {
   let added = 0;
   let removed = 0;
-  for (const p of getEditParts(toolName, args)) {
+  for (const p of getEditParts(toolName, args, kind)) {
     const c = countChangedLines(p.old, p.neu);
     added += c.added;
     removed += c.removed;
   }
   return { added, removed };
+}
+
+/**
+ * The file a tool call touched, as the per-turn record keeps it — or null when
+ * the call is not about a file.
+ *
+ * One builder for the live accumulator (`tool_call_upserted`) and the
+ * transcript reconstruction (`reconstructTurnSummaries`), so a resumed thread
+ * and a live one cannot disagree about what a call did.
+ */
+export function turnFileOfToolCall(call: {
+  toolName: string;
+  kind: string | null | undefined;
+  arguments: Record<string, unknown>;
+  locations?: readonly string[];
+}): import("@/types/agent").TurnFile | null {
+  const path = getToolFilePath(call.arguments, call.locations);
+  const kind = classifyToolFileKind(call.kind, call.toolName);
+  if (!path || !kind) return null;
+  if (kind === "read") return { path, kind, added: 0, removed: 0, created: undefined };
+  const { added, removed } = countEditLines(call.toolName, call.arguments, call.kind);
+  return {
+    path,
+    kind,
+    added,
+    removed,
+    created: isFileCreated(call.toolName, call.arguments, call.kind),
+  };
 }

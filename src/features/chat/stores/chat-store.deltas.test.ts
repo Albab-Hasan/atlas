@@ -584,6 +584,74 @@ describe("applyAgentDelta: turn terminals", () => {
     expect(session().turnScratch).toBeUndefined();
   });
 
+  it("a Write counts its lines even when the wire tool name is the call's title", () => {
+    // What the Claude Code adapter actually sends: kind "edit", tool_name
+    // "Write src/x.ts" (its title) — not "write". The overview listed the file
+    // with no numbers beside it because the whole-file branch keyed on the name.
+    boundTab();
+    apply(
+      d("status", { status: "running", turn_seq: 1 }),
+      d("tool_call_upserted", {
+        message_id: "t",
+        tool_call: wireTool("tc1", {
+          tool_name: "Write src/x.ts",
+          kind: "edit",
+          status: "completed",
+          arguments: { file_path: "/tmp/project/x.ts", content: "a\nb\nc" },
+          locations: [{ path: "/tmp/project/x.ts" }],
+        }),
+      }),
+    );
+    // Visible on the live scratch before the turn ends.
+    expect(Object.values(session().turnScratch!.tools)).toEqual([
+      { path: "/tmp/project/x.ts", kind: "edit", added: 3, removed: 0, created: true },
+    ]);
+  });
+
+  it("a call that names its file only in locations is still a touched file", () => {
+    // The native engine's edit reports `paths`, not `file_path`; some adapters
+    // attach `locations` on the completion update and nothing in arguments.
+    boundTab();
+    apply(
+      d("status", { status: "running", turn_seq: 1 }),
+      d("tool_call_upserted", {
+        message_id: "t",
+        tool_call: wireTool("tc1", {
+          tool_name: "edit",
+          kind: "edit",
+          status: "completed",
+          arguments: { patch: "--- a\n+++ b\n-x\n+y\n" },
+          locations: [{ path: "/tmp/project/loc.ts", line: 3 }],
+        }),
+      }),
+      d("tool_call_upserted", {
+        message_id: "t",
+        tool_call: wireTool("tc2", {
+          tool_name: "edit",
+          kind: "edit",
+          status: "completed",
+          arguments: { paths: ["/tmp/project/p.ts"], patch: "" },
+        }),
+      }),
+    );
+    const tc = last().toolCalls.find((t) => t.id === "tc1");
+    expect(tc?.locations).toEqual(["/tmp/project/loc.ts"]);
+    // A later bare status update for tc1 must not erase what it recorded.
+    apply(
+      d("tool_call_upserted", {
+        message_id: "t",
+        tool_call: wireTool("tc1", {
+          tool_name: "edit",
+          kind: "edit",
+          status: "completed",
+          arguments: {},
+        }),
+      }),
+    );
+    const paths = Object.values(session().turnScratch!.tools).map((f) => f.path);
+    expect(paths).toEqual(["/tmp/project/loc.ts", "/tmp/project/p.ts"]);
+  });
+
   it("turn_failed fails live tool calls, says what went wrong, and errors the session", () => {
     boundTab();
     apply(

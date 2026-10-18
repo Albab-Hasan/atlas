@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { committableTurn, formatDiffStat, hasChanges, tallyChanges } from "./thread-overview";
+import {
+  changesStatus,
+  committableTurn,
+  formatDiffStat,
+  hasChanges,
+  mergeChanges,
+  tallyChanges,
+} from "./thread-overview";
+import type { SessionFile } from "./session-files";
 import type { ChatMessage, TurnFile } from "@/types/agent";
 
 function file(over: Partial<TurnFile> & Pick<TurnFile, "path">): TurnFile {
@@ -70,6 +78,88 @@ describe("tallyChanges", () => {
     expect(hasChanges([])).toBe(false);
     expect(hasChanges([turn([file({ path: "a.ts", kind: "read" })])])).toBe(false);
     expect(hasChanges([turn([file({ path: "a.ts", added: 1 })])])).toBe(true);
+  });
+});
+
+describe("tallyChanges with the running turn", () => {
+  it("shows the running turn's edits before they are frozen", () => {
+    // The rail exists for the turn you are watching: "No changes yet" over a
+    // turn that has written six files was the bug.
+    const live = {
+      tc1: file({ path: "a.ts", added: 4, removed: 1 }),
+      tc2: file({ path: "b.ts", kind: "read" }),
+    };
+    const tally = tallyChanges([turn([file({ path: "z.ts", added: 1 })])], live);
+    expect(tally.files.map((f) => f.path)).toEqual(["z.ts", "a.ts"]);
+    expect(tally.added).toBe(5);
+    expect(tally.readCount).toBe(1);
+    expect(hasChanges([], live)).toBe(true);
+    expect(hasChanges([], { tc2: live.tc2 })).toBe(false);
+  });
+});
+
+describe("mergeChanges", () => {
+  const rec = (over: Partial<SessionFile> & Pick<SessionFile, "path">): SessionFile => ({
+    created: false,
+    deleted: false,
+    outOfRepo: false,
+    turns: 1,
+    lastTurnSeq: 1,
+    added: null,
+    removed: null,
+    ...over,
+  });
+  const REPO = "/repo";
+
+  it("lists what the record attributed, counts included where it has a patch", () => {
+    const rows = mergeChanges(
+      [rec({ path: "a.ts", added: 3, removed: 1 }), rec({ path: "s.sh" })],
+      tallyChanges([]),
+      REPO,
+    );
+    expect(rows).toEqual([
+      { path: "a.ts", created: false, deleted: false, added: 3, removed: 1 },
+      { path: "s.sh", created: false, deleted: false },
+    ]);
+  });
+
+  it("lays the renderer's counts over the record, joined on the relative path", () => {
+    // Tool arguments carry absolute paths; the record is project-relative. The
+    // renderer's count is the transcript footer's figure, so it wins.
+    const local = tallyChanges([turn([file({ path: "/repo/a.ts", added: 10, removed: 2 })])]);
+    const rows = mergeChanges([rec({ path: "a.ts", added: 3, removed: 1 })], local, REPO);
+    expect(rows).toEqual([{ path: "a.ts", created: false, deleted: false, added: 10, removed: 2 }]);
+  });
+
+  it("keeps a file only one side knows about, record order first", () => {
+    // The recorder is a worker a beat behind the delta: a Write the thread has
+    // seen may not be in the record yet. A shell edit is the reverse.
+    const local = tallyChanges([turn([file({ path: "/repo/new.ts", added: 5, created: true })])]);
+    const rows = mergeChanges([rec({ path: "s.sh" })], local, REPO);
+    expect(rows.map((r) => r.path)).toEqual(["s.sh", "new.ts"]);
+    expect(rows[1]).toMatchObject({ created: true, added: 5, removed: 0 });
+  });
+
+  it("drops a touch outside the project and carries a deletion", () => {
+    const rows = mergeChanges(
+      [rec({ path: "/tmp/x", outOfRepo: true }), rec({ path: "gone.ts", deleted: true })],
+      tallyChanges([]),
+      REPO,
+    );
+    expect(rows).toEqual([{ path: "gone.ts", created: false, deleted: true }]);
+  });
+});
+
+describe("changesStatus", () => {
+  it("is the diff stat when anything was counted, else the file count", () => {
+    expect(changesStatus([])).toBe("");
+    expect(changesStatus([{ path: "s.sh", created: false, deleted: false }])).toBe("1 file");
+    expect(
+      changesStatus([
+        { path: "s.sh", created: false, deleted: false },
+        { path: "a.ts", created: false, deleted: false, added: 2, removed: 1 },
+      ]),
+    ).toBe("+2 −1");
   });
 });
 

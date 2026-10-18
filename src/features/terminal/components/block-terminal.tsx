@@ -39,22 +39,9 @@ import { terminalSessions } from "../lib/terminal-session";
 import { CommandInput, type CommandInputHandle } from "./command-input";
 import { TerminalStopControl } from "./terminal-stop-control";
 import { useTerminalStore } from "../stores/terminal-store";
+import { fetchTermGit, type TermGit } from "../lib/term-git";
 
-/** Compact git status for the input-area badge. */
-interface TermGit {
-  branch: string;
-  ahead: number;
-  behind: number;
-  dirty: boolean;
-}
-
-export interface RawGitStatus {
-  is_repo: boolean;
-  branch: string;
-  ahead: number;
-  behind: number;
-  files: unknown[];
-}
+export type { RawGitStatus } from "../lib/term-git";
 
 /** Non-overlapping occurrences of `q` in `lower` (both already lower-cased). */
 function countMatches(lower: string, q: string): number {
@@ -263,23 +250,9 @@ export const BlockTerminal = memo(function BlockTerminal({
     }
     let cancelled = false;
     const t = window.setTimeout(() => {
-      void invoke<RawGitStatus>("git_status_fresh", { path: cwd })
-        .then((s) => {
-          if (cancelled) return;
-          setGit(
-            s.is_repo
-              ? {
-                  branch: s.branch,
-                  ahead: s.ahead,
-                  behind: s.behind,
-                  dirty: s.files.length > 0,
-                }
-              : null,
-          );
-        })
-        .catch(() => {
-          if (!cancelled) setGit(null);
-        });
+      void fetchTermGit(cwd).then((g) => {
+        if (!cancelled) setGit(g);
+      });
     }, 150);
     return () => {
       cancelled = true;

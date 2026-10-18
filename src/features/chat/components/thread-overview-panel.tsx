@@ -33,7 +33,8 @@ import {
 } from "../stores/thread-overview-store";
 import { useSubagents } from "../hooks/use-subagents";
 import { elapsedMs, isRunning, tallySubagents } from "../lib/subagents";
-import { formatDiffStat, tallyChanges } from "../lib/thread-overview";
+import { changesStatus, mergeChanges, tallyChanges } from "../lib/thread-overview";
+import { useSessionFiles } from "../lib/session-files";
 import { LiveElapsed, settledFigure } from "./transcript-rows";
 
 // ── Section chrome ─────────────────────────────────────────────────────────
@@ -161,33 +162,56 @@ function SubagentsSection({ tabId }: { tabId: string }) {
   );
 }
 
+/**
+ * Two sources, joined (`mergeChanges`): the capture record, which is every
+ * file the session changed however it changed it, and the thread's own
+ * per-turn tally, which carries the line counts and the running turn's edits
+ * the moment they land. Either alone was wrong in a way the reader could not
+ * see — the tally missed every shell edit, and read nothing until turn end.
+ */
 function ChangesSection({ tabId }: { tabId: string }) {
+  const projectPath = useAppStore.use.currentProject()?.path ?? null;
+  const acpSessionId = useChatStore((s) => s.sessions[tabId]?.acpSessionId ?? null);
   const messages = useChatStore((s) => s.sessions[tabId]?.messages);
-  const tally = useMemo(() => tallyChanges(messages ?? []), [messages]);
+  // The running turn's scratch. Replaced per tool upsert, which is the rate a
+  // reader watching the turn wants; the rows under it are few and cheap.
+  const live = useChatStore((s) => s.sessions[tabId]?.turnScratch?.tools);
+  const recorded = useSessionFiles(projectPath, acpSessionId);
+  const tally = useMemo(() => tallyChanges(messages ?? [], live), [messages, live]);
+  const rows = useMemo(
+    () => mergeChanges(recorded, tally, projectPath ?? ""),
+    [recorded, tally, projectPath],
+  );
   return (
-    <Section id="changes" status={formatDiffStat(tally.added, tally.removed)}>
-      {tally.files.length === 0 ? (
+    <Section id="changes" status={changesStatus(rows)}>
+      {rows.length === 0 ? (
         <Empty>
           {tally.readCount > 0 ? `${tally.readCount} files read, none changed.` : "No changes yet."}
         </Empty>
       ) : (
         <ul className="m-0 list-none p-0">
-          {tally.files.map((file) => (
+          {rows.map((file) => (
             <li key={file.path} className="flex items-center gap-2 px-2 py-1">
               <span
-                className="min-w-0 flex-1 truncate text-xs text-[var(--secondary-foreground)]"
+                className={cn(
+                  "min-w-0 flex-1 truncate text-xs text-[var(--secondary-foreground)]",
+                  file.deleted && "line-through opacity-60",
+                )}
                 title={file.path}
               >
                 {file.path.split("/").pop()}
               </span>
               <span className="shrink-0 font-mono text-2xs tabular-nums">
-                {file.added > 0 && (
+                {file.added !== undefined && file.added > 0 && (
                   <span className="text-[var(--atlas-diff-added-text)]">+{file.added}</span>
                 )}
-                {file.removed > 0 && (
+                {file.removed !== undefined && file.removed > 0 && (
                   <span className="ml-1 text-[var(--atlas-status-error-foreground)]">
                     −{file.removed}
                   </span>
+                )}
+                {file.created && file.added === undefined && (
+                  <span className="text-[var(--atlas-diff-added-text)]">A</span>
                 )}
               </span>
             </li>

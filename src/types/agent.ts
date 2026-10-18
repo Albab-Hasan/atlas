@@ -530,6 +530,14 @@ export interface ToolCallDisplay {
    * what tells them apart, so a client that wants to nest them groups on it.
    */
   parentToolCallId?: string;
+  /**
+   * Paths the agent said this call is about (ACP `locations`), when it named
+   * any. Most agents attach them on the completion update, and for a call
+   * whose arguments carry no path key — the native engine's edit reports
+   * `paths`, not `file_path` — they are the only place the file is named.
+   * Absent when the agent sent none.
+   */
+  locations?: string[];
 }
 
 /** How far along a subagent is. Not a `ToolCall` status: a child the parent

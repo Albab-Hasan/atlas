@@ -149,6 +149,7 @@ interface LayoutActions {
     setActiveTab: (id: string) => void;
     setTabDirty: (id: string, dirty: boolean) => void;
     toggleTabBar: () => void;
+    setTabBarVisible: (visible: boolean) => void;
     navigateTabBack: () => void;
     navigateTabForward: () => void;
     activateTabByIndex: (i: number) => void;
@@ -236,7 +237,8 @@ const initialState: LayoutState = {
   focusedGroupId: "main",
   zen: false,
   zenPrev: null,
-  tabBarVisible: true,
+  // Hidden by default — Settings → Layouts and `panels.tabBar` show it.
+  tabBarVisible: false,
   tabHistory: ["welcome-chat"],
   tabHistoryIndex: 0,
 };
@@ -616,6 +618,10 @@ export const useLayoutStore = createSelectors(
             set((s) => {
               s.tabBarVisible = !s.tabBarVisible;
             }),
+          setTabBarVisible: (visible) =>
+            set((s) => {
+              s.tabBarVisible = visible;
+            }),
           navigateTabBack: () =>
             set((s) => {
               for (let i = s.tabHistoryIndex - 1; i >= 0; i--) {
@@ -986,7 +992,16 @@ export const useLayoutStore = createSelectors(
         // restored separately (saveEditorState / project bootstrap), so
         // they're deliberately excluded.
         name: "atlas-layout-prefs",
-        version: 1,
+        version: 2,
+        // v2: the tab bar became hidden by default. Every v1 blob carries
+        // `tabBarVisible: true` because that was the old default, not a
+        // choice, so it's reset once; from v2 on the stored value is the
+        // user's own and survives restarts.
+        migrate: (persisted, version) => {
+          const p = (persisted ?? {}) as Partial<LayoutState>;
+          if (version < 2) return { ...p, tabBarVisible: false };
+          return p;
+        },
         partialize: (s) => ({
           leftPanel: s.leftPanel,
           rightPanel: s.rightPanel,

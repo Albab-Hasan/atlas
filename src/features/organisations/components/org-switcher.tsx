@@ -282,158 +282,161 @@ export function OrgSwitcher() {
               // No inset top highlight: on a card this size it draws a bright
               // line across the whole head of the menu, which reads as a second
               // border above the first.
-              className="flex max-h-[min(480px,70vh)] w-[268px] flex-col overflow-hidden rounded-xl border border-border-subtle bg-[var(--card)]/95 shadow-md backdrop-blur-2xl atlas-panel-in-tl select-none text-[var(--secondary-foreground)]"
+              className="flex max-h-[min(480px,70vh)] w-[268px] flex-col overflow-hidden rounded-xl border border-border-subtle bg-[var(--card)]/95 p-1.5 shadow-md backdrop-blur-2xl atlas-panel-in-tl select-none text-[var(--secondary-foreground)]"
             >
-              {/* Head: a filter field with the refresh beside it, no rule under
-                  it — the same row the chat session picker opens with. The list
-                  below is short enough that a label would only cost a row. */}
-              <div className="flex h-[30px] shrink-0 items-center gap-1.5 px-2.5">
-                <Search size={11} className="shrink-0 text-[var(--muted-foreground)]" />
-                <input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  onKeyDown={(e) => {
-                    // Keep keys from the popup's typeahead and arrow nav, but let Escape
-                    // bubble to the dismiss handler so it still closes the popup.
-                    if (e.key !== "Escape") e.stopPropagation();
-                  }}
-                  placeholder="Search organizations…"
-                  aria-label="Search organizations"
-                  className="min-w-0 flex-1 bg-transparent text-xs text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]"
-                />
-                {/* Manual re-sync — only meaningful with a credential to pull
+              {/* Two surfaces, the agent/model picker's recipe: this popup is the
+                  tinted surround carrying the actions, and the search + org list
+                  sit in an inset card on the app's own background, its edge
+                  carried by a hairline ring and a shadow. */}
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg bg-background shadow-lg ring-1 ring-border">
+                {/* Head: a filter field with the refresh beside it, ruled off from
+                  the list the way the model picker's search row is. */}
+                <div className="flex h-control-lg shrink-0 items-center gap-1.5 border-b border-foreground/8 px-2.5">
+                  <Search size={11} className="shrink-0 text-[var(--muted-foreground)]" />
+                  <input
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      // Keep keys from the popup's typeahead and arrow nav, but let Escape
+                      // bubble to the dismiss handler so it still closes the popup.
+                      if (e.key !== "Escape") e.stopPropagation();
+                    }}
+                    placeholder="Search organizations…"
+                    aria-label="Search organizations"
+                    className="min-w-0 flex-1 bg-transparent text-xs text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]"
+                  />
+                  {/* Manual re-sync — only meaningful with a credential to pull
                     with. Silent on failure: Rust keeps the last-known list. */}
-                {signedIn && (
-                  <Hint label="Refresh organizations">
-                    <button
-                      disabled={refreshing}
-                      onClick={async (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setRefreshing(true);
-                        try {
-                          await auth.refresh();
-                        } catch {
-                          // Left as-is on purpose; the pull failing is not an error
-                          // worth a toast on a background list.
-                        } finally {
-                          setRefreshing(false);
-                        }
-                      }}
-                      className="flex size-5 shrink-0 items-center justify-center rounded text-[var(--muted-foreground)] hover:bg-[var(--atlas-element-hover)] hover:text-[var(--foreground)] outline-none transition-colors cursor-pointer disabled:opacity-50"
-                    >
-                      <RefreshCw size={10} className={refreshing ? "animate-spin" : ""} />
-                    </button>
-                  </Hint>
-                )}
-              </div>
+                  {signedIn && (
+                    <Hint label="Refresh organizations">
+                      <button
+                        disabled={refreshing}
+                        onClick={async (e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setRefreshing(true);
+                          try {
+                            await auth.refresh();
+                          } catch {
+                            // Left as-is on purpose; the pull failing is not an error
+                            // worth a toast on a background list.
+                          } finally {
+                            setRefreshing(false);
+                          }
+                        }}
+                        className="flex size-5 shrink-0 items-center justify-center rounded text-[var(--muted-foreground)] hover:bg-[var(--atlas-element-hover)] hover:text-[var(--foreground)] outline-none transition-colors cursor-pointer disabled:opacity-50"
+                      >
+                        <RefreshCw size={10} className={refreshing ? "animate-spin" : ""} />
+                      </button>
+                    </Hint>
+                  )}
+                </div>
 
-              <div className="hide-scrollbar min-h-0 flex-1 overflow-y-auto pb-1">
-                {filteredOrgs.length === 0 && (
-                  <div className="px-2.5 py-3 text-center text-xs text-[var(--atlas-text-disabled)]">
-                    No organizations match.
-                  </div>
-                )}
-                {filteredOrgs.map((org) => {
-                  const isActive = org.id === active.id;
-                  // Inline-rename row: a plain input (NOT a menu item) so typing
-                  // doesn't trigger Radix typeahead / select / close.
-                  if (editingId === org.id) {
+                <div className="hide-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain py-1">
+                  {filteredOrgs.length === 0 && (
+                    <div className="px-2.5 py-3 text-center text-xs text-[var(--atlas-text-disabled)]">
+                      No organizations match.
+                    </div>
+                  )}
+                  {filteredOrgs.map((org) => {
+                    const isActive = org.id === active.id;
+                    // Inline-rename row: a plain input (NOT a menu item) so typing
+                    // doesn't trigger Radix typeahead / select / close.
+                    if (editingId === org.id) {
+                      return (
+                        <div
+                          key={org.id}
+                          className="mx-1 flex h-control-md w-[calc(100%-8px)] items-center gap-2 rounded-md px-1.5"
+                          onKeyDown={(e) => e.stopPropagation()}
+                        >
+                          <OrgAvatar org={org} size={16} plain />
+                          <input
+                            autoFocus
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") submitRename();
+                              if (e.key === "Escape") setEditingId(null);
+                            }}
+                            onBlur={submitRename}
+                            className="flex-1 min-w-0 bg-transparent outline-none text-sm text-[var(--foreground)]"
+                          />
+                        </div>
+                      );
+                    }
+                    const access = orgAccess(org);
                     return (
-                      <div
+                      <DropdownMenu.Item
                         key={org.id}
-                        className="mx-1 flex h-control-md w-[calc(100%-8px)] items-center gap-2 rounded-md px-1.5"
-                        onKeyDown={(e) => e.stopPropagation()}
+                        disabled={!access.ok}
+                        title={access.ok ? undefined : access.reason}
+                        onClick={() => {
+                          if (!access.ok) return;
+                          if (!isActive) void switchOrg(org.id);
+                        }}
+                        className={cn(
+                          // Inset rows (a margin, a radius) rather than full-bleed
+                          // stripes: the highlight then reads as a chip inside the
+                          // card, which is what the chat menus do.
+                          "group/org mx-1 flex h-control-md w-[calc(100%-8px)] items-center gap-2 rounded-md px-1.5 text-sm outline-none transition-colors",
+                          isActive && "bg-foreground/8 text-[var(--foreground)]",
+                          access.ok
+                            ? "cursor-pointer hover:bg-foreground/6 data-highlighted:bg-foreground/6 hover:text-[var(--foreground)]"
+                            : "cursor-not-allowed opacity-40",
+                        )}
                       >
                         <OrgAvatar org={org} size={16} plain />
-                        <input
-                          autoFocus
-                          value={editName}
-                          onChange={(e) => setEditName(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") submitRename();
-                            if (e.key === "Escape") setEditingId(null);
-                          }}
-                          onBlur={submitRename}
-                          className="flex-1 min-w-0 bg-transparent outline-none text-sm text-[var(--foreground)]"
-                        />
-                      </div>
-                    );
-                  }
-                  const access = orgAccess(org);
-                  return (
-                    <DropdownMenu.Item
-                      key={org.id}
-                      disabled={!access.ok}
-                      title={access.ok ? undefined : access.reason}
-                      onClick={() => {
-                        if (!access.ok) return;
-                        if (!isActive) void switchOrg(org.id);
-                      }}
-                      className={cn(
-                        // Inset rows (a margin, a radius) rather than full-bleed
-                        // stripes: the highlight then reads as a chip inside the
-                        // card, which is what the chat menus do.
-                        "group/org mx-1 flex h-control-md w-[calc(100%-8px)] items-center gap-2 rounded-md px-1.5 text-sm outline-none transition-colors",
-                        isActive && "bg-[var(--atlas-element-active)] text-[var(--foreground)]",
-                        access.ok
-                          ? "cursor-pointer hover:bg-[var(--atlas-element-hover)] hover:text-[var(--foreground)]"
-                          : "cursor-not-allowed opacity-40",
-                      )}
-                    >
-                      <OrgAvatar org={org} size={16} plain />
-                      <span className="flex-1 text-left truncate">{org.name}</span>
-                      {/* A locked org offers no row actions — you can't manage an
+                        <span className="flex-1 text-left truncate">{org.name}</span>
+                        {/* A locked org offers no row actions — you can't manage an
                           org this account has no access to. */}
-                      {/* Rename (pencil) — appears on hover; doesn't switch/close.
+                        {/* Rename (pencil) — appears on hover; doesn't switch/close.
                           Local-only orgs only: a synced org's name is owned by the
                           server and re-applied on every auth refresh, so a local
                           rename would silently revert. There is no org-update
                           route in the client to write it through with. */}
-                      {access.ok && !isSyncedOrg(org) && (
-                        <Hint label="Rename organization">
-                          <button
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              beginRename(org.id, org.name);
-                            }}
-                            className="flex size-5 shrink-0 items-center justify-center rounded text-[var(--muted-foreground)] opacity-0 hover:bg-[var(--card)] hover:text-[var(--foreground)] group-hover/org:opacity-100 focus-visible:opacity-100 cursor-pointer transform-gpu [backface-visibility:hidden]"
-                          >
-                            <Pencil size={11} />
-                          </button>
-                        </Hint>
-                      )}
-                      {/* Delete — appears on hover; opens confirmation. Hidden when
+                        {access.ok && !isSyncedOrg(org) && (
+                          <Hint label="Rename organization">
+                            <button
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                beginRename(org.id, org.name);
+                              }}
+                              className="flex size-5 shrink-0 items-center justify-center rounded text-[var(--muted-foreground)] opacity-0 hover:bg-[var(--card)] hover:text-[var(--foreground)] group-hover/org:opacity-100 focus-visible:opacity-100 cursor-pointer transform-gpu [backface-visibility:hidden]"
+                            >
+                              <Pencil size={11} />
+                            </button>
+                          </Hint>
+                        )}
+                        {/* Delete — appears on hover; opens confirmation. Hidden when
                           this is the only org (can't delete the last one). */}
-                      {access.ok && canDelete && (
-                        <Hint label="Delete organization">
-                          <button
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              setConfirmDelete(org);
-                              setOpen(false);
-                            }}
-                            className="flex size-5 shrink-0 items-center justify-center rounded text-[var(--muted-foreground)] opacity-0 hover:bg-[var(--card)] hover:text-error group-hover/org:opacity-100 focus-visible:opacity-100 cursor-pointer transform-gpu [backface-visibility:hidden]"
-                          >
-                            <Trash2 size={11} />
-                          </button>
-                        </Hint>
-                      )}
-                      {!access.ok ? (
-                        <Lock size={11} className="text-[var(--muted-foreground)] shrink-0" />
-                      ) : (
-                        isActive && (
-                          <Check size={13} className="shrink-0 text-[var(--foreground)]" />
-                        )
-                      )}
-                    </DropdownMenu.Item>
-                  );
-                })}
+                        {access.ok && canDelete && (
+                          <Hint label="Delete organization">
+                            <button
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setConfirmDelete(org);
+                                setOpen(false);
+                              }}
+                              className="flex size-5 shrink-0 items-center justify-center rounded text-[var(--muted-foreground)] opacity-0 hover:bg-[var(--card)] hover:text-error group-hover/org:opacity-100 focus-visible:opacity-100 cursor-pointer transform-gpu [backface-visibility:hidden]"
+                            >
+                              <Trash2 size={11} />
+                            </button>
+                          </Hint>
+                        )}
+                        {!access.ok ? (
+                          <Lock size={11} className="text-[var(--muted-foreground)] shrink-0" />
+                        ) : (
+                          isActive && (
+                            <Check size={13} className="shrink-0 text-[var(--foreground)]" />
+                          )
+                        )}
+                      </DropdownMenu.Item>
+                    );
+                  })}
+                </div>
               </div>
-
-              <DropdownMenu.Separator className="h-px shrink-0 bg-border-subtle" />
 
               {/* Create organisation — opens the name + handle modal (the handle
                   is globally unique, so it needs a real form, not an inline input). */}
@@ -442,7 +445,7 @@ export function OrgSwitcher() {
                   setOpen(false);
                   setCreateOpen(true);
                 }}
-                className="mx-1 mt-1 flex h-control-md w-[calc(100%-8px)] shrink-0 items-center gap-2 rounded-md px-1.5 text-xs outline-none transition-colors hover:bg-[var(--atlas-element-hover)] hover:text-[var(--foreground)] cursor-pointer"
+                className="mt-1.5 flex h-control-md w-full shrink-0 items-center gap-2 rounded-md px-1.5 text-xs outline-none transition-colors hover:bg-[var(--atlas-element-hover)] hover:text-[var(--foreground)] cursor-pointer"
               >
                 <Plus size={12} className="shrink-0 text-[var(--muted-foreground)]" />
                 <span className="flex-1 text-left">Create organization…</span>
@@ -456,7 +459,7 @@ export function OrgSwitcher() {
                     setOpen(false);
                     setMembersOpen(true);
                   }}
-                  className="mx-1 flex h-control-md w-[calc(100%-8px)] shrink-0 items-center gap-2 rounded-md px-1.5 text-xs outline-none transition-colors hover:bg-[var(--atlas-element-hover)] hover:text-[var(--foreground)] cursor-pointer"
+                  className="flex h-control-md w-full shrink-0 items-center gap-2 rounded-md px-1.5 text-xs outline-none transition-colors hover:bg-[var(--atlas-element-hover)] hover:text-[var(--foreground)] cursor-pointer"
                 >
                   <Users size={12} className="shrink-0 text-[var(--muted-foreground)]" />
                   <span className="flex-1 text-left">Invite &amp; Manage members</span>
@@ -466,7 +469,7 @@ export function OrgSwitcher() {
                   title={
                     activeIsSynced ? "Sign in to manage members" : "Turn on sync to manage members"
                   }
-                  className="mx-1 flex h-control-md w-[calc(100%-8px)] shrink-0 cursor-not-allowed items-center gap-2 rounded-md px-1.5 text-xs text-[var(--secondary-foreground)] opacity-40 select-none"
+                  className="flex h-control-md w-full shrink-0 cursor-not-allowed items-center gap-2 rounded-md px-1.5 text-xs text-[var(--secondary-foreground)] opacity-40 select-none"
                 >
                   <Users size={12} className="shrink-0" />
                   <span className="flex-1 text-left">Invite &amp; Manage members</span>
@@ -485,7 +488,7 @@ export function OrgSwitcher() {
                     else toast.error("Could not copy the organization ID");
                   }}
                   title={copyableOrgId}
-                  className="mx-1 mb-1 flex h-control-md w-[calc(100%-8px)] shrink-0 items-center gap-2 rounded-md px-1.5 text-xs outline-none transition-colors hover:bg-[var(--atlas-element-hover)] hover:text-[var(--foreground)] cursor-pointer"
+                  className="flex h-control-md w-full shrink-0 items-center gap-2 rounded-md px-1.5 text-xs outline-none transition-colors hover:bg-[var(--atlas-element-hover)] hover:text-[var(--foreground)] cursor-pointer"
                 >
                   <Copy size={12} className="shrink-0 text-[var(--muted-foreground)]" />
                   <span className="flex-1 text-left">Copy organization ID</span>
@@ -493,14 +496,14 @@ export function OrgSwitcher() {
               ) : (
                 <div
                   title="Turn on sync to give this organization an ID"
-                  className="mx-1 mb-1 flex h-control-md w-[calc(100%-8px)] shrink-0 cursor-not-allowed items-center gap-2 rounded-md px-1.5 text-xs text-[var(--secondary-foreground)] opacity-40 select-none"
+                  className="flex h-control-md w-full shrink-0 cursor-not-allowed items-center gap-2 rounded-md px-1.5 text-xs text-[var(--secondary-foreground)] opacity-40 select-none"
                 >
                   <Copy size={12} className="shrink-0" />
                   <span className="flex-1 text-left">Copy organization ID</span>
                 </div>
               )}
 
-              <DropdownMenu.Separator className="h-px shrink-0 bg-border-subtle" />
+              <DropdownMenu.Separator className="mx-1.5 my-1 h-px shrink-0 bg-border-subtle" />
 
               {/* Sync toggle for the ACTIVE org — in the footer (not under the org
                *  list) so it's unambiguous which org it applies to. Signed out,
@@ -508,7 +511,7 @@ export function OrgSwitcher() {
               {syncing ? (
                 <div
                   title="Syncing…"
-                  className="mx-1 my-1 flex h-control-md w-[calc(100%-8px)] items-center gap-2 rounded-md px-1.5 text-xs text-[var(--secondary-foreground)] select-none"
+                  className="flex h-control-md w-full items-center gap-2 rounded-md px-1.5 text-xs text-[var(--secondary-foreground)] select-none"
                 >
                   <Loader2
                     size={12}
@@ -519,7 +522,7 @@ export function OrgSwitcher() {
               ) : isSyncedOrg(active) ? (
                 <div
                   title="This organization is synced with your Atlas account"
-                  className="mx-1 my-1 flex h-control-md w-[calc(100%-8px)] items-center gap-2 rounded-md px-1.5 text-xs text-[var(--secondary-foreground)] select-none"
+                  className="flex h-control-md w-full items-center gap-2 rounded-md px-1.5 text-xs text-[var(--secondary-foreground)] select-none"
                 >
                   <Cloud size={12} className="shrink-0 text-[var(--muted-foreground)]" />
                   <span className="flex-1 text-left truncate">{active.name} is synced</span>
@@ -546,7 +549,7 @@ export function OrgSwitcher() {
                       ? "Create this organization in your Atlas account"
                       : "Sign in to sync this organization"
                   }
-                  className="mx-1 my-1 flex h-control-md w-[calc(100%-8px)] items-center gap-2 rounded-md px-1.5 text-xs text-[var(--secondary-foreground)] outline-none transition-colors hover:bg-[var(--atlas-element-hover)] hover:text-[var(--foreground)] cursor-pointer"
+                  className="flex h-control-md w-full items-center gap-2 rounded-md px-1.5 text-xs text-[var(--secondary-foreground)] outline-none transition-colors hover:bg-[var(--atlas-element-hover)] hover:text-[var(--foreground)] cursor-pointer"
                 >
                   <Cloud size={12} className="shrink-0" />
                   <span className="flex-1 text-left truncate">Turn on sync for {active.name}…</span>

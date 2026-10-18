@@ -82,6 +82,10 @@ interface TerminalActions {
     closeTerminalById: (ptyId: string) => void;
     closePane: (tabId: string, paneId: string) => void;
     setActiveTerminalInPane: (tabId: string, paneId: string, ptyId: string) => void;
+    /** The pane's terminals in a new order (the side list's drag). Ignored
+     *  unless `order` is exactly the pane's terminals rearranged — a drag that
+     *  lands after a close must not resurrect or drop one. */
+    reorderTerminalsInPane: (tabId: string, paneId: string, order: string[]) => void;
     setActivePane: (tabId: string, paneId: string) => void;
     setTerminalBusy: (ptyId: string, busy: boolean) => void;
     /** Persist a split's proportions after a user drag. */
@@ -368,6 +372,17 @@ export const useTerminalStore = createSelectors(
             if (!t) return;
             const pane = findPane(t.root, paneId);
             if (pane) pane.activeTerminalId = ptyId;
+          });
+        },
+        reorderTerminalsInPane: (tabId, paneId, order) => {
+          set((s) => {
+            const t = s.tabs[tabId];
+            if (!t) return;
+            const pane = findPane(t.root, paneId);
+            if (!pane || pane.terminals.length !== order.length) return;
+            const have = new Set(pane.terminals);
+            if (new Set(order).size !== order.length || !order.every((id) => have.has(id))) return;
+            pane.terminals = [...order];
           });
         },
 

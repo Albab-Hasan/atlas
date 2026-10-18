@@ -194,6 +194,8 @@ async function cellSize(): Promise<{ w: number; h: number }> {
 export class TerminalSession {
   readonly key: string;
   readonly tabId: string;
+  /** When the shell was started — the side list's "open for". */
+  readonly createdAt = Date.now();
   /** The element xterm opens into. Views append it; it is never recreated. */
   readonly surfaceEl: HTMLDivElement;
 
