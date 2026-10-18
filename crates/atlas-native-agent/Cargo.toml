@@ -68,6 +68,11 @@ atlas-engine-models-manager = { path = "../../vendor/atlas-engine/models-manager
 atlas-engine-protocol = { path = "../../vendor/atlas-engine/protocol" }
 atlas-engine-rollout = { path = "../../vendor/atlas-engine/rollout" }
 
+# The Windows sandbox launcher, re-entered as `atlas.exe --run-as-windows-sandbox`
+# (`helper.rs`). Already in the graph through `atlas-engine-sandboxing`.
+[target.'cfg(windows)'.dependencies]
+atlas-engine-windows-sandbox = { workspace = true }
+
 [dev-dependencies]
 async-trait = "0.1"
 # The Linux sandbox helper, for tests only.
@@ -82,8 +87,9 @@ async-trait = "0.1"
 # `configure_test_binary_dispatch` before any test, which installs the arg0
 # aliases and hands back the helper's path.
 #
-# Dev-only on purpose. The shipped app has no arg0 dispatch and ships macOS, so
-# giving it a helper path would be a lie about what the binary does.
+# Dev-only on purpose. The shipped app dispatches only the argv[1] helpers
+# (`src/helper.rs`), not the Linux sandbox's arg0 alias, so giving it a Linux
+# helper path would be a lie about what the binary does.
 atlas-engine-sandboxing = { workspace = true }
 atlas-engine-test-binary-support = { workspace = true }
 # Pinned by the workspace to the same version `atlas-engine-core`'s tests use, so this

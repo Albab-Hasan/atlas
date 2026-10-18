@@ -3331,6 +3331,7 @@ dependencies = [
  "atlas-engine-test-binary-support",
  "atlas-engine-tools",
  "atlas-engine-utils-json-to-toml",
+ "atlas-engine-windows-sandbox",
  "atlas-process",
  "atlas-thread-metadata",
  "axum",

@@ -46,6 +46,7 @@
 //!   envelope and goes to the approval card ([`engine::tool_approvals`]).
 
 pub mod engine;
+mod helper;
 
 use anyhow::Result;
 
@@ -75,3 +76,4 @@ pub trait AgentSessionEffort: Send + Sync {
 
 pub use engine::connection::EngineConnection;
 pub use engine::EngineAgentServer;
+pub use helper::run_engine_helper_if_asked;

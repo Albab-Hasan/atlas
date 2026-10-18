@@ -50,8 +50,9 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 // failure they showed: `EndTurn` instead of `Cancelled`, and a command that
 // "ran 0 times".
 //
-// Atlas ships macOS and has no arg0 dispatch, so the app has no helper to
-// offer (see `EngineSettings::linux_sandbox_exe`). The tests do: upstream's own
+// The app dispatches only the `argv[1]` helpers (`run_engine_helper_if_asked`),
+// not this arg0 alias, so it has no Linux helper to offer (see
+// `EngineSettings::linux_sandbox_exe`). The tests do: upstream's own
 // suites make the *test binary* the helper, and this is that same construction
 // — `vendor/atlas-engine/core/tests/suite/mod.rs`. The `#[ctor]` runs before any test
 // thread exists, which is what makes the `set_var`/PATH work inside it sound.

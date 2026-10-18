@@ -195,10 +195,12 @@ pub struct EngineSettings {
     pub cwd: PathBuf,
     /// The path to Atlas's own executable.
     ///
-    /// Sandboxed execution on macOS re-enters this binary, so the engine has to
-    /// be told what it is. This is the single process-level assumption in the
-    /// whole embedding, and it has an explicit code-level seam precisely so an
-    /// embedder can satisfy it without adopting the engine's argv0 dispatch.
+    /// Sandboxed file access re-enters this binary as the engine's fs helper on
+    /// every platform (and, on Windows, as its sandbox launcher), so the engine
+    /// has to be told what it is — and the binary has to *be* those helpers when
+    /// re-entered, which `crate::run_engine_helper_if_asked` in the app's
+    /// `main` is. This is the single process-level assumption in the whole
+    /// embedding.
     pub self_exe: Option<PathBuf>,
     /// The path to the `atlas-engine-linux-sandbox` helper, on Linux.
     ///
@@ -216,11 +218,11 @@ pub struct EngineSettings {
     /// an arg0 alias — and without a way to hand it over the sandboxed-command
     /// tests can only pass on macOS.
     ///
-    /// A real Linux build would have to earn this rather than set it: `main.rs`
-    /// would need the engine's arg0 dispatch, so that Atlas re-entered as
-    /// `atlas-engine-linux-sandbox` runs the helper instead of the app, and only then
-    /// could this point at Atlas's own executable. That is deliberately not
-    /// implemented here.
+    /// A real Linux build would have to earn this rather than set it:
+    /// `run_engine_helper_if_asked` dispatches on `argv[1]` only, so Atlas
+    /// re-entered under the *arg0* `atlas-engine-linux-sandbox` would still boot
+    /// the app. Only once that is dispatched too could this point at Atlas's
+    /// own executable. That is deliberately not implemented here.
     pub linux_sandbox_exe: Option<PathBuf>,
     pub approval_policy: AskForApproval,
     pub sandbox_mode: SandboxMode,
@@ -255,8 +257,8 @@ impl EngineSettings {
             model,
             cwd,
             self_exe: std::env::current_exe().ok(),
-            // Never guessed. `current_exe()` is a helper only in a process that
-            // dispatches on arg0, and Atlas does not — see the field's docs.
+            // Never guessed. `current_exe()` is this helper only in a process
+            // that dispatches on arg0, and Atlas does not — see the field's docs.
             linux_sandbox_exe: None,
             // D5: the sandbox is on from day one on macOS, in the engine's own
             // default approval/sandbox mode. `WorkspaceWrite` plus
