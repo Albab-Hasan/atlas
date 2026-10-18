@@ -2235,8 +2235,18 @@ impl AgentConnection for EngineConnection {
             let requests = self.requests.clone();
             let request_ids = self.request_ids.clone();
             self.runtime.handle().spawn(async move {
+                let send = |request: ClientRequest| {
+                    let requests = requests.clone();
+                    async move {
+                        requests
+                            .request_typed::<serde_json::Value>(request)
+                            .await
+                            .map(|_| ())
+                            .map_err(|e| e.to_string())
+                    }
+                };
                 for child in descendants {
-                    interrupt_child(&requests, &request_ids, child).await;
+                    interrupt_child(&send, &request_ids, child).await;
                 }
             });
         }
@@ -2301,32 +2311,68 @@ async fn send_interrupt(
     }
 }
 
-/// Interrupt whatever a spawned child is running. An empty turn id is the
-/// server's "no particular turn" form: it skips the active-turn check and
-/// answers at once. A child the engine has already closed is not an error
-/// worth more than a debug line — there is nothing left to stop.
-async fn interrupt_child(
-    requests: &InProcessAppServerRequestHandle,
-    request_ids: &RequestIds,
-    thread_id: String,
-) {
-    let result = requests
-        .request_typed::<v2::TurnInterruptResponse>(ClientRequest::TurnInterrupt {
-            request_id: request_ids.next(),
-            params: v2::TurnInterruptParams {
-                thread_id: thread_id.clone(),
-                turn_id: String::new(),
-            },
-        })
-        .await;
+/// Interrupt whatever a spawned child is running, then kill what it left
+/// running. An empty turn id is the server's "no particular turn" form: it
+/// skips the active-turn check and answers at once. A child the engine has
+/// already closed is not an error worth more than a debug line — there is
+/// nothing left to stop.
+///
+/// `send` is the request handle in production. It is a parameter because the
+/// handle cannot be built outside its crate, and the one thing worth pinning
+/// here — that the clean follows the interrupt, for the same thread, whether
+/// or not the interrupt succeeded — is a question about the requests, not
+/// about the engine.
+async fn interrupt_child<F, Fut>(send: &F, request_ids: &RequestIds, thread_id: String)
+where
+    F: Fn(ClientRequest) -> Fut,
+    Fut: std::future::Future<Output = Result<(), String>>,
+{
+    let result = send(ClientRequest::TurnInterrupt {
+        request_id: request_ids.next(),
+        params: v2::TurnInterruptParams {
+            thread_id: thread_id.clone(),
+            turn_id: String::new(),
+        },
+    })
+    .await;
     match result {
-        Ok(_) => tracing::info!(
+        Ok(()) => tracing::info!(
             target: "atlas_native_agent::engine",
             "stop cascaded to subagent thread {thread_id}",
         ),
         Err(e) => tracing::debug!(
             target: "atlas_native_agent::engine",
             "interrupting subagent thread {thread_id} failed: {e}",
+        ),
+    }
+
+    // The interrupt aborts the child's TURN; it does not touch the commands
+    // the turn started. A shell call the child was mid-way through
+    // (`exec_command`, unified exec) lives in the engine's process table and
+    // keeps running under the app after the row says "stopped" — a `sleep 60`
+    // outlived the Stop that was supposed to end it by the full minute. The
+    // engine kills those only on an explicit clean, so send it. The parent's
+    // own terminals are deliberately left alone: a user's Stop ends the
+    // agent's work, not a dev server they asked it to leave running — but a
+    // child that was stopped has no further claim on anything it spawned.
+    //
+    // Sent even when the interrupt failed: an already-idle child answers the
+    // interrupt with an error and still holds its processes.
+    let cleaned = send(ClientRequest::ThreadBackgroundTerminalsClean {
+        request_id: request_ids.next(),
+        params: v2::ThreadBackgroundTerminalsCleanParams {
+            thread_id: thread_id.clone(),
+        },
+    })
+    .await;
+    match cleaned {
+        Ok(()) => tracing::info!(
+            target: "atlas_native_agent::engine",
+            "stop terminated the background commands of subagent thread {thread_id}",
+        ),
+        Err(e) => tracing::warn!(
+            target: "atlas_native_agent::engine",
+            "terminating the background commands of subagent thread {thread_id} failed: {e}",
         ),
     }
 }
@@ -2340,6 +2386,71 @@ mod tests {
     // The integration test presses Stop once against a real engine; these pin
     // the interleavings deterministically, because which side of `register`
     // the press lands on cannot be scripted from outside.
+
+    /// Stop reached the child's turn but not the command the turn had started:
+    /// a `sleep 60` ran its full minute under the app after the row read
+    /// "stopped". The interrupt must be followed by the engine's background-
+    /// terminal clean, for the same thread — and the clean must go out even
+    /// when the interrupt is refused, because an idle child refuses it and
+    /// still holds its processes.
+    #[tokio::test]
+    async fn stopping_a_child_also_kills_the_commands_it_left_running() {
+        use std::sync::Mutex;
+        let seen: Arc<Mutex<Vec<(String, String)>>> = Arc::default();
+        let refuse_interrupt = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let send = {
+            let seen = seen.clone();
+            let refuse = refuse_interrupt.clone();
+            move |request: ClientRequest| {
+                let seen = seen.clone();
+                let refuse = refuse.clone();
+                async move {
+                    let thread = match &request {
+                        ClientRequest::TurnInterrupt { params, .. } => params.thread_id.clone(),
+                        ClientRequest::ThreadBackgroundTerminalsClean { params, .. } => {
+                            params.thread_id.clone()
+                        }
+                        other => panic!("unexpected request {}", other.method_name()),
+                    };
+                    seen.lock()
+                        .unwrap()
+                        .push((request.method_name().to_string(), thread));
+                    if refuse.load(std::sync::atomic::Ordering::Relaxed)
+                        && matches!(request, ClientRequest::TurnInterrupt { .. })
+                    {
+                        return Err("no turn in flight".to_string());
+                    }
+                    Ok(())
+                }
+            }
+        };
+        let ids = RequestIds::default();
+
+        interrupt_child(&send, &ids, "child-1".to_string()).await;
+        assert_eq!(
+            *seen.lock().unwrap(),
+            vec![
+                ("turn/interrupt".to_string(), "child-1".to_string()),
+                (
+                    "thread/backgroundTerminals/clean".to_string(),
+                    "child-1".to_string()
+                ),
+            ],
+            "the clean follows the interrupt, for the same thread"
+        );
+
+        seen.lock().unwrap().clear();
+        refuse_interrupt.store(true, std::sync::atomic::Ordering::Relaxed);
+        interrupt_child(&send, &ids, "child-2".to_string()).await;
+        assert_eq!(
+            seen.lock()
+                .unwrap()
+                .last()
+                .map(|(m, t)| (m.as_str(), t.as_str())),
+            Some(("thread/backgroundTerminals/clean", "child-2")),
+            "an idle child refuses the interrupt and still gets its processes killed"
+        );
+    }
 
     #[test]
     fn a_cancel_during_the_starting_window_is_recorded_and_handed_to_the_prompt() {
