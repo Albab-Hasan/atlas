@@ -493,6 +493,39 @@ impl ArtifactsClient {
         Ok(wrapper.comment)
     }
 
+    /// One person's vote: `1` up, `-1` down, `0` takes it back. A value, not
+    /// a toggle — voting the way you already voted is a no-op on the server,
+    /// so a retried request cannot undo itself. Members only; a guest is
+    /// refused. Answers the comment as it now stands.
+    pub async fn vote_comment(
+        &self,
+        org_id: &str,
+        project_id: &str,
+        session_id: &str,
+        comment_id: &str,
+        value: i8,
+    ) -> Result<Comment> {
+        #[derive(serde::Deserialize)]
+        struct Wrapper {
+            comment: Comment,
+        }
+        if !matches!(value, -1..=1) {
+            return Err(Error::Protocol(format!(
+                "a vote is 1, -1 or 0, not {value}"
+            )));
+        }
+        let req = self
+            .http
+            .put(self.url(&[
+                "sessions", project_id, session_id, "comments", comment_id, "vote",
+            ])?)
+            .bearer_auth(self.token().await?)
+            .query(&[("org", org_id)])
+            .json(&serde_json::json!({ "value": value }));
+        let wrapper: Wrapper = self.send(req, "vote on comment").await?;
+        Ok(wrapper.comment)
+    }
+
     /// Delete a comment. The row survives with a `None` body so replies keep
     /// their places, which is why this answers with the comment rather than
     /// nothing.

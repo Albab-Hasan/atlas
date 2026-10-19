@@ -333,6 +333,7 @@ impl OrganisationCloud for FakeOrganisation {
                 deleted_at: None,
                 resolved_at: None,
                 resolved_by: None,
+                votes: Default::default(),
             };
             list.push(posted.clone());
             let mut owed: Vec<(String, &'static str)> = mentions
@@ -661,6 +662,7 @@ fn comment(id: &str, parent: Option<&str>) -> Comment {
         deleted_at: None,
         resolved_at: None,
         resolved_by: None,
+        votes: Default::default(),
     }
 }
 

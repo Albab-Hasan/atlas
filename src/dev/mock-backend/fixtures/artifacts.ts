@@ -47,6 +47,7 @@ import type { modelchat, ModelChatEvent } from "@/lib/byok/byok-chat";
 import type { Project } from "@/features/projects/stores/project-store";
 import type { TypedHandlers, Unit } from "../types";
 import { abs, ALL_PROJECTS, MOCK_PROJECT } from "../project";
+import { NO_VOTES, withVote, type VoteValue } from "@/features/artifacts/lib/votes";
 
 const [APP, PLATFORM, DOCS] = ALL_PROJECTS;
 
@@ -1111,6 +1112,7 @@ export interface ArtifactsResponses {
   artifacts_cloud_comment_create: Comment;
   artifacts_cloud_comment_update: Comment;
   artifacts_cloud_comment_delete: Comment;
+  artifacts_cloud_comment_vote: Comment;
   artifacts_checkpoints: BoardCheckpoint[];
   artifacts_payload: ArtifactPayload;
   session_chat_threads_list: ThreadMeta[];
@@ -1154,6 +1156,8 @@ function seedComments() {
         body: "Is <@usr_priya> expecting the retry helper to keep its old signature?",
         mentions: ["usr_priya"],
         authorId: "usr_sam",
+        // A score to read, and an up you can take back or switch.
+        votes: { up: ["usr_mira", "usr_priya"], down: [] },
       }),
       mockComment({
         id: "cm_2",
@@ -1289,6 +1293,7 @@ export function mockComment(over: Partial<Comment> & { id: string }): Comment {
     deletedAt: null,
     resolvedAt: null,
     resolvedBy: null,
+    votes: { up: [], down: [] },
     ...over,
   };
 }
@@ -1460,6 +1465,15 @@ export const artifactsHandlers: TypedHandlers<ArtifactsResponses> = {
       resolvedAt: resolved == null ? row.resolvedAt : resolved ? new Date().toISOString() : null,
       resolvedBy: resolved == null ? row.resolvedBy : resolved ? "usr_priya" : null,
     })),
+
+  // A value, not a toggle, cast as you (`usr_dev`) — the server's rule, via
+  // the same `withVote` the client draws with. A deleted comment takes none.
+  artifacts_cloud_comment_vote: ({ sessionId, commentId, value }): Comment =>
+    patchComment(String(sessionId), String(commentId), (row) =>
+      row.deletedAt && value !== 0
+        ? row
+        : { ...row, votes: withVote(row.votes ?? NO_VOTES, "usr_dev", value as VoteValue) },
+    ),
 
   // The row survives with a null body so replies keep their places — which is
   // exactly what the real server does, and what the tombstone renders from.

@@ -268,3 +268,53 @@ describe("opening a thread from elsewhere", () => {
     expect(isOpen()).toBe(true);
   });
 });
+
+describe("votes on a comment", () => {
+  function openWith(c: Comment, vote?: CommentActions["vote"]) {
+    const actions: CommentActions = {
+      post: async () => {},
+      resolve: async () => {},
+      remove: async () => {},
+      vote,
+    };
+    render(
+      <CommentButton
+        anchorKind="entry"
+        anchorId="row-1"
+        comments={[c]}
+        actions={actions}
+        directory={directory}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Comment/ }));
+  }
+
+  it("shows the net score and names who voted, you first", () => {
+    openWith(
+      comment({ votes: { up: ["u_grace", "u_me"], down: [] } }),
+      vi.fn(async () => {}),
+    );
+    expect(screen.getByLabelText("Score 2")).toBeTruthy();
+    const up = screen.getByRole("button", { name: /Upvoted by/ });
+    expect(up.getAttribute("aria-label")).toBe("Upvoted by You and Grace Hopper");
+    expect(up.getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("takes your vote back on a second click, and switches on the other arrow", () => {
+    const vote = vi.fn(async () => {});
+    openWith(comment({ votes: { up: ["u_me"], down: [] } }), vote);
+    fireEvent.click(screen.getByRole("button", { name: /Upvoted by/ }));
+    expect(vote).toHaveBeenLastCalledWith("c1", 0);
+    fireEvent.click(screen.getByRole("button", { name: "Downvote" }));
+    expect(vote).toHaveBeenLastCalledWith("c1", -1);
+  });
+
+  it("shows nothing to click where the reader cannot vote, and nothing at all with no votes", () => {
+    openWith(comment({ votes: { up: ["u_grace"], down: [] } }));
+    expect(screen.queryByRole("button", { name: /Upvote/ })).toBeNull();
+    expect(screen.getByRole("img", { name: "Upvoted by Grace Hopper" })).toBeTruthy();
+    cleanup();
+    openWith(comment({ votes: { up: [], down: [] } }));
+    expect(screen.queryByLabelText(/Upvote/)).toBeNull();
+  });
+});

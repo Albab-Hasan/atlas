@@ -712,6 +712,7 @@ pub fn run() {
             commands::artifacts_cloud::artifacts_cloud_comment_create,
             commands::artifacts_cloud::artifacts_cloud_comment_update,
             commands::artifacts_cloud::artifacts_cloud_comment_delete,
+            commands::artifacts_cloud::artifacts_cloud_comment_vote,
             commands::capture::capture_health,
             commands::capture::capture_import_preview,
             commands::capture::capture_import_confirm,

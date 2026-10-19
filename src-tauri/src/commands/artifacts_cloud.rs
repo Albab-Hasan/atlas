@@ -869,6 +869,22 @@ pub async fn artifacts_cloud_comment_delete(
         .map_err(|e| e.to_string())
 }
 
+/// Vote on a comment: `1` up, `-1` down, `0` to take the vote back.
+#[tauri::command]
+pub async fn artifacts_cloud_comment_vote(
+    project_id: String,
+    session_id: String,
+    comment_id: String,
+    value: i8,
+    app: AppHandle,
+) -> Result<Comment, String> {
+    let (client, org_id) = reader(&app)?;
+    client
+        .vote_comment(&org_id, &project_id, &session_id, &comment_id, value)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// The client and the Organisation it is pointed at, or a legible refusal.
 fn reader(app: &AppHandle) -> Result<(Arc<ArtifactsClient>, String), String> {
     let state = app
@@ -910,6 +926,7 @@ mod tests {
             deleted_at: None,
             resolved_at: None,
             resolved_by: None,
+            votes: Default::default(),
         }
     }
 

@@ -25,7 +25,18 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Popover } from "@base-ui/react/popover";
-import { Check, CornerDownLeft, Link2, Loader2, MessageSquare, Pencil, Trash2 } from "lucide-react";
+import {
+  ArrowBigDown,
+  ArrowBigUp,
+  Check,
+  CornerDownLeft,
+  Link2,
+  Loader2,
+  MessageSquare,
+  Pencil,
+  Trash2,
+} from "lucide-react";
+import { toast } from "sonner";
 
 import { AccountAvatar } from "@/features/auth/components/account-avatar";
 import { CommenterAvatar, GuestChip, type Commenter } from "@/components/commenter-avatar";
@@ -36,6 +47,7 @@ import { cn } from "@/lib/utils";
 import { toEditable, toWireBody } from "../lib/comment-edit";
 import { COMMENT_BODY_MAX, visibleCount, type AnchorKind, type Comment } from "../lib/comments-api";
 import { selectionCommentBody, splitSelectionComment } from "../lib/selection-comment";
+import { NO_VOTES, nextVote, voteOf } from "../lib/votes";
 
 /** Everything the thread needs to talk to the server, supplied by the panel. */
 export interface CommentActions {
@@ -46,6 +58,11 @@ export interface CommentActions {
     parentId: string | null,
   ) => Promise<void>;
   resolve: (commentId: string, resolved: boolean) => Promise<void>;
+  /**
+   * Vote: `1` up, `-1` down, `0` to take it back. Optional — a surface that
+   * cannot vote still shows the score, with nothing to click.
+   */
+  vote?: (commentId: string, value: 1 | -1 | 0) => Promise<void>;
   remove: (commentId: string) => Promise<void>;
   /**
    * Replace your own comment's body. Optional, like the web's `patch`: a
@@ -648,19 +665,25 @@ const CommentRow = memo(function CommentRow({
             <CommentBody text={comment.body ?? ""} directory={directory} />
           )}
 
-          {/* Root only. A reply has no actions of its own: the server refuses
-           *  to re-parent one, so offering Reply here would promise a third
-           *  level that cannot exist. */}
-          {isRoot && !editing && (
+          {/* Votes on every comment, as the web shows them. Resolve and Reply
+           *  on roots only: the server refuses to re-parent a reply, so
+           *  offering Reply on one would promise a third level that cannot
+           *  exist. */}
+          {!editing && (isRoot || hasVotes(comment, actions, directory)) && (
             <div className="mt-1 flex items-center gap-0.5">
-              <Action
-                onClick={() => run(() => actions.resolve(comment.id, !resolved))}
-                disabled={busy}
-              >
-                <Check size={10} />
-                {resolved ? "Reopen" : "Resolve"}
-              </Action>
-              {onReply && <Action onClick={onReply}>Reply</Action>}
+              <Votes comment={comment} actions={actions} directory={directory} />
+              {isRoot && (
+                <>
+                  <Action
+                    onClick={() => run(() => actions.resolve(comment.id, !resolved))}
+                    disabled={busy}
+                  >
+                    <Check size={10} />
+                    {resolved ? "Reopen" : "Resolve"}
+                  </Action>
+                  {onReply && <Action onClick={onReply}>Reply</Action>}
+                </>
+              )}
             </div>
           )}
         </div>
@@ -668,6 +691,147 @@ const CommentRow = memo(function CommentRow({
     </div>
   );
 });
+
+/** Whether a comment's vote control has anything to show: votes already cast,
+ *  or a reader who may cast one. */
+function hasVotes(comment: Comment, actions: CommentActions, directory: OrgDirectory): boolean {
+  const votes = comment.votes ?? NO_VOTES;
+  const canVote = !!actions.vote && directory.currentUserId !== null && !comment.deletedAt;
+  return canVote || votes.up.length + votes.down.length > 0;
+}
+
+/**
+ * ⇧ n ⇩, the web reader's vote control: two bare arrows and the net score
+ * between them, sized like the actions beside them rather than drawn as chips.
+ * One vote per person: clicking your own vote takes it back, clicking the
+ * other side switches it. Your vote fills its arrow; each arrow's tooltip
+ * names who voted that way. Where the reader may not vote, the score shows
+ * and nothing is clickable; a comment nobody has voted on, nothing at all.
+ */
+function Votes({
+  comment,
+  actions,
+  directory,
+}: {
+  comment: Comment;
+  actions: CommentActions;
+  directory: OrgDirectory;
+}) {
+  if (!hasVotes(comment, actions, directory)) return null;
+  const votes = comment.votes ?? NO_VOTES;
+  const me = directory.currentUserId;
+  const current = voteOf(votes, me);
+  const canVote = !!actions.vote && me !== null && !comment.deletedAt;
+  const total = votes.up.length + votes.down.length;
+  const score = votes.up.length - votes.down.length;
+
+  const cast = (side: 1 | -1) => {
+    // Drawn at once by the action; a refusal puts it back, and says so here.
+    void actions.vote?.(comment.id, nextVote(current, side)).catch((e: unknown) => {
+      toast.error(`Couldn't record that vote: ${e instanceof Error ? e.message : String(e)}`);
+    });
+  };
+  const votersOf = (who: readonly string[]) => {
+    // Your own name first: it is the one you look for.
+    const ordered = me && who.includes(me) ? [me, ...who.filter((id) => id !== me)] : who;
+    return nameList(
+      ordered.map((id) => (id === me ? "You" : (directory.byId.get(id)?.name ?? "A member"))),
+    );
+  };
+
+  return (
+    <span className="mr-1 flex items-center">
+      <VoteArrow
+        side={1}
+        count={votes.up.length}
+        pressed={current === 1}
+        voters={votersOf(votes.up)}
+        onClick={canVote ? () => cast(1) : undefined}
+      />
+      {total > 0 && (
+        <span
+          aria-label={`Score ${score}`}
+          className={cn(
+            "min-w-3 px-0.5 text-center font-mono text-2xs tabular-nums",
+            current === 1
+              ? "text-[var(--atlas-status-success-foreground)]"
+              : current === -1
+                ? "text-[var(--atlas-status-info-foreground)]"
+                : "text-[var(--muted-foreground)]",
+          )}
+        >
+          {score}
+        </span>
+      )}
+      <VoteArrow
+        side={-1}
+        count={votes.down.length}
+        pressed={current === -1}
+        voters={votersOf(votes.down)}
+        onClick={canVote ? () => cast(-1) : undefined}
+      />
+    </span>
+  );
+}
+
+function VoteArrow({
+  side,
+  count,
+  pressed,
+  voters,
+  onClick,
+}: {
+  side: 1 | -1;
+  count: number;
+  pressed: boolean;
+  voters: string;
+  /** Absent where the reader may only look. */
+  onClick?: () => void;
+}) {
+  const what = side === 1 ? "Upvote" : "Downvote";
+  const Icon = side === 1 ? ArrowBigUp : ArrowBigDown;
+  const label = count > 0 ? `${what}d by ${voters}` : what;
+  const className = cn(
+    "flex size-4 items-center justify-center rounded-sm transition-colors",
+    pressed
+      ? side === 1
+        ? "text-[var(--atlas-status-success-foreground)]"
+        : "text-[var(--atlas-status-info-foreground)]"
+      : "text-[var(--muted-foreground)]",
+    onClick && "cursor-pointer hover:bg-[var(--atlas-element-hover)]",
+    onClick &&
+      !pressed &&
+      (side === 1
+        ? "hover:text-[var(--atlas-status-success-foreground)]"
+        : "hover:text-[var(--atlas-status-info-foreground)]"),
+  );
+  const glyph = <Icon size={12} className={cn(pressed && "fill-current")} />;
+  if (!onClick) {
+    return (
+      <span role="img" aria-label={label} title={label} className={className}>
+        {glyph}
+      </span>
+    );
+  }
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      aria-pressed={pressed}
+      title={label}
+      onClick={onClick}
+      className={className}
+    >
+      {glyph}
+    </button>
+  );
+}
+
+/** "A", "A and B", "A, B and C". */
+function nameList(names: readonly string[]): string {
+  if (names.length <= 1) return names[0] ?? "";
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
 
 /** A root's inline action. Quiet until the comment is hovered. */
 function Action({
