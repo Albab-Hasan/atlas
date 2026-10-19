@@ -634,6 +634,7 @@ pub fn run() {
             commands::usage_dashboard::usage_export_markdown,
             commands::usage_dashboard::usage_write_file,
             commands::git::git_diff_file,
+            commands::git::git_diff_paths,
             commands::git::git_stage,
             commands::git::git_unstage,
             commands::git::git_list_branches,

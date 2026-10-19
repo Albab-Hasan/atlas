@@ -57,6 +57,16 @@ const KEY_BYTES: Record<string, number[]> = {
 
 const encoder = new TextEncoder();
 
+let measureCtx: CanvasRenderingContext2D | null = null;
+/** Advance of one glyph in the textarea's (monospace) font; 0 if unknown. */
+function glyphWidth(el: HTMLElement): number {
+  measureCtx ??= document.createElement("canvas").getContext("2d");
+  if (!measureCtx) return 0;
+  const cs = getComputedStyle(el);
+  measureCtx.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+  return measureCtx.measureText("W").width;
+}
+
 /**
  * A keystroke as the bytes a real terminal would send, or `null` for keys that
  * should be left to the browser.
@@ -144,9 +154,24 @@ export const CommandInput = forwardRef<CommandInputHandle, CommandInputProps>(fu
   useImperativeHandle(ref, () => ({ focus: () => taRef.current?.focus() }), []);
 
   // Auto-grow the textarea with its content (multi-line via Shift+Enter).
+  //
+  // Measuring is a forced synchronous layout (height 0 → read scrollHeight),
+  // and it ran on every keystroke. A forced layout costs whatever else is
+  // dirty, and next to a terminal streaming output that is the whole live
+  // block list — which is how typing during a `git push` nearly hung the app.
+  // A single line that visibly fits needs no measurement: clearing the inline
+  // height leaves the `rows={1}` box. Width and glyph advance are read in the
+  // ResizeObserver, where layout is already clean.
+  const fitRef = useRef({ width: 0, charW: 0 });
   const resize = useCallback(() => {
     const ta = taRef.current;
     if (!ta) return;
+    const { width, charW } = fitRef.current;
+    const v = ta.value;
+    if (charW > 0 && !v.includes("\n") && (v.length + 1) * charW <= width) {
+      if (ta.style.height) ta.style.height = "";
+      return;
+    }
     ta.style.height = "0px";
     ta.style.height = `${ta.scrollHeight}px`;
   }, []);
@@ -159,6 +184,7 @@ export const CommandInput = forwardRef<CommandInputHandle, CommandInputProps>(fu
     const ro = new ResizeObserver(() => {
       if (ta.clientWidth !== lastW) {
         lastW = ta.clientWidth;
+        fitRef.current = { width: lastW, charW: glyphWidth(ta) };
         resize();
       }
     });
@@ -377,10 +403,17 @@ export const CommandInput = forwardRef<CommandInputHandle, CommandInputProps>(fu
         return;
       }
 
+      // Tab with an answer half-typed: nothing sensible to send (the answer
+      // is still buffered here), but the browser default would move focus
+      // out of the terminal.
+      if (e.key === "Tab" && value) {
+        e.preventDefault();
+        return;
+      }
       const bytes = arrowBytes(e.key, !!appCursorKeys) ?? KEY_BYTES[e.key];
-      if (bytes && (e.key !== "Tab" || !value)) {
-        // Forward nav keys (and Tab only when there's nothing typed, so Tab can
-        // still answer a prompt's default). Esc closes any open suggestion first.
+      if (bytes) {
+        // Forward nav keys (and Tab, with nothing typed, so it can still
+        // answer a prompt's default). Esc closes any open suggestion first.
         if (e.key === "Escape" && open) {
           e.preventDefault();
           closeSuggest();

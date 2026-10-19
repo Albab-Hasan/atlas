@@ -105,6 +105,11 @@ export interface ChangeRow {
   path: string;
   created: boolean;
   deleted: boolean;
+  /** Git's letter for the change, when a source can say: the record knows
+   *  whether the file existed before and whether it survives; a tool call
+   *  knows whether it created the file. Absent when neither said (a tally
+   *  from before tools reported `created`) — the row shows a file icon. */
+  status?: "A" | "M" | "D";
   /** Absent when nothing counted the lines — a shell edit the recorder saw
    *  land but has no diff for. The row still says the file changed. */
   added?: number;
@@ -138,6 +143,7 @@ export function mergeChanges(
       path: f.path,
       created: f.created,
       deleted: f.deleted,
+      status: f.deleted ? "D" : f.created ? "A" : "M",
       ...(f.added !== null && f.removed !== null ? { added: f.added, removed: f.removed } : {}),
     });
   }
@@ -152,11 +158,13 @@ export function mergeChanges(
         row.removed = f.removed;
       }
       row.created = row.created || !!f.created;
+      if (f.created && row.status === "M") row.status = "A";
     } else {
       rows.set(path, {
         path,
         created: !!f.created,
         deleted: false,
+        ...(f.created === undefined ? {} : { status: f.created ? "A" : "M" }),
         added: f.added,
         removed: f.removed,
       });

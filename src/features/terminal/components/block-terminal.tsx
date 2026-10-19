@@ -175,12 +175,19 @@ export const BlockTerminal = memo(function BlockTerminal({
   // bottom. The old unconditional pin yanked the viewport back down on every
   // 16 ms flush, making it impossible to scroll up during a long command.
   const pinnedRef = useRef(true);
+  // Where the pin last put `scrollTop`. Assigning `scrollTop` dispatches a
+  // `scroll` event like a user's scroll does; the handler has to tell the two
+  // apart, or a terminal streaming output marks the app "scroll hot" on every
+  // frame — which holds its own render to the parser's slow backstop and
+  // throttles the agent chat and markdown rendering app-wide (`isScrollHot`).
+  const pinTopRef = useRef(-1);
   const onBlocksScroll = useCallback(() => {
-    markScrollHot();
     const el = scrollRef.current;
-    if (el) {
-      pinnedRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
-    }
+    if (!el) return;
+    if (el.scrollTop === pinTopRef.current) return;
+    pinTopRef.current = -1;
+    markScrollHot();
+    pinnedRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
   }, []);
   // Re-pin when the CONTENT grows, from a ResizeObserver — never from the
   // render path. The old effect read `scrollHeight` and wrote `scrollTop` on
@@ -196,7 +203,11 @@ export const BlockTerminal = memo(function BlockTerminal({
     const content = contentRef.current;
     if (!el || !content) return;
     const ro = new ResizeObserver(() => {
-      if (pinnedRef.current && !altScreenRef.current) el.scrollTop = el.scrollHeight;
+      if (!pinnedRef.current || altScreenRef.current) return;
+      const bottom = el.scrollHeight - el.clientHeight;
+      if (el.scrollTop === bottom) return;
+      el.scrollTop = bottom;
+      pinTopRef.current = el.scrollTop;
     });
     ro.observe(content);
     return () => ro.disconnect();
@@ -239,15 +250,19 @@ export const BlockTerminal = memo(function BlockTerminal({
     const last = blocks[blocks.length - 1];
     return !!last && last.running && last.command !== "";
   }, [blocks]);
+  const caps = useMemo(() => renderCaps(blocks), [blocks]);
 
   // Resolve git status for the live cwd (reuses the project git command).
-  // Re-run when the directory changes or a command finishes (which may have
-  // mutated the tree). Debounced so a burst of output doesn't thrash git.
+  // Re-run when the directory changes or a command FINISHES (which may have
+  // mutated the tree) — never when one starts: nothing has changed yet, and
+  // three git spawns racing the command just launched (a `git push`, a build)
+  // is pure contention. Debounced so a burst of output doesn't thrash git.
   useEffect(() => {
     if (!visible || !cwd || cwd === "~") {
       if (!cwd || cwd === "~") setGit(null);
       return;
     }
+    if (busy) return;
     let cancelled = false;
     const t = window.setTimeout(() => {
       void fetchTermGit(cwd).then((g) => {
@@ -294,7 +309,7 @@ export const BlockTerminal = memo(function BlockTerminal({
     let count = 0;
     for (const b of blocks) {
       count += countMatches(b.command.toLowerCase(), q);
-      const cap = b.running ? LIVE_RENDER_LINES : FINISHED_RENDER_LINES;
+      const cap = caps.get(b.id) ?? LIVE_RENDER_LINES;
       const lines = b.lines.length > cap ? b.lines.slice(-cap) : b.lines;
       for (const line of lines) {
         let text = "";
@@ -303,7 +318,7 @@ export const BlockTerminal = memo(function BlockTerminal({
       }
     }
     setMatchCount(count);
-  }, [search.query, blocks]);
+  }, [search.query, blocks, caps]);
 
   const navMatch = useCallback((dir: 1 | -1) => {
     const els = scrollRef.current?.querySelectorAll<HTMLElement>("[data-term-match]");
@@ -404,6 +419,7 @@ export const BlockTerminal = memo(function BlockTerminal({
               key={b.id}
               block={b}
               rev={b.rev}
+              cap={caps.get(b.id) ?? LIVE_RENDER_LINES}
               onRerun={runCommand}
               onPassword={writePassword}
               query={search.query}
@@ -538,6 +554,32 @@ function StatusBadge({ cwd, git }: { cwd: string; git: TermGit | null }) {
 // rows are rebuilt every flush — the full depth appears the moment it finishes.
 const LIVE_RENDER_LINES = 400;
 const FINISHED_RENDER_LINES = 3000;
+// Lines rendered across ALL finished blocks of one terminal, newest first.
+// Per-block caps alone let 200 blocks × 3000 lines stay mounted — hundreds of
+// thousands of nodes, every one rebuilt when the terminal tab is shown again
+// and every one in the way of each forced layout (typing in the input, the
+// suggestions popup). Older blocks past the budget keep their header and
+// collapse their body behind "show"; Copy and search still read the data.
+const FINISHED_RENDER_BUDGET = 4000;
+
+/** Lines each block may render. Finished blocks only spend the budget: their
+ *  line counts are fixed, so a cap moves only when a block finishes or is
+ *  added — never per streaming flush, which would re-render every card. */
+export function renderCaps(blocks: readonly TerminalBlock[]): Map<number, number> {
+  const caps = new Map<number, number>();
+  let left = FINISHED_RENDER_BUDGET;
+  for (let i = blocks.length - 1; i >= 0; i--) {
+    const b = blocks[i];
+    if (b.running) {
+      caps.set(b.id, LIVE_RENDER_LINES);
+      continue;
+    }
+    const cap = Math.min(FINISHED_RENDER_LINES, b.lines.length, left);
+    caps.set(b.id, cap);
+    left -= cap;
+  }
+  return caps;
+}
 
 /** Memoized: block objects mutate in place while running, so `rev` (bumped by
  *  the parser once per flush) is what invalidates a card. Finished blocks never
@@ -546,21 +588,27 @@ const FINISHED_RENDER_LINES = 3000;
 const BlockCard = memo(function BlockCard({
   block,
   rev,
+  cap: budgetCap,
   onRerun,
   onPassword,
   query,
 }: {
   block: TerminalBlock;
   rev: number;
+  /** Lines this card may render — its share of the terminal's budget. */
+  cap: number;
   onRerun: (cmd: string) => void;
   onPassword: (pw: string) => void;
   query: string;
 }) {
   void rev; // memo key only
-  const cap = block.running ? LIVE_RENDER_LINES : FINISHED_RENDER_LINES;
+  // "Show" on a card the budget emptied lifts it to the per-block cap.
+  const [expanded, setExpanded] = useState(false);
+  const cap = expanded ? Math.max(budgetCap, FINISHED_RENDER_LINES) : budgetCap;
   const lines = block.lines;
   const visible = lines.length > cap ? lines.slice(-cap) : lines;
   const hidden = block.droppedLines + (lines.length - visible.length);
+  const budgeted = !block.running && visible.length === 0 && lines.length > 0;
   const cwdName = block.cwd ? block.cwd.split("/").filter(Boolean).pop() : "";
   const [collapsed, setCollapsed] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -573,7 +621,7 @@ const BlockCard = memo(function BlockCard({
   // prompt marker (zsh sourcing a profile takes a few seconds). Rendering its
   // card then paints a bordered box with nothing in it — a stray grey line at
   // the top of a fresh terminal. Nothing to show, so show nothing.
-  if (!hasHeader && visible.length === 0 && !block.awaitingPassword) return null;
+  if (!hasHeader && lines.length === 0 && !block.awaitingPassword) return null;
 
   const copyOutput = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -669,7 +717,19 @@ const BlockCard = memo(function BlockCard({
           </div>
         </div>
       )}
-      {!collapsed && (hidden > 0 || block.truncated) && (
+      {!collapsed && budgeted && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setExpanded(true);
+          }}
+          className="w-full px-3 py-1.5 text-left text-2xs italic text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+        >
+          {lines.length} lines hidden to keep the terminal fast — show
+        </button>
+      )}
+      {!collapsed && !budgeted && (hidden > 0 || block.truncated) && (
         <div className="px-3 pt-2 text-2xs italic text-[var(--muted-foreground)]">
           earlier output hidden — showing the latest {visible.length} lines (Copy gets more)
         </div>

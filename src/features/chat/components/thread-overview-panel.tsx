@@ -15,11 +15,17 @@
 // Nothing here writes to the chat store, and the rail's own state lives in
 // `thread-overview-store`.
 
-import { useMemo } from "react";
-import { ChevronDown } from "lucide-react";
+import { useMemo, useRef } from "react";
+import { Brain, ChevronDown, ChevronRight } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { useScrollEdges } from "@/ui/scroll-fade";
 import { useAppStore } from "@/features/app/stores/app-store";
+import { openSessionChanges } from "@/features/git/lib/open-session-changes";
+import { FileIcon } from "@/features/icon-theme/components/file-icon";
+import { useLayoutStore } from "@/features/layout/stores/layout-store";
+import { KIND_ICON, kindLabel } from "@/features/memory/lib/memory-kind-icon";
+import { openMemoryEntry } from "@/features/memory/lib/open-memory-entry";
 import { useSessionMemoryWrites } from "@/features/memory/lib/use-session-memory-writes";
 
 import { openDetail } from "../stores/detail-panel-store";
@@ -55,42 +61,67 @@ import { LiveElapsed, settledFigure } from "./transcript-rows";
  */
 function Section({
   id,
-  status,
+  badge,
+  badgeTitle,
   children,
 }: {
   id: OverviewSection;
-  /** The right-hand figure: "3 running", "+58 −26". Empty hides the slot. */
-  status: string;
+  /** How many items the card holds ("14"), or what they are doing ("3
+   *  running"), in a badge beside the title. Empty hides the badge. */
+  badge: string;
+  /** More than the badge has room for, on hover ("+58 −26"). */
+  badgeTitle?: string;
   children: React.ReactNode;
 }) {
   const collapsed = useThreadOverviewStore((s) => Boolean(s.collapsed[id]));
   const { toggleSection } = useThreadOverviewStore.use.actions();
+  // The body scrolls on its own past a cap, so one long list (a thread that
+  // touched forty files) cannot push the other cards out of reach. The fade
+  // marks "more below" and only while there is: on a list that fits, or one
+  // scrolled to its end, it would just dim the last row.
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const { bottom: moreBelow } = useScrollEdges(bodyRef, [children, collapsed]);
   return (
-    <section className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--card)]">
+    // `shrink-0`: the rail is a flex column that scrolls. A shrinkable card
+    // was squeezed instead once the cards outgrew it, clipping its own rows.
+    <section className="shrink-0 overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--card)]">
       <button
         type="button"
         aria-expanded={!collapsed}
         onClick={() => toggleSection(id)}
         className="flex w-full cursor-pointer items-center gap-1.5 px-3 py-2 text-left hover:bg-[var(--muted)]"
       >
-        <span className="min-w-0 flex-1 truncate text-xs font-medium text-[var(--secondary-foreground)]">
+        <span className="min-w-0 truncate text-xs font-medium text-[var(--secondary-foreground)]">
           {SECTION_TITLE[id]}
         </span>
+        {badge && (
+          <span
+            title={badgeTitle}
+            className="shrink-0 rounded-full bg-[var(--atlas-element-selected)] px-1.5 text-2xs leading-4 text-[var(--muted-foreground)] tabular-nums"
+          >
+            {badge}
+          </span>
+        )}
         <ChevronDown
           size={12}
           strokeWidth={2}
           className={cn(
-            "shrink-0 text-[var(--muted-foreground)] transition-transform",
+            "ml-auto shrink-0 text-[var(--muted-foreground)] transition-transform",
             collapsed && "-rotate-90",
           )}
         />
-        {status && (
-          <span className="ml-1 shrink-0 font-mono text-2xs text-[var(--atlas-text-disabled)] tabular-nums">
-            {status}
-          </span>
-        )}
       </button>
-      {!collapsed && <div className="px-1 pb-1.5">{children}</div>}
+      {!collapsed && (
+        <div
+          ref={bodyRef}
+          className={cn(
+            "hide-scrollbar max-h-64 overflow-y-auto overscroll-contain px-1 pb-1.5",
+            moreBelow && "atlas-scroll-mask-b",
+          )}
+        >
+          {children}
+        </div>
+      )}
     </section>
   );
 }
@@ -113,7 +144,7 @@ function SubagentsSection({ tabId }: { tabId: string }) {
     tally.running > 0 ? `${tally.running} running` : tally.total > 0 ? `${tally.total}` : "";
 
   return (
-    <Section id="subagents" status={status}>
+    <Section id="subagents" badge={status}>
       {children.length === 0 ? (
         <Empty>No agents delegated to.</Empty>
       ) : (
@@ -169,6 +200,14 @@ function SubagentsSection({ tabId }: { tabId: string }) {
  * the moment they land. Either alone was wrong in a way the reader could not
  * see — the tally missed every shell edit, and read nothing until turn end.
  */
+/** Source Control's colours for the same letters (`changed-files-tree.tsx`). */
+const STATUS_COLOR = {
+  A: "var(--atlas-status-success-foreground)",
+  M: "var(--atlas-status-warning-foreground)",
+  D: "var(--atlas-status-error-foreground)",
+} as const;
+const STATUS_LABEL = { A: "Added", M: "Modified", D: "Deleted" } as const;
+
 function ChangesSection({ tabId }: { tabId: string }) {
   const projectPath = useAppStore.use.currentProject()?.path ?? null;
   const acpSessionId = useChatStore((s) => s.sessions[tabId]?.acpSessionId ?? null);
@@ -182,8 +221,24 @@ function ChangesSection({ tabId }: { tabId: string }) {
     () => mergeChanges(recorded, tally, projectPath ?? ""),
     [recorded, tally, projectPath],
   );
+  // Clicking a file shows the thread's changes beside it, at that file. Needs
+  // a session id: the tab is keyed by it and reads the record through it.
+  const open =
+    projectPath && acpSessionId
+      ? (file: string) =>
+          openSessionChanges({
+            projectPath,
+            sessionId: acpSessionId,
+            file,
+            title: useLayoutStore.getState().tabs.find((t) => t.id === tabId)?.title,
+          })
+      : null;
   return (
-    <Section id="changes" status={changesStatus(rows)}>
+    <Section
+      id="changes"
+      badge={rows.length > 0 ? `${rows.length}` : ""}
+      badgeTitle={changesStatus(rows)}
+    >
       {rows.length === 0 ? (
         <Empty>
           {tally.readCount > 0 ? `${tally.readCount} files read, none changed.` : "No changes yet."}
@@ -191,7 +246,40 @@ function ChangesSection({ tabId }: { tabId: string }) {
       ) : (
         <ul className="m-0 list-none p-0">
           {rows.map((file) => (
-            <li key={file.path} className="flex items-center gap-2 px-2 py-1">
+            <li
+              key={file.path}
+              role={open ? "button" : undefined}
+              tabIndex={open ? 0 : undefined}
+              onClick={open ? () => open(file.path) : undefined}
+              onKeyDown={
+                open
+                  ? (e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        open(file.path);
+                      }
+                    }
+                  : undefined
+              }
+              className={cn(
+                "flex items-center gap-2 rounded px-2 py-1",
+                open &&
+                  "cursor-pointer outline-none hover:bg-[var(--atlas-element-hover)] focus-visible:ring-1 focus-visible:ring-[var(--ring)]",
+              )}
+            >
+              <span className="flex size-3.5 shrink-0 items-center justify-center">
+                {file.status ? (
+                  <span
+                    className="font-mono text-2xs font-medium"
+                    style={{ color: STATUS_COLOR[file.status] }}
+                    aria-label={STATUS_LABEL[file.status]}
+                  >
+                    {file.status}
+                  </span>
+                ) : (
+                  <FileIcon path={file.path} size={12} />
+                )}
+              </span>
               <span
                 className={cn(
                   "min-w-0 flex-1 truncate text-xs text-[var(--secondary-foreground)]",
@@ -201,24 +289,39 @@ function ChangesSection({ tabId }: { tabId: string }) {
               >
                 {file.path.split("/").pop()}
               </span>
-              <span className="shrink-0 font-mono text-2xs tabular-nums">
-                {file.added !== undefined && file.added > 0 && (
+              {file.added !== undefined &&
+              file.removed !== undefined &&
+              (file.added > 0 || file.removed > 0) ? (
+                <span className="shrink-0 font-mono text-2xs tabular-nums">
                   <span className="text-[var(--atlas-diff-added-text)]">+{file.added}</span>
-                )}
-                {file.removed !== undefined && file.removed > 0 && (
                   <span className="ml-1 text-[var(--atlas-status-error-foreground)]">
                     −{file.removed}
                   </span>
-                )}
-                {file.created && file.added === undefined && (
-                  <span className="text-[var(--atlas-diff-added-text)]">A</span>
-                )}
-              </span>
+                </span>
+              ) : (
+                <ChevronRight
+                  size={12}
+                  className="shrink-0 text-[var(--muted-foreground)]"
+                  aria-hidden
+                />
+              )}
             </li>
           ))}
         </ul>
       )}
     </Section>
+  );
+}
+
+function MemoryKindGlyph({ kind }: { kind: string }) {
+  const Icon = KIND_ICON[kind] ?? Brain;
+  return (
+    <Icon
+      size={12}
+      strokeWidth={1.5}
+      className="shrink-0 text-[var(--muted-foreground)]"
+      aria-label={kindLabel(kind)}
+    />
   );
 }
 
@@ -232,15 +335,39 @@ function MemoriesSection({ tabId }: { tabId: string }) {
   // a bordered panel of stacked rows never had.
   if (writes.length === 0) return null;
   return (
-    <Section id="memories" status={`${writes.length}`}>
+    <Section id="memories" badge={`${writes.length}`}>
       <ul className="m-0 list-none p-0">
         {writes.map((write) => (
           <li
             key={write.id}
-            className="truncate px-2 py-1 text-xs text-[var(--secondary-foreground)]"
-            title={write.content}
+            // Opens the entry in the Memory tab. A forgotten or archived one
+            // has nothing to open, so it stays plain text.
+            role={write.live ? "button" : undefined}
+            tabIndex={write.live ? 0 : undefined}
+            onClick={write.live ? () => openMemoryEntry(write.id) : undefined}
+            onKeyDown={
+              write.live
+                ? (e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      openMemoryEntry(write.id);
+                    }
+                  }
+                : undefined
+            }
+            className={cn(
+              "flex items-center gap-2 rounded px-2 py-1 text-xs text-[var(--secondary-foreground)]",
+              write.live
+                ? "cursor-pointer outline-none hover:bg-[var(--atlas-element-hover)] focus-visible:ring-1 focus-visible:ring-[var(--ring)]"
+                : "opacity-60",
+            )}
+            title={`${kindLabel(write.kind)}: ${write.content}`}
           >
-            {write.content}
+            {/* The kind's glyph, as under the turn that wrote it. */}
+            <MemoryKindGlyph kind={write.kind} />
+            <span className={cn("min-w-0 flex-1 truncate", !write.live && "line-through")}>
+              {write.content || "(forgotten)"}
+            </span>
           </li>
         ))}
       </ul>

@@ -33,10 +33,13 @@ import {
   type SplitLine,
 } from "../lib/diff";
 import { CommitAvatar } from "./commit-avatar";
+import type { DiffJump } from "../lib/diff-jump";
 
 type ViewMode = "split" | "unified";
 
 const MODE_KEY = "atlas:commit-view-mode";
+/** "1" when the commit header shows its body and sessions; collapsed otherwise. */
+const HEADER_EXPANDED_KEY = "atlas:commit-header-expanded";
 const LINE_H = 20;
 
 /** `id` is stable across collapse and mode changes, so the virtualizer's
@@ -120,6 +123,56 @@ export function CommitView({ repoPath, sha }: { repoPath: string; sha: string })
     enabled: !!repoPath && !!sha,
   });
 
+  const files = useMemo(() => parseDiff(detail?.diff ?? ""), [detail?.diff]);
+  if (isLoading || !detail) {
+    return (
+      <div className="px-3 py-8 text-center text-xs text-muted-foreground">
+        {isLoading
+          ? "Loading commit…"
+          : `Couldn't load this commit${error ? `: ${isGitError(error) ? error.message : String(error)}` : "."}`}
+      </div>
+    );
+  }
+
+  return (
+    <DiffFilesView
+      files={files}
+      repoPath={repoPath}
+      commit={detail.hash}
+      header={<CommitHeader detail={detail} repoPath={repoPath} />}
+      toolbarEnd={<CommitActions repoPath={repoPath} sha={detail.hash} />}
+      emptyText="No file changes"
+    />
+  );
+}
+
+/**
+ * A set of changed files, read in full: a toolbar (collapse all, unified or
+ * split), an optional header, then every file as a collapsible section. The
+ * body of the commit tab, and of a thread's changes tab — which is why it
+ * takes parsed files rather than a sha.
+ *
+ * `jump` scrolls to a file's section (expanding it) each time its nonce
+ * changes; a file not in `files` yet is scrolled to once it arrives.
+ */
+export function DiffFilesView({
+  files,
+  repoPath,
+  commit,
+  header,
+  toolbarEnd,
+  emptyText,
+  jump,
+}: {
+  files: DiffFile[];
+  repoPath: string;
+  /** The commit the files belong to; null for uncommitted changes. */
+  commit: string | null;
+  header?: React.ReactNode;
+  toolbarEnd?: React.ReactNode;
+  emptyText: string;
+  jump?: DiffJump | null;
+}) {
   const [mode, setMode] = useState<ViewMode>(() =>
     localStorage.getItem(MODE_KEY) === "unified" ? "unified" : "split",
   );
@@ -129,7 +182,6 @@ export function CommitView({ repoPath, sha }: { repoPath: string; sha: string })
   };
 
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const files = useMemo(() => parseDiff(detail?.diff ?? ""), [detail?.diff]);
   const rows = useMemo(() => buildCommitRows(files, collapsed, mode), [files, collapsed, mode]);
   const totalAdd = useMemo(() => files.reduce((s, f) => s + f.additions, 0), [files]);
   const totalDel = useMemo(() => files.reduce((s, f) => s + f.deletions, 0), [files]);
@@ -158,15 +210,24 @@ export function CommitView({ repoPath, sha }: { repoPath: string; sha: string })
       return next;
     });
 
-  if (isLoading || !detail) {
-    return (
-      <div className="px-3 py-8 text-center text-xs text-muted-foreground">
-        {isLoading
-          ? "Loading commit…"
-          : `Couldn't load this commit${error ? `: ${isGitError(error) ? error.message : String(error)}` : "."}`}
-      </div>
-    );
-  }
+  // Expand the target, then scroll once its header row exists.
+  useEffect(() => {
+    if (!jump) return;
+    setCollapsed((s) => {
+      if (!s.has(jump.path)) return s;
+      const next = new Set(s);
+      next.delete(jump.path);
+      return next;
+    });
+  }, [jump]);
+  const jumpedRef = useRef(0);
+  useEffect(() => {
+    if (!jump || jumpedRef.current === jump.nonce) return;
+    const i = rows.findIndex((r) => r.kind === "file-header" && r.id === jump.path);
+    if (i < 0) return;
+    jumpedRef.current = jump.nonce;
+    virtualizer.scrollToIndex(i, { align: "start" });
+  }, [jump, rows, virtualizer]);
 
   return (
     <div className="flex h-full min-w-0 flex-col bg-[var(--background)]">
@@ -214,16 +275,16 @@ export function CommitView({ repoPath, sha }: { repoPath: string; sha: string })
               <span className="text-success">+{totalAdd}</span>{" "}
               <span className="text-error">−{totalDel}</span>
             </span>
-            <CommitActions repoPath={repoPath} sha={detail.hash} />
+            {toolbarEnd}
           </div>
         </div>
       </HintGroup>
 
-      <CommitHeader detail={detail} repoPath={repoPath} />
+      {header}
 
       {/* Files */}
       {files.length === 0 ? (
-        <div className="px-3 py-8 text-center text-xs text-muted-foreground">No file changes</div>
+        <div className="px-3 py-8 text-center text-xs text-muted-foreground">{emptyText}</div>
       ) : (
         <div
           ref={scrollRef}
@@ -276,7 +337,7 @@ export function CommitView({ repoPath, sha }: { repoPath: string; sha: string })
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              openGitDiff(repoPath, file.path, false, detail.hash);
+                              openGitDiff(repoPath, file.path, false, commit);
                             }}
                             className="p-0.5 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-foreground focus-visible:opacity-100"
                           >
@@ -434,8 +495,20 @@ function Code({ content, language }: { content: string; language: string }) {
   );
 }
 
+/**
+ * Author, date and subject — always. The body and the sessions that produced
+ * the commit can run tall enough to push the diff off screen, so they sit
+ * behind the expand toggle, collapsed until asked for (and remembered).
+ */
 function CommitHeader({ detail, repoPath }: { detail: CommitDetail; repoPath: string }) {
   const [copied, setCopied] = useState(false);
+  const [expanded, setExpanded] = useState(() => localStorage.getItem(HEADER_EXPANDED_KEY) === "1");
+  const toggleExpanded = () => {
+    setExpanded((e) => {
+      localStorage.setItem(HEADER_EXPANDED_KEY, e ? "0" : "1");
+      return !e;
+    });
+  };
   return (
     <div className="shrink-0 border-b border-border px-4 py-3">
       <div className="flex items-start gap-3">
@@ -447,25 +520,39 @@ function CommitHeader({ detail, repoPath }: { detail: CommitDetail; repoPath: st
             {detail.email && ` · ${detail.email}`}
           </div>
           <div className="mt-1.5 text-sm text-foreground select-text">{detail.subject}</div>
-          {detail.body && (
+          {expanded && detail.body && (
             <pre className="mt-1 max-h-32 overflow-y-auto hide-scrollbar whitespace-pre-wrap break-words font-sans text-xs text-muted-foreground select-text">
               {detail.body}
             </pre>
           )}
-          <CommitSessions repoPath={repoPath} sha={detail.hash} />
+          {expanded && <CommitSessions repoPath={repoPath} sha={detail.hash} />}
         </div>
-        <button
-          onClick={() => {
-            void navigator.clipboard.writeText(detail.hash).catch(() => {});
-            setCopied(true);
-            setTimeout(() => setCopied(false), 1200);
-          }}
-          title={detail.hash}
-          className="flex shrink-0 items-center gap-1.5 rounded border border-border px-2 h-6 text-2xs text-secondary-foreground hover:bg-element-hover hover:text-foreground"
-        >
-          <CopyGlyph copied={copied} size="sm" className={copied ? "text-success" : undefined} />
-          Commit SHA
-        </button>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <HintGroup>
+            <HintItem label={expanded ? "Collapse details" : "Expand details"}>
+              <button
+                onClick={toggleExpanded}
+                aria-expanded={expanded}
+                aria-label={expanded ? "Collapse details" : "Expand details"}
+                className="flex size-6 shrink-0 items-center justify-center rounded-full border border-border text-secondary-foreground hover:bg-element-hover hover:text-foreground"
+              >
+                {expanded ? <ChevronsDownUp size={12} /> : <ChevronsUpDown size={12} />}
+              </button>
+            </HintItem>
+          </HintGroup>
+          <button
+            onClick={() => {
+              void navigator.clipboard.writeText(detail.hash).catch(() => {});
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1200);
+            }}
+            title={detail.hash}
+            className="flex shrink-0 items-center gap-1.5 rounded-full border border-border px-2.5 h-6 text-2xs text-secondary-foreground hover:bg-element-hover hover:text-foreground"
+          >
+            <CopyGlyph copied={copied} size="sm" className={copied ? "text-success" : undefined} />
+            Commit SHA
+          </button>
+        </div>
       </div>
     </div>
   );

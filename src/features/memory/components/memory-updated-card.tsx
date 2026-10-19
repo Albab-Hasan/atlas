@@ -5,25 +5,13 @@
 // wrote it. Nothing renders until the session writes something.
 
 import { useState } from "react";
-import {
-  Brain,
-  ChevronRight,
-  FileDiff,
-  GitBranch,
-  Info,
-  Layers,
-  ListTodo,
-  SlidersHorizontal,
-  TriangleAlert,
-  X,
-  type LucideIcon,
-} from "lucide-react";
+import { Brain, ChevronRight, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { FileTreeConfirmDelete } from "@/features/explorer/components/file-tree-confirm-delete";
-import { useLayoutStore } from "@/features/layout/stores/layout-store";
+import { KIND_ICON, kindLabel } from "../lib/memory-kind-icon";
+import { openMemoryEntry } from "../lib/open-memory-entry";
 import { sharedMemory } from "../lib/shared-memory-api";
-import { useMemoryStore } from "../stores/memory-store";
 import {
   useSessionMemoryWrites,
   writesSummary,
@@ -34,47 +22,6 @@ import {
  *  this block sits in the same column as them and reads as one of them. */
 const ICON_PX = 14;
 const ICON_STROKE = 1.5;
-
-/**
- * What each kind of memory looks like, by its wire spelling
- * (`EntryKind::as_str`).
- *
- * An icon rather than the kind's name: the names are the column's own data and
- * they are not the same length, so a fixed-width label column either clipped
- * `ARCHITECTURE` or left a gap after `FACT` — and the version before this gave
- * it `w-16`, which the long ones overran straight into the content beside them.
- * An icon is one width by construction. The name stays reachable as the row's
- * tooltip, which is where a reader who does not know the glyph will look.
- */
-const KIND_ICON: Record<string, LucideIcon> = {
-  fact: Info,
-  decision: GitBranch,
-  failure: TriangleAlert,
-  architecture: Layers,
-  preference: SlidersHorizontal,
-  plan: ListTodo,
-  plan_set: ListTodo,
-  file_changed: FileDiff,
-};
-
-/** The kind's own word, for the tooltip the icon stands in for. */
-function kindLabel(kind: string): string {
-  return kind.replace(/_/g, " ");
-}
-
-/** Open the entry in Memory ▸ Shared ▸ Memories, expanded. The Memory tab is
- *  one per column, so this focuses the open one or opens it. */
-function openEntry(id: number) {
-  useMemoryStore.getState().actions.focusEntry(id);
-  useLayoutStore.getState().actions.addTab({
-    id: "memory",
-    type: "memory",
-    title: "Memory",
-    closable: true,
-    dirty: false,
-    data: {},
-  });
-}
 
 export function MemoryUpdatedCard({
   projectPath,
@@ -156,7 +103,7 @@ export function MemoryUpdatedCard({
                 {w.live ? (
                   <button
                     type="button"
-                    onClick={() => openEntry(w.id)}
+                    onClick={() => openMemoryEntry(w.id)}
                     className="min-w-0 flex-1 break-words text-left text-xs text-[var(--foreground)] hover:underline"
                   >
                     {w.content}

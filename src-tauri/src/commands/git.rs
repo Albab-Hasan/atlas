@@ -489,6 +489,50 @@ pub async fn git_diff_all(path: String) -> Result<String, String> {
     .map_err(|e| e.to_string())?
 }
 
+/// Uncommitted changes (working tree against HEAD) to just `files`, as one
+/// unified diff — for "what is this thread's change right now".
+///
+/// Paths are relative to `path`, and so is the output (`--relative`), so a
+/// Project opened in a subdirectory of its repository reads back its own
+/// spelling of each path. Untracked files — ones the thread created and nobody
+/// has staged — are invisible to `git diff HEAD`, so each gets a `--no-index`
+/// diff against `/dev/null` (which exits 1 on a difference, by design).
+#[tauri::command]
+pub async fn git_diff_paths(path: String, files: Vec<String>) -> Result<String, String> {
+    if files.is_empty() {
+        return Ok(String::new());
+    }
+    tokio::task::spawn_blocking(move || {
+        let tracked = git_read()
+            .args(["diff", "HEAD", "--relative", "--"])
+            .args(&files)
+            .current_dir(&path)
+            .output()
+            .map_err(|e| e.to_string())?;
+        let mut out = String::from_utf8_lossy(&tracked.stdout).into_owned();
+
+        let untracked = git_read()
+            .args(["ls-files", "--others", "--exclude-standard", "--"])
+            .args(&files)
+            .current_dir(&path)
+            .output()
+            .map_err(|e| e.to_string())?;
+        for file in String::from_utf8_lossy(&untracked.stdout).lines() {
+            let Ok(created) = git_read()
+                .args(["diff", "--no-index", "--", "/dev/null", file])
+                .current_dir(&path)
+                .output()
+            else {
+                continue;
+            };
+            out.push_str(&String::from_utf8_lossy(&created.stdout));
+        }
+        Ok(out)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 #[tauri::command]
 pub async fn git_diff_file(path: String, file: String) -> Result<String, String> {
     tokio::task::spawn_blocking(move || {

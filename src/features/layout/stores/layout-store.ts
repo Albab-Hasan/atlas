@@ -244,7 +244,7 @@ const initialState: LayoutState = {
 };
 
 const DEFAULT_GROUP = "main";
-const MAX_GROUPS = 3;
+export const MAX_GROUPS = 3;
 
 /** Which split column a tab lives in. Exported because anything asking "is
  *  this tab the one on screen" has to read `activeByGroup`, and doing that
@@ -530,6 +530,8 @@ export const useLayoutStore = createSelectors(
                 tab.type === "diff" ||
                 // One per COMMIT (id is `commit:{repoPath}:{sha}`).
                 tab.type === "commit" ||
+                // One per AGENT SESSION (id is `session-changes:{sessionId}`).
+                tab.type === "session-changes" ||
                 tab.type === "chat" ||
                 tab.type === "media" ||
                 tab.type === "svg" ||

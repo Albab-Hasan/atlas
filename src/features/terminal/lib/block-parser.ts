@@ -55,6 +55,13 @@ export type TerminalEvent =
 
 export type TerminalEventSink = (event: TerminalEvent) => void;
 
+/** Receives bytes for the xterm surface. `modeOnly` marks a single
+ *  mode-affecting sequence forwarded from the NORMAL screen (cursor keys,
+ *  cursor visibility, bracketed paste…) — state, not content, so a consumer
+ *  holding them for a surface that does not exist yet keeps only the latest
+ *  of each rather than a log. */
+export type XtermSink = (text: string, modeOnly: boolean) => void;
+
 export interface TerminalBlock {
   id: number;
   command: string;
@@ -120,6 +127,14 @@ const MAX_LINES = 5000;
 // Rows the cursor can still redraw. Floored so prompt libraries that draw
 // frames taller than a short pane still get their whole frame back.
 const MIN_HOT_ROWS = 64;
+// Longest OSC / CSI body waited on before the introducer is taken as literal
+// text. An unterminated sequence is held in `pending` and RESCANNED from its
+// start on every push, so without a cap one stray `ESC ]` (any binary `cat`)
+// made each push O(everything since) — quadratic — and swallowed all later
+// output. xterm caps OSC too. 64 KiB clears a long pasted command (OSC 6973).
+const MAX_OSC_BODY = 64 * 1024;
+// A CSI is a handful of parameter bytes; anything this long is not one.
+const MAX_CSI_BODY = 256;
 
 // Matches the tail of common password / passphrase prompts:
 //   "[sudo] password for user:"  "Password:"  "user@host's password:"
@@ -264,9 +279,9 @@ export class BlockStreamParser {
    * The `?1049h` that enters the alt screen is itself forwarded, so xterm's
    * own save/restore bookkeeping stays consistent.
    */
-  private xtermSink: ((text: string) => void) | null = null;
+  private xtermSink: XtermSink | null = null;
 
-  setXtermSink(sink: ((text: string) => void) | null): void {
+  setXtermSink(sink: XtermSink | null): void {
     this.xtermSink = sink;
   }
 
@@ -319,7 +334,7 @@ export class BlockStreamParser {
     // (alt-screen mode). Null while in the normal screen.
     let forwardFrom: number | null = this.altScreen ? 0 : null;
     const forwardModeSeq = (seq: string) => {
-      if (forwardFrom === null) this.xtermSink?.(seq);
+      if (forwardFrom === null) this.xtermSink?.(seq, true);
     };
 
     const appendOut = (chunk: string) => {
@@ -398,7 +413,13 @@ export class BlockStreamParser {
           }
           j++;
         }
-        if (term === -1) break; // incomplete OSC; wait
+        if (term === -1) {
+          // Incomplete OSC: wait for the rest — unless it is already longer
+          // than any real one, in which case the introducer was just bytes.
+          if (n - i - 2 <= MAX_OSC_BODY) break;
+          i += 2;
+          continue;
+        }
         const body = s.slice(i + 2, term);
         if (this.handleOsc(body)) changed = true;
         i = term + termLen;
@@ -408,8 +429,18 @@ export class BlockStreamParser {
       if (t === "[") {
         // CSI — final byte in @-~.
         let j = i + 2;
-        while (j < n && !/[@-~]/.test(s[j])) j++;
-        if (j >= n) break; // incomplete CSI; wait
+        const limit = Math.min(n, i + 2 + MAX_CSI_BODY);
+        while (j < limit) {
+          const c = s.charCodeAt(j);
+          if (c >= 0x40 && c <= 0x7e) break;
+          j++;
+        }
+        if (j >= limit) {
+          // Incomplete CSI: wait — unless it already overran the cap.
+          if (limit === n && n - i - 2 <= MAX_CSI_BODY) break;
+          i += 2;
+          continue;
+        }
         const seq = s.slice(i, j + 1);
         const body = s.slice(i + 2, j);
         const fin = s[j];
@@ -429,7 +460,7 @@ export class BlockStreamParser {
             this.emit({ type: "altScreenLeave" });
             // Forward through the end of the leave sequence, then stop.
             if (forwardFrom !== null) {
-              this.xtermSink?.(s.slice(forwardFrom, j + 1));
+              this.xtermSink?.(s.slice(forwardFrom, j + 1), false);
               forwardFrom = null;
             }
           }
@@ -465,7 +496,9 @@ export class BlockStreamParser {
     // Alt-screen bytes consumed this push go to xterm verbatim. Only COMPLETE
     // sequences are forwarded: `pending` (the unconsumed tail) rides along
     // with the next push, exactly as it does for the block path.
-    if (forwardFrom !== null && i > forwardFrom) this.xtermSink?.(s.slice(forwardFrom, i));
+    if (forwardFrom !== null && i > forwardFrom) {
+      this.xtermSink?.(s.slice(forwardFrom, i), false);
+    }
 
     // Re-evaluate whether the live command is prompting for a secret. Only the
     // running block can be awaiting input; recomputed each push so the inline

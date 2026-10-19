@@ -144,3 +144,52 @@ describe("BlockStreamParser events", () => {
     expect(pw).toHaveLength(1);
   });
 });
+
+describe("BlockStreamParser unterminated sequences", () => {
+  const text = (p: BlockStreamParser) =>
+    p.blocks
+      .flatMap((b) => b.lines)
+      .map((l) => l.segments.map((s) => s.text).join(""))
+      .join("\n");
+
+  it("gives up on an OSC with no terminator instead of swallowing all later output", () => {
+    const { p } = make();
+    p.push(PROMPT + CMD("cat blob.bin") + "head\x1b]garbage");
+    const line = "x".repeat(1022) + "\r\n";
+    const t0 = performance.now();
+    // ~1 MiB in 1 KiB pushes: an uncapped rescan is ~500M char reads.
+    for (let i = 0; i < 1024; i++) p.push(line);
+    p.push("TAIL\r\n");
+    p.flushNow();
+    expect(performance.now() - t0).toBeLessThan(2000);
+    expect(text(p)).toContain("TAIL");
+  });
+
+  it("still joins a real OSC split across pushes", () => {
+    const { p } = make();
+    p.push(PROMPT + "\x1b]6973;C;git pu");
+    p.push("sh\x07" + OSC("133;C") + "out\r\n");
+    expect(p.blocks[p.blocks.length - 1].command).toBe("git push");
+  });
+
+  it("gives up on an overlong CSI and keeps parsing", () => {
+    const { p } = make();
+    p.push(PROMPT + CMD("cat") + "a\x1b[" + "1;".repeat(400) + "b\r\nafter\r\n");
+    p.flushNow();
+    expect(text(p)).toContain("after");
+  });
+});
+
+describe("BlockStreamParser xterm mode flag", () => {
+  it("marks normal-screen mode sequences modeOnly and alt-screen bytes not", () => {
+    const onChange = vi.fn();
+    const sink = vi.fn<(t: string, modeOnly: boolean) => void>();
+    const p = new BlockStreamParser("/tmp", onChange);
+    p.setXtermSink(sink);
+    p.push(PROMPT + CMD("htop") + "\x1b[?25l" + "\x1b[?1049h" + "screen" + "\x1b[?1049l");
+    expect(sink.mock.calls).toEqual([
+      ["\x1b[?25l", true],
+      ["\x1b[?1049hscreen\x1b[?1049l", false],
+    ]);
+  });
+});

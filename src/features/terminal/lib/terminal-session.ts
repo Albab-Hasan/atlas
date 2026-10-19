@@ -103,6 +103,16 @@ const ENTER = isWindows ? "\r" : "\n";
 const FONT_SIZE = 13;
 const LINE_HEIGHT = 1.4;
 
+/** Which terminal state a forwarded mode sequence sets, so a later one for the
+ *  same state replaces it: `CSI ?25l` and `CSI ?25h` share a key. */
+function modeKey(seq: string): string {
+  const last = seq[seq.length - 1];
+  if (seq[1] === "[") return last === "h" || last === "l" ? seq.slice(0, -1) : `csi${last}`;
+  if (seq[1] === "(" || seq[1] === ")") return seq.slice(0, 2);
+  if (last === "7" || last === "8") return "decsc";
+  return "keypad";
+}
+
 // ── Module state (survives HMR via globalThis) ─────────────────────────────
 
 interface Registry {
@@ -226,6 +236,11 @@ export class TerminalSession {
   private xtermRing: string[] = [];
   private xtermRingBytes = 0;
   private xtermRingOverflow = false;
+  /** Normal-screen mode sequences held for an absent or hidden xterm, latest
+   *  per mode (see `modeKey`). Progress output toggles cursor visibility on
+   *  every frame; as a log those filled the ring, which was then thrown away
+   *  — losing the very modes an alt-screen app starts out relying on. */
+  private xtermModes = new Map<string, string>();
   private xtermLinger = 0;
 
   private lastSize: { cols: number; rows: number } | null = null;
@@ -251,7 +266,7 @@ export class TerminalSession {
         notify(e);
       },
     );
-    this.parser.setXtermSink((t) => this.feedXterm(t));
+    this.parser.setXtermSink((t, modeOnly) => this.feedXterm(t, modeOnly));
     this.snapshot = {
       blocks: this.parser.blocks,
       altScreen: false,
@@ -487,9 +502,17 @@ export class TerminalSession {
 
   // ── xterm (lazy) ─────────────────────────────────────────────────────────
 
-  private feedXterm(text: string): void {
+  private feedXterm(text: string, modeOnly: boolean): void {
     if (this.xterm && this.visible) {
       this.xterm.write(text);
+      return;
+    }
+    // A mode change with no screen content queued ahead of it: only its latest
+    // value matters. (With content queued it rides the ring, to keep order.)
+    if (modeOnly && this.xtermRing.length === 0 && !this.xtermRingOverflow) {
+      const key = modeKey(text);
+      this.xtermModes.delete(key);
+      this.xtermModes.set(key, text);
       return;
     }
     // Held for a surface that does not exist yet or is not on screen. Past
@@ -507,6 +530,8 @@ export class TerminalSession {
 
   private replayRing(): void {
     if (!this.xterm) return;
+    for (const seq of this.xtermModes.values()) this.xterm.write(seq);
+    this.xtermModes.clear();
     if (this.xtermRingOverflow) {
       this.xtermRingOverflow = false;
       this.nudgeRedraw();
@@ -659,6 +684,7 @@ export class TerminalSession {
     this.xtermRing = [];
     this.xtermRingBytes = 0;
     this.xtermRingOverflow = false;
+    this.xtermModes.clear();
     if (!this.closed) this.publish({ surfaceReady: false });
   }
 

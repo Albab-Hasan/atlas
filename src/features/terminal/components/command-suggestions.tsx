@@ -4,7 +4,7 @@
 // item list and the active index (which follows Tab-cycling). It never takes
 // DOM focus, so typing in the textarea continues uninterrupted.
 
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Folder, FileText, TerminalSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -60,9 +60,25 @@ export function CommandSuggestions({
     return () => window.removeEventListener("mousedown", handler);
   }, [open, anchorEl]);
 
-  if (!open || items.length === 0 || !anchorEl) return null;
+  // The anchor is measured when the picker OPENS (and on window resize), not
+  // per render: it re-renders on every keystroke and Tab, and each
+  // `getBoundingClientRect` in render was a forced layout of whatever the
+  // terminal had dirtied — a streaming block list, during a build or a push.
+  const [rect, setRect] = useState<DOMRect | null>(null);
+  const shown = open && items.length > 0 && !!anchorEl;
+  useLayoutEffect(() => {
+    if (!shown || !anchorEl) {
+      setRect(null);
+      return;
+    }
+    const measure = () => setRect(anchorEl.getBoundingClientRect());
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [shown, anchorEl]);
 
-  const rect = anchorEl.getBoundingClientRect();
+  if (!shown || !rect) return null;
+
   const vw = window.innerWidth;
   const width = Math.max(MIN_WIDTH, Math.min(rect.width, MAX_WIDTH));
   const left = Math.max(8, Math.min(rect.left, vw - width - 8));

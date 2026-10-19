@@ -118,8 +118,8 @@ describe("mergeChanges", () => {
       REPO,
     );
     expect(rows).toEqual([
-      { path: "a.ts", created: false, deleted: false, added: 3, removed: 1 },
-      { path: "s.sh", created: false, deleted: false },
+      { path: "a.ts", created: false, deleted: false, status: "M", added: 3, removed: 1 },
+      { path: "s.sh", created: false, deleted: false, status: "M" },
     ]);
   });
 
@@ -128,7 +128,9 @@ describe("mergeChanges", () => {
     // renderer's count is the transcript footer's figure, so it wins.
     const local = tallyChanges([turn([file({ path: "/repo/a.ts", added: 10, removed: 2 })])]);
     const rows = mergeChanges([rec({ path: "a.ts", added: 3, removed: 1 })], local, REPO);
-    expect(rows).toEqual([{ path: "a.ts", created: false, deleted: false, added: 10, removed: 2 }]);
+    expect(rows).toEqual([
+      { path: "a.ts", created: false, deleted: false, status: "M", added: 10, removed: 2 },
+    ]);
   });
 
   it("keeps a file only one side knows about, record order first", () => {
@@ -146,7 +148,35 @@ describe("mergeChanges", () => {
       tallyChanges([]),
       REPO,
     );
-    expect(rows).toEqual([{ path: "gone.ts", created: false, deleted: true }]);
+    expect(rows).toEqual([{ path: "gone.ts", created: false, deleted: true, status: "D" }]);
+  });
+
+  it("says A for a file the record or a tool call saw created, D before A", () => {
+    const local = tallyChanges([
+      turn([
+        file({ path: "/repo/made.ts", added: 4, created: true }),
+        file({ path: "/repo/edited.ts", added: 1, created: false }),
+      ]),
+    ]);
+    const rows = mergeChanges(
+      [
+        rec({ path: "new.ts", created: true }),
+        rec({ path: "made.ts" }),
+        rec({ path: "brief.ts", created: true, deleted: true }),
+      ],
+      local,
+      REPO,
+    );
+    const status = Object.fromEntries(rows.map((r) => [r.path, r.status]));
+    expect(status).toEqual({ "new.ts": "A", "made.ts": "A", "brief.ts": "D", "edited.ts": "M" });
+  });
+
+  it("leaves the status unknown when no source said whether it created the file", () => {
+    const local = tallyChanges([
+      turn([file({ path: "/repo/old.ts", added: 2, created: undefined })]),
+    ]);
+    const [row] = mergeChanges([], local, REPO);
+    expect(row.status).toBeUndefined();
   });
 });
 

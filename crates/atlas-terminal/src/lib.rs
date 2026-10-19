@@ -12,7 +12,14 @@ pub struct TerminalSession {
     /// the pair and resize was a silent no-op, leaving columns clipped after
     /// a pane resize.
     master: Arc<Mutex<Box<dyn MasterPty + Send>>>,
-    writer: Arc<Mutex<Box<dyn Write + Send>>>,
+    /// Input queue for the session's writer thread. A write to the PTY master
+    /// BLOCKS once the slave's input queue is full (a raw-mode app that stops
+    /// reading fills it after ~1 KiB on macOS), so writes never happen on the
+    /// caller's thread: one thread per session owns the writer and drains this
+    /// queue in order. A stuck app then parks only that thread — never a tokio
+    /// worker, and never while the manager lock is held, which is what kept
+    /// Stop (`kill_foreground`, same lock) from rescuing a wedged terminal.
+    input: std::sync::mpsc::Sender<Vec<u8>>,
     /// PID of the spawned login shell. Used by `cwd` to resolve relative file
     /// paths clicked in the terminal against the shell's live directory.
     pid: Option<u32>,
@@ -111,7 +118,7 @@ impl TerminalManager {
         let pid = child.process_id();
         drop(pair.slave); // drop slave so reads on master detect EOF
 
-        let writer = pair.master.take_writer()?;
+        let mut writer = pair.master.take_writer()?;
         let mut reader = pair.master.try_clone_reader()?;
         // Retain the master so resize works for the session's lifetime.
         let master = Arc::new(Mutex::new(pair.master));
@@ -150,11 +157,22 @@ impl TerminalManager {
             let _ = child.wait();
         });
 
+        // Ends when the session drops its sender (close), or when a write
+        // fails because the shell is gone.
+        let (input, input_rx) = std::sync::mpsc::channel::<Vec<u8>>();
+        std::thread::spawn(move || {
+            for data in input_rx {
+                if writer.write_all(&data).is_err() || writer.flush().is_err() {
+                    break;
+                }
+            }
+        });
+
         self.sessions.insert(
             id.clone(),
             TerminalSession {
                 master,
-                writer: Arc::new(Mutex::new(writer)),
+                input,
                 pid,
                 size: Mutex::new((cols, rows)),
                 _reader_handle: reader_handle,
@@ -169,9 +187,12 @@ impl TerminalManager {
             .sessions
             .get(id)
             .ok_or_else(|| anyhow::anyhow!("Terminal session not found: {id}"))?;
-        let mut writer = session.writer.lock().unwrap();
-        writer.write_all(data)?;
-        writer.flush()?;
+        // Queued, not written: see `TerminalSession::input`. Order is kept —
+        // one queue, one writer thread.
+        session
+            .input
+            .send(data.to_vec())
+            .map_err(|_| anyhow::anyhow!("Terminal session input closed: {id}"))?;
         Ok(())
     }
 

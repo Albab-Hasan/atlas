@@ -10,6 +10,7 @@ export const TAB_TYPES = [
   "terminal",
   "diff",
   "commit",
+  "session-changes",
   "settings",
   "log",
   "media",

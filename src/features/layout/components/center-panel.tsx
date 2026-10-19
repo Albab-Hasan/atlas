@@ -65,6 +65,11 @@ const NotebookViewer = lazy(() =>
 const CommitView = lazy(() =>
   import("@/features/git/components/commit-view").then((m) => ({ default: m.CommitView })),
 );
+const SessionChangesView = lazy(() =>
+  import("@/features/git/components/session-changes-view").then((m) => ({
+    default: m.SessionChangesView,
+  })),
+);
 const GitDiffPanel = lazy(() =>
   import("@/features/git/components/git-diff-panel").then((m) => ({ default: m.GitDiffPanel })),
 );
@@ -116,6 +121,7 @@ import {
   Network,
   Terminal,
   GitCompare,
+  FileDiff,
   GitCommitHorizontal,
   Settings,
   Plus,
@@ -149,6 +155,7 @@ const tabIcons: Record<TabType, FallbackIcon> = {
   terminal: Terminal,
   diff: GitCompare,
   commit: GitCommitHorizontal,
+  "session-changes": FileDiff,
   settings: Settings,
   log: ScrollText,
   media: Code,
@@ -321,6 +328,12 @@ const ProjectColumns = memo(function ProjectColumns({
   runningTabIds: Set<string>;
 }) {
   const solo = view.groupOrder.length === 1;
+  // A fresh two-column split opens 65/35, not even: the column you split from
+  // is the one you were working in (a chat, beside its changes), and the new
+  // one is a reference beside it. Only a default — the library uses it when it
+  // has no layout for this exact set of columns, and a new split is always a
+  // new set (fresh group id). Three columns stay even.
+  const pairSizes = view.groupOrder.length === 2 ? ["65", "35"] : null;
   // Same storage id as before the v4 upgrade, so saved split widths carry over.
   // v4 dropped `autoSaveId` in favour of this hook; the Group takes the stored
   // layout as `defaultLayout` and writes back through `onLayoutChanged`.
@@ -342,7 +355,7 @@ const ProjectColumns = memo(function ProjectColumns({
           {/* Sizes are percentages: v4 reads bare numbers as PIXELS and
               unit-less strings as percentages. `order` is gone — panels are
               ordered by DOM position — but `id` still keys the saved layout. */}
-          <Panel id={gid} minSize="20" className="min-w-0">
+          <Panel id={gid} minSize="20" defaultSize={pairSizes?.[i]} className="min-w-0">
             <TabColumn
               groupId={gid}
               view={view}
@@ -748,6 +761,32 @@ const TabContentContainer = memo(function TabContentContainer({
               </div>
             );
           }
+          if (tab.type === "terminal") {
+            // The chat's contract (above), minus the warm-up: a hidden terminal
+            // keeps its box. Under `display:none` WebKit dropped the render
+            // tree of every block and line, and showing the tab rebuilt all of
+            // it on the switch frame — the near-freeze when switching to a
+            // terminal that had been busy. Its sessions stop rendering while
+            // hidden anyway (`useIsTabVisible`), so the kept box costs nothing
+            // per frame.
+            const hidden = !isActive;
+            return (
+              <div
+                key={tab.id}
+                className="absolute inset-0"
+                inert={hidden}
+                style={{
+                  visibility: hidden ? "hidden" : "visible",
+                  opacity: hidden ? 0 : 1,
+                  pointerEvents: hidden ? "none" : "auto",
+                  zIndex: hidden ? 0 : 1,
+                  contain: "layout style",
+                }}
+              >
+                <PersistentPanel tab={tab} projectId={projectId} height={height} />
+              </div>
+            );
+          }
           return (
             <div key={tab.id} style={{ display: isActive ? "contents" : "none" }}>
               <PersistentPanel tab={tab} projectId={projectId} height={height} />
@@ -1002,6 +1041,14 @@ function TabContent({ tab }: { tab: Tab }) {
       );
     case "commit":
       return <CommitView repoPath={tab.data.repoPath as string} sha={tab.data.sha as string} />;
+    case "session-changes":
+      return (
+        <SessionChangesView
+          tabId={tab.id}
+          projectPath={tab.data.projectPath as string}
+          sessionId={tab.data.sessionId as string}
+        />
+      );
     case "comms-draft":
       return (
         <CommsDraftTab convId={tab.data.convId as string} draftId={tab.data.draftId as string} />
