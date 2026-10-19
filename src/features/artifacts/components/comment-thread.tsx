@@ -225,7 +225,10 @@ export const CommentButton = memo(function CommentButton({
       >
         {showLabel ? (
           <>
-            <MessageSquare size={11} strokeWidth={1.7} />
+            {/* 12 beside a label: the labelled form sits next to other
+                labelled buttons (the selection toolbar's Cite), whose icons
+                are 12 — an 11 beside them read as a smaller button. */}
+            <MessageSquare size={12} strokeWidth={1.7} />
             <span className="text-xs">{label}</span>
             {count > 0 && (
               <span className="text-2xs tabular-nums">

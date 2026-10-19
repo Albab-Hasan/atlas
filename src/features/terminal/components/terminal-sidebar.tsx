@@ -6,6 +6,7 @@ import {
   Maximize2,
   Plus,
   Rows2,
+  Search,
   Terminal as TerminalIcon,
   X,
 } from "lucide-react";
@@ -25,7 +26,11 @@ import { fetchTermGit, type TermGit } from "../lib/term-git";
  *
  * The pane is a size container: under `@[480px]/pane` the list folds to a
  * column of status glyphs, so a three-way split keeps its terminals usable.
+ *
+ * Its width is the agent chat sidebar's default, so the two side lists line up
+ * when a terminal tab sits beside a chat tab in a split.
  */
+const SIDEBAR_WIDTH = 220;
 export function TerminalSidebar({
   pane,
   tabId,
@@ -72,13 +77,32 @@ export function TerminalSidebar({
     setActivePane(tabId, pane.id);
   };
 
+  // Filters the rows by where they are and what they run — the directory,
+  // the branch, the command — the way the chat sidebar's search filters its
+  // threads. Matching happens in the row, which is where those facts live.
+  const [query, setQuery] = useState("");
+
   return (
-    <aside className="flex w-10 shrink-0 flex-col border-r border-border bg-background @[480px]/pane:w-52">
+    <aside
+      className="flex w-10 shrink-0 flex-col border-r border-border bg-[var(--sidebar)] @[480px]/pane:w-(--terminal-sidebar-width)"
+      style={{ "--terminal-sidebar-width": `${SIDEBAR_WIDTH}px` } as React.CSSProperties}
+    >
       <HintGroup>
-        <div className="flex shrink-0 flex-col items-center gap-0.5 border-b border-border py-1 @[480px]/pane:h-control-lg @[480px]/pane:flex-row @[480px]/pane:py-0 @[480px]/pane:pr-1 @[480px]/pane:pl-2.5">
-          <span className="hidden flex-1 truncate text-3xs font-medium uppercase tracking-wider text-muted-foreground @[480px]/pane:block">
-            {zoomed ? "Terminals · zoomed" : "Terminals"}
-          </span>
+        {/* The chat sidebar's search row, with the pane's actions trailing. */}
+        <div className="flex shrink-0 flex-col items-center gap-0.5 border-b border-border bg-background py-1 @[480px]/pane:h-[32px] @[480px]/pane:flex-row @[480px]/pane:gap-1.5 @[480px]/pane:py-0 @[480px]/pane:pr-1.5 @[480px]/pane:pl-3">
+          <Search size={11} className="hidden shrink-0 text-muted-foreground @[480px]/pane:block" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            aria-label="Search terminals"
+            placeholder="Search…"
+            className="hidden min-w-0 flex-1 bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground @[480px]/pane:block"
+          />
+          {zoomed && (
+            <span className="hidden shrink-0 rounded bg-element-selected px-1.5 py-px text-3xs text-muted-foreground @[480px]/pane:inline">
+              zoomed
+            </span>
+          )}
           <HintItem label="New terminal">
             <button
               onClick={() => {
@@ -135,6 +159,7 @@ export function TerminalSidebar({
             <TerminalRow
               key={ptyId}
               ptyId={ptyId}
+              query={query.trim().toLowerCase()}
               active={ptyId === pane.activeTerminalId}
               closable={pane.terminals.length > 1}
               now={now}
@@ -160,6 +185,7 @@ const HEADER_BUTTON =
 
 function TerminalRow({
   ptyId,
+  query,
   active,
   closable,
   now,
@@ -169,6 +195,8 @@ function TerminalRow({
   onDragEnd,
 }: {
   ptyId: string;
+  /** Lower-cased, trimmed. Empty shows every row. */
+  query: string;
   active: boolean;
   closable: boolean;
   now: number;
@@ -187,6 +215,14 @@ function TerminalRow({
 
   const dir = summary.cwd && summary.cwd !== "~" ? basename(summary.cwd) : "~";
   const where = summary.cwd ? tildePath(summary.cwd) : "~";
+  if (
+    query &&
+    ![where, summary.cwd, git?.branch ?? "", summary.command ?? ""].some((s) =>
+      s.toLowerCase().includes(query),
+    )
+  ) {
+    return null;
+  }
   const status = summary.exited
     ? "Exited"
     : summary.command !== null
@@ -227,7 +263,7 @@ function TerminalRow({
       aria-label={`${dir}, ${status}`}
       title={`${where}${git ? ` — ${git.branch || "(detached)"}` : ""}\n${status}`}
       className={cn(
-        "group/row relative flex cursor-pointer items-start justify-center gap-2 rounded-md bg-background p-2 outline-none select-none",
+        "group/row relative flex cursor-pointer items-start justify-center gap-2 rounded-md bg-[var(--sidebar)] p-2 outline-none select-none",
         "transition-colors focus-visible:ring-1 focus-visible:ring-ring @[480px]/pane:justify-start",
         lifted && "z-10 shadow-md",
         active

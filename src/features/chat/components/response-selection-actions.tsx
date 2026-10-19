@@ -1,8 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Quote, MessageSquare } from "lucide-react";
-import { Button } from "@/ui/button";
 import { Hint } from "@/ui/tooltip";
 import { CommentButton } from "@/features/artifacts/components/comment-thread";
+import { cn } from "@/lib/utils";
 import { quoteLines } from "@/features/artifacts/lib/selection-comment";
 import {
   useAnchorHit,
@@ -16,6 +16,11 @@ import {
   selectedResponse,
   type ChatInsertDetail,
 } from "../lib/response-selection";
+
+/** One pill for both actions — the CommentButton takes it as its className,
+ *  so its height, padding and radius cannot drift from Cite's. */
+const PILL_BUTTON =
+  "flex h-6 shrink-0 cursor-pointer items-center gap-1.5 rounded-full px-2.5 text-xs text-[var(--secondary-foreground)] transition-colors hover:bg-[var(--atlas-element-hover)] hover:text-[var(--foreground)] [&_svg]:shrink-0";
 
 interface Target {
   response: HTMLElement;
@@ -287,15 +292,25 @@ function SelectionToolbar({
       ref={toolbarRef}
       role="group"
       aria-label={target.text ? "Selected response actions" : "Response actions"}
-      className="absolute z-popover flex max-w-full items-center gap-0.5 rounded-lg border border-border bg-popover p-1 text-foreground shadow-md"
+      // The house floating pill: the background fill under the menu-rung
+      // shadow and the inset top highlight. Fully round, and the two buttons
+      // inside are the same round pill at the same height with the same 12px
+      // icon, so neither reads as the odd one out.
+      className={cn(
+        "absolute z-popover flex max-w-full items-center gap-0.5 rounded-full p-1",
+        // Opaque, no blur: a live backdrop blur under a pill that follows the
+        // selection repaints on every move, and the surface reads fine solid.
+        "border border-[var(--atlas-element-active)] bg-[var(--background)]",
+        "inset-highlight shadow-md text-foreground atlas-pill-in",
+      )}
       style={position}
       onPointerLeave={onPointerLeave}
       onMouseDown={(event) => event.preventDefault()}
     >
       {target.text !== null && (
-        <Button
-          variant="ghost"
-          size="sm"
+        <button
+          type="button"
+          className={PILL_BUTTON}
           onClick={() => {
             window.dispatchEvent(
               new CustomEvent<ChatInsertDetail>("atlas:chat-insert", {
@@ -306,15 +321,15 @@ function SelectionToolbar({
             onDismiss();
           }}
         >
-          <Quote size={12} />
+          <Quote size={12} strokeWidth={1.7} />
           Cite
-        </Button>
+        </button>
       )}
       {canComment ? (
         <CommentButton
           bare
           showLabel
-          className="px-2 opacity-100 transition-none"
+          className={cn(PILL_BUTTON, "opacity-100 transition-none")}
           anchorKind={hit!.anchorKind}
           anchorId={hit!.rowId}
           comments={comments}
@@ -326,10 +341,15 @@ function SelectionToolbar({
         />
       ) : (
         <Hint label="Share this chat to comment on a response">
-          <Button variant="ghost" size="sm" aria-label="Comment" disabled>
-            <MessageSquare size={12} />
+          <button
+            type="button"
+            aria-label="Comment"
+            disabled
+            className={cn(PILL_BUTTON, "cursor-not-allowed opacity-50 hover:bg-transparent")}
+          >
+            <MessageSquare size={12} strokeWidth={1.7} />
             Comment
-          </Button>
+          </button>
         </Hint>
       )}
     </div>

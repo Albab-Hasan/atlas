@@ -52,7 +52,10 @@ export function UiScaleControl() {
         side="top"
         align="start"
         sideOffset={6}
-        className="w-[232px] p-1.5 select-none"
+        // The popover token is a grey slab beside the inset card; the surround
+        // is the foreground at 4% over the background instead, under the
+        // raised-rung shadow — the menu rung was all halo on it.
+        className="w-[232px] bg-[color-mix(in_srgb,var(--foreground)_4%,var(--background))] p-1.5 shadow-sm select-none"
       >
         {/* Two surfaces, the agent/model picker's recipe: the popover is the
             tinted surround carrying the title and Reset, and the controls sit
@@ -65,7 +68,7 @@ export function UiScaleControl() {
           </span>
         </div>
 
-        <div className="overflow-hidden rounded-lg bg-background shadow-lg ring-1 ring-border">
+        <div className="overflow-hidden rounded-lg bg-background shadow-sm ring-1 ring-border">
           <div className="flex items-center gap-2 border-b border-foreground/8 px-2 py-1.5">
             <Hint label="Smaller" shortcut={zoomOutKeys}>
               <IconButton

@@ -1692,7 +1692,13 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
             // (`max-w-[50%]`, of this same column): reserving the stored width
             // once the rail had hit its cap starved the composer of the
             // difference — at a 900px window, a third of the thread's width.
-            style={overviewWidth > 0 ? { paddingRight: `min(${overviewWidth}px, 50%)` } : undefined}
+            //
+            // A MARGIN, not padding: the pill below is `absolute inset-x-0`
+            // against this element, and an absolute child is laid out
+            // against the padding box, so under padding it still spanned the
+            // full width and centred half a rail right of the composer. A
+            // margin shrinks the box itself, which every child honours.
+            style={overviewWidth > 0 ? { marginRight: `min(${overviewWidth}px, 50%)` } : undefined}
           >
             {/* Anchored to this whole stack, not to the composer: the card below
               sits directly on top of the composer, so a pill anchored there

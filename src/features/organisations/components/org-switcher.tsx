@@ -281,14 +281,18 @@ export function OrgSwitcher() {
             <DropdownMenu.Popup
               // No inset top highlight: on a card this size it draws a bright
               // line across the whole head of the menu, which reads as a second
-              // border above the first.
-              className="flex max-h-[min(480px,70vh)] w-[268px] flex-col overflow-hidden rounded-xl border border-border-subtle bg-[var(--card)]/95 p-1.5 shadow-md backdrop-blur-2xl atlas-panel-in-tl select-none text-[var(--secondary-foreground)]"
+              // border above the first. The surround is the foreground at 4%
+              // over the background — a shade over the inset card, not the
+              // card token, which read as a grey slab beside it — under the
+              // raised-rung shadow: the menu rung was all halo this close to
+              // black.
+              className="flex max-h-[min(480px,70vh)] w-[268px] flex-col overflow-hidden rounded-xl border border-border-subtle bg-[color-mix(in_srgb,var(--foreground)_4%,var(--background)_92%)] p-1.5 shadow-sm backdrop-blur-2xl atlas-panel-in-tl select-none text-[var(--secondary-foreground)]"
             >
               {/* Two surfaces, the agent/model picker's recipe: this popup is the
                   tinted surround carrying the actions, and the search + org list
                   sit in an inset card on the app's own background, its edge
                   carried by a hairline ring and a shadow. */}
-              <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg bg-background shadow-lg ring-1 ring-border">
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg bg-background shadow-sm ring-1 ring-border">
                 {/* Head: a filter field with the refresh beside it, ruled off from
                   the list the way the model picker's search row is. */}
                 <div className="flex h-control-lg shrink-0 items-center gap-1.5 border-b border-foreground/8 px-2.5">
