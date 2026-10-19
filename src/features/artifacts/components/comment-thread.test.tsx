@@ -3,7 +3,7 @@
  * Editing your own comment in place: what opens, what is sent, and where the
  * keyboard goes when the edit ends.
  */
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { OrgMember } from "@/features/auth/lib/auth-api";
@@ -240,6 +240,25 @@ describe("opening a thread from elsewhere", () => {
 
     rerender(button(1));
     expect(isOpen()).toBe(false);
+  });
+
+  // The popup is portalled and gets its first focus before it is positioned —
+  // in the real window it was still thousands of pixels below the fold. A
+  // focus that scrolled to it scrolled the document itself (`overflow: hidden`
+  // stops the user, not script), and the whole app slid out of the window
+  // until something scrolled it back.
+  it("moves focus into the thread without scrolling anything to reach it", async () => {
+    const focus = vi.spyOn(HTMLElement.prototype, "focus");
+    try {
+      render(button(1));
+      await waitFor(() =>
+        expect(screen.getByRole("button", { name: "Edit comment" })).toBe(document.activeElement),
+      );
+      const scrolling = focus.mock.calls.filter(([options]) => !options?.preventScroll);
+      expect(scrolling).toEqual([]);
+    } finally {
+      focus.mockRestore();
+    }
   });
 
   it("opens straight away for a row that mounts after the request was made", () => {

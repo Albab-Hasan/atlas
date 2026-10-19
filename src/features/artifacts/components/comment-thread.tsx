@@ -98,6 +98,10 @@ export const MAX_FACES = 3;
 /** Counts past this are a smudge at 10px — say "more" instead of how many. */
 export const MAX_COUNT = 9;
 
+/** What Base UI would focus first in an opened thread. */
+const FIRST_TABBABLE =
+  'button:not(:disabled), [href], input:not(:disabled), textarea:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex="-1"])';
+
 /**
  * `OrgMember` in the shape `AccountAvatar` reads.
  *
@@ -207,6 +211,22 @@ export const CommentButton = memo(function CommentButton({
     onOpenChange?.(next);
   };
 
+  // Base UI's own first focus scrolls to its target, and the popup gets that
+  // focus before it is positioned: portalled to the end of `body`, it can
+  // still be thousands of pixels below the fold. `overflow: hidden` on the
+  // root stops the user scrolling, not script, so a jump from the comments
+  // panel scrolled the document itself and the whole app slid out of the
+  // window until something scrolled it back. Same target as the default
+  // (first tabbable, or the popup itself on touch), minus the scroll.
+  const popupRef = useRef<HTMLDivElement | null>(null);
+  const focusWithoutScrolling = useCallback((openType: string) => {
+    const popup = popupRef.current;
+    if (!popup) return true;
+    const first = openType === "touch" ? null : popup.querySelector<HTMLElement>(FIRST_TABBABLE);
+    (first ?? popup).focus({ preventScroll: true });
+    return false;
+  }, []);
+
   return (
     <Popover.Root open={open} onOpenChange={changeOpen}>
       <Popover.Trigger
@@ -266,6 +286,8 @@ export const CommentButton = memo(function CommentButton({
           collisionBoundary={collisionBoundary}
         >
           <Popover.Popup
+            ref={popupRef}
+            initialFocus={focusWithoutScrolling}
             className={cn(
               "w-[360px] max-w-(--available-width) max-h-(--available-height) origin-[var(--transform-origin)] overflow-hidden rounded-xl shadow-md outline-none",
               // Border, translucent fill and blur all on THIS element — the
