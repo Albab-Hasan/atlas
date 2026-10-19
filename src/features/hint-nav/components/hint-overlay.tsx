@@ -5,13 +5,7 @@ import { scanTargets, HINT_OVERLAY_ATTR, type HintTarget } from "../lib/scan-tar
 import { generateLabels } from "../lib/generate-labels";
 import { activate } from "../lib/activate-target";
 
-/**
- * The frosted-HUD recipe, shared by the keycaps and the dock below them.
- * `glass-hud` (globals.css) carries the border, raised edge and shadow; the
- * blur and the translucent fill stay here because the alpha is what lets the
- * blur through and a smaller chip may want a lighter one.
- */
-const HUD = "glass-hud backdrop-blur-glass bg-gradient-to-b from-popover/85 to-card/90";
+import { HUD } from "@/ui/hud";
 import { matchesAction } from "@/features/keybindings/lib/use-scoped-hotkeys";
 
 /**

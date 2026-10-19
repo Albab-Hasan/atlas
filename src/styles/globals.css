@@ -613,6 +613,29 @@
   transform: translateX(0) scale(1);
 }
 
+/* `data-anchor="end"` spelled out, for a morph whose trigger names the start
+   corner in its own classes (share): the triggers carry 1px offsets for the
+   box's border, and these full `inset`s outrank them. */
+.t-morph[data-anchor="end"] .t-morph-trigger {
+  inset: auto -1px -1px auto;
+}
+
+/* Top anchor: the closed button sits on the box's TOP edge, so a box pinned by
+   its top grows downward — a morph opened from the top of a rail rather than
+   out of a footer. */
+.t-morph[data-anchor-y="top"] .t-morph-trigger {
+  inset: -1px -1px auto auto;
+}
+.t-morph[data-anchor-y="top"][data-anchor="start"] .t-morph-trigger {
+  inset: -1px auto auto -1px;
+}
+.t-morph[data-anchor-y="top"] .t-morph-menu {
+  transform-origin: top right;
+}
+.t-morph[data-anchor-y="top"][data-anchor="start"] .t-morph-menu {
+  transform-origin: top left;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .t-morph,
   .t-morph-surface,

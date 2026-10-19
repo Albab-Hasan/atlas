@@ -79,6 +79,7 @@ import { CommentButton } from "@/features/artifacts/components/comment-thread";
 import { visibleCount } from "@/features/artifacts/lib/comments-api";
 import {
   useAnchorHit,
+  useThreadOpenSignal,
   useCommentActions,
   useCommentBucket,
   useCommentDirectory,
@@ -164,6 +165,8 @@ export function CommentAndCopy({
 }) {
   const { copied, onCopy } = useCopy(text);
   const anchor = useAnchorHit(tabId, messageId);
+  // The comments popup asked for this row's thread: open it.
+  const openSignal = useThreadOpenSignal(tabId, anchor?.rowId);
   const comments = useCommentBucket(tabId, messageId);
   const commentActions = useCommentActions(tabId);
   const directory = useCommentDirectory(tabId);
@@ -183,6 +186,7 @@ export function CommentAndCopy({
       <CommentButton
         bare
         className="transition-none"
+        openSignal={openSignal}
         anchorKind={anchor.anchorKind}
         anchorId={anchor.rowId}
         comments={comments}

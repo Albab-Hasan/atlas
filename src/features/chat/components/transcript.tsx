@@ -45,7 +45,6 @@ import { projectRows, RowKind, type Projection, type Row } from "../lib/turn-row
 import { useTranscriptScroll } from "../lib/use-transcript-scroll";
 import { useThawed } from "../lib/use-thawed";
 import { useChatStore } from "../stores/chat-store";
-import { saveThreadToKb } from "../lib/turn-actions";
 import { sessionCanRetry } from "../lib/retry-gate";
 import { pinScope } from "../stores/chat-pins-store";
 import { cn } from "@/lib/utils";
@@ -105,7 +104,11 @@ const TOP_BLUR_RAMP = 34;
 const ANCHOR_GAP = 24;
 /** The ring a comment jump leaves on the row it landed on, and for how long.
  *  Same treatment as the Timeline's `landed` row. */
-const LANDED_CLASSES = ["ring-1", "ring-[var(--atlas-border-strong)]", "rounded-lg"];
+// `ring-inset`: a ring is a box-shadow, drawn OUTSIDE the box by default. The
+// content column fills the transcript's width once the pane is narrower than
+// the reading measure (the overview rail open does it), and an outer ring then
+// sat past the scroller's edges — clipped on both sides, top and bottom only.
+const LANDED_CLASSES = ["ring-1", "ring-inset", "ring-[var(--atlas-border-strong)]", "rounded-lg"];
 const LANDED_MS = 2_000;
 
 /** Breathing room between the last row and the composer. Applied as content
@@ -884,7 +887,12 @@ export const Transcript = forwardRef<TranscriptHandle, TranscriptProps>(function
 
   useEffect(() => {
     const handler = (e: Event) => {
-      const detail = (e as CustomEvent<{ index: number; highlightRowIds?: string[] }>).detail;
+      const detail = (
+        e as CustomEvent<{ index: number; tabId?: string; highlightRowIds?: string[] }>
+      ).detail;
+      // A jump addressed to another chat is not ours (an unaddressed one, from
+      // an older sender, still is).
+      if (detail?.tabId && detail.tabId !== tabId) return;
       if (typeof detail?.index === "number") {
         pendingHighlightRef.current = detail.highlightRowIds ?? null;
         scrollToMessage(detail.index);
@@ -892,10 +900,7 @@ export const Transcript = forwardRef<TranscriptHandle, TranscriptProps>(function
     };
     window.addEventListener("atlas:chat-jump", handler);
     return () => window.removeEventListener("atlas:chat-jump", handler);
-  }, [scrollToMessage]);
-
-  // ── Turn-footer actions ──────────────────────────────────────────────
-  const onSaveKb = useCallback(() => void saveThreadToKb(tabId), [tabId]);
+  }, [scrollToMessage, tabId]);
 
   // ── The rows, as one memoized element ────────────────────────────────
   //
@@ -931,7 +936,6 @@ export const Transcript = forwardRef<TranscriptHandle, TranscriptProps>(function
             // within `visible` would shift as the window grows.
             priority={safeStart + i}
             onToggleExpand={toggleExpand}
-            onSaveKb={onSaveKb}
             canRetryRowId={canRetryRowId}
             pinScopeKey={pinScopeKey}
           />
@@ -947,7 +951,6 @@ export const Transcript = forwardRef<TranscriptHandle, TranscriptProps>(function
       pinScopeKey,
       toggleTurn,
       toggleExpand,
-      onSaveKb,
     ],
   );
 
@@ -1043,7 +1046,6 @@ function RowView({
   priority,
   onToggleExpand,
   onExpandTurn,
-  onSaveKb,
   canRetryRowId,
   pinScopeKey,
 }: {
@@ -1054,7 +1056,6 @@ function RowView({
   priority: number;
   onToggleExpand: (id: string) => void;
   onExpandTurn: (turnId: string) => void;
-  onSaveKb: () => void;
   /** Id of the one row allowed to show a retry button, or `undefined` when no
    *  retry is possible. An id compare here keeps `UserRowView`'s prop a plain
    *  boolean. */
@@ -1102,8 +1103,7 @@ function RowView({
     case RowKind.WorkHeader:
       return <WorkHeaderRowView row={row} onToggle={onExpandTurn} />;
     case RowKind.TurnFooter:
-      // made a fresh closure per render and defeated the memo on footer rows.
-      return <TurnFooterRowView row={row} onSaveKb={onSaveKb} />;
+      return <TurnFooterRowView row={row} />;
     default:
       return null;
   }

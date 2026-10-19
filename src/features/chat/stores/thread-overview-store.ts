@@ -26,10 +26,18 @@ import { createSelectors } from "@/lib/create-selectors";
  */
 export const OVERVIEW_SECTIONS = ["subagents", "changes", "memories"] as const;
 
-export type OverviewSection = (typeof OVERVIEW_SECTIONS)[number];
+/** The sections rendered from the list above. */
+export type ListedSection = (typeof OVERVIEW_SECTIONS)[number];
+
+/** Every collapsible card. `session` heads the rail but is not in the list:
+ *  it takes the thread's title and actions, which the generic sections do
+ *  not, so the panel renders it by hand. It still collapses like them. */
+export type OverviewSection = ListedSection | "session";
 
 /** Titles live with the vocabulary so a section cannot be added without one. */
 export const SECTION_TITLE: Record<OverviewSection, string> = {
+  // The fallback; the card shows the thread's own title when it has one.
+  session: "Session",
   subagents: "Subagents",
   changes: "Changes",
   memories: "Memories",

@@ -18,17 +18,14 @@
 
 import { forwardRef, memo, useState } from "react";
 import { MenuGlyph } from "@/ui/animated-icon";
-import { useActionShortcut } from "@/features/keybindings/lib/use-action-shortcut";
 import { Popover } from "@base-ui/react/popover";
 import { Menu as DropdownMenu } from "@base-ui/react/menu";
 import {
   ChevronDown,
-  Search,
   GitBranch,
   TerminalSquare,
   ClipboardList,
   ListFilter,
-  MessageSquare,
   PanelRight,
   PanelLeft,
   User,
@@ -80,7 +77,6 @@ interface ChatHeaderProps {
   title: string;
   roleFilter: RoleFilter;
   onRoleFilterChange: (f: RoleFilter) => void;
-  onOpenSearch: () => void;
   /** Pin scope for this thread (see `chat-pins-store`). The pin count control
    *  renders itself away when the thread has no pins. */
   pinScopeKey: string;
@@ -89,17 +85,12 @@ interface ChatHeaderProps {
   onToggleBash: () => void;
   plansPanelOpen: boolean;
   onTogglePlans: () => void;
-  /** Comments on this session in the shared Timeline, or `null` when the
-   *  session is not in the cloud — then there is no button at all. */
-  commentCount: number | null;
-  commentsPanelOpen: boolean;
   /** The thread overview rail — subagents, changes, memories. */
   overviewOpen: boolean;
   onToggleOverview: () => void;
   /** The chat-history rail on the left (`layout.chatSidebar.visible`). */
   sidebarOpen: boolean;
   onToggleSidebar: () => void;
-  onToggleComments: () => void;
   /** P3.4: only rendered when the agent advertised `sessionCapabilities.fork`.
    *  Absent for every agent that did not, so the menu never offers a branch
    *  that would fail on the wire. */
@@ -117,24 +108,19 @@ function ChatHeaderImpl({
   title,
   roleFilter,
   onRoleFilterChange,
-  onOpenSearch,
   pinScopeKey,
   onJumpToPin,
   bashPanelOpen,
   onToggleBash,
   plansPanelOpen,
   onTogglePlans,
-  commentCount,
-  commentsPanelOpen,
   overviewOpen,
   onToggleOverview,
   sidebarOpen,
   onToggleSidebar,
-  onToggleComments,
   onForkSession,
   onNewSession,
 }: ChatHeaderProps) {
-  const findHint = useActionShortcut("chat.find")?.label;
   const [pickerOpen, setPickerOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
 
@@ -233,27 +219,6 @@ function ChatHeaderImpl({
             )}
           />
 
-          {/* Only on a session the Organisation can see. The badge counts
-              comments, capped where the circle runs out of room. */}
-          {commentCount !== null && (
-            <HeaderCircleButton
-              title={commentsPanelOpen ? "Close comments" : "Comments"}
-              onClick={onToggleComments}
-              aria-pressed={commentsPanelOpen}
-              className={cn(
-                "relative",
-                commentsPanelOpen && "bg-[var(--atlas-element-active)] text-[var(--foreground)]",
-              )}
-            >
-              <MessageSquare size={13} />
-              {commentCount > 0 && (
-                <span className="absolute -right-1 -top-1 flex h-[14px] min-w-[14px] items-center justify-center rounded-full bg-[var(--primary)] px-1 font-mono text-3xs leading-none text-[var(--primary-foreground)] tabular-nums">
-                  {commentCount > 9 ? "9+" : commentCount}
-                </span>
-              )}
-            </HeaderCircleButton>
-          )}
-
           <HeaderCircleButton
             title={overviewOpen ? "Close overview" : "Thread overview"}
             onClick={onToggleOverview}
@@ -263,13 +228,6 @@ function ChatHeaderImpl({
             )}
           >
             <PanelRight size={13} />
-          </HeaderCircleButton>
-
-          <HeaderCircleButton
-            title={findHint ? `Find in chat (${findHint})` : "Find in chat"}
-            onClick={onOpenSearch}
-          >
-            <Search size={13} />
           </HeaderCircleButton>
 
           {/* `onOpenChange` on an otherwise uncontrolled Root: the glyph needs

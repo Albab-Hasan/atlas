@@ -31,6 +31,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { AccountAvatar } from "@/features/auth/components/account-avatar";
 import { copyText } from "@/lib/clipboard";
 import { cn } from "@/lib/utils";
+import { useControllableOpen } from "@/lib/use-controllable-open";
 import { SPRING_PILL } from "@/lib/motion";
 import { motion } from "motion/react";
 import type { SessionDetail as Detail } from "../types";
@@ -54,6 +55,10 @@ export function ShareMorph({
   projectId,
   directory,
   authorId = null,
+  open: openProp,
+  onOpenChange,
+  anchorY = "bottom",
+  anchorX = "start",
 }: {
   detail: Detail;
   /** The server Project, or `null` when this Session is local-only — there is
@@ -62,10 +67,19 @@ export function ShareMorph({
   directory: AuthorDirectory;
   /** Whose Session it is; `null` means your own. */
   authorId?: string | null;
+  /** Owns the open state when given (the overview's Session card opens this
+   *  from its own button); otherwise the morph keeps its own. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** Which edge the closed button sits on and the panel grows away from.
+   *  "bottom" (default) grows up out of a footer; "top" grows down. */
+  anchorY?: "top" | "bottom";
+  /** Which side the button sits on. "start" (default) grows right. */
+  anchorX?: "start" | "end";
 }) {
   const s = detail.summary;
   const title = sessionTitle(s.title) ?? "Untitled session";
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useControllableOpen(openProp, onOpenChange);
   const [access, setAccess] = useState<Access>("org");
   const [share, setShare] = useState<ArtifactShare | null>(null);
   const [orgUrl, setOrgUrl] = useState("");
@@ -230,7 +244,8 @@ export function ShareMorph({
     <div ref={root} className="relative z-10">
       <div
         data-open={open}
-        data-anchor="start"
+        data-anchor={anchorX}
+        data-anchor-y={anchorY}
         className={cn(
           "t-morph border border-[var(--border)] bg-[var(--popover)]/85 shadow-md backdrop-blur-xl",
           "data-[open=true]:shadow-lg",

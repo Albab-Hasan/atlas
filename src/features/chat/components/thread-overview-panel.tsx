@@ -16,7 +16,16 @@
 // `thread-overview-store`.
 
 import { useMemo, useRef } from "react";
-import { Brain, ChevronDown, ChevronRight } from "lucide-react";
+import {
+  Bot,
+  Brain,
+  ChevronDown,
+  ChevronRight,
+  FileDiff,
+  MessagesSquare,
+  type LucideIcon,
+} from "lucide-react";
+import { HUD } from "@/ui/hud";
 
 import { cn } from "@/lib/utils";
 import { useScrollEdges } from "@/ui/scroll-fade";
@@ -35,6 +44,7 @@ import {
   OVERVIEW_SECTIONS,
   SECTION_TITLE,
   useThreadOverviewStore,
+  type ListedSection,
   type OverviewSection,
 } from "../stores/thread-overview-store";
 import { useSubagents } from "../hooks/use-subagents";
@@ -42,6 +52,7 @@ import { elapsedMs, isRunning, tallySubagents } from "../lib/subagents";
 import { changesStatus, mergeChanges, tallyChanges } from "../lib/thread-overview";
 import { useSessionFiles } from "../lib/session-files";
 import { LiveElapsed, settledFigure } from "./transcript-rows";
+import { SessionBody } from "./thread-overview-session";
 
 // ── Section chrome ─────────────────────────────────────────────────────────
 
@@ -59,13 +70,24 @@ import { LiveElapsed, settledFigure } from "./transcript-rows";
  * the whole value of a collapsed card: a section that hid it would have to be
  * opened before it said anything.
  */
+/** Each card's glyph, beside its title. */
+const SECTION_ICON: Record<OverviewSection, LucideIcon> = {
+  session: MessagesSquare,
+  subagents: Bot,
+  changes: FileDiff,
+  memories: Brain,
+};
+
 function Section({
   id,
+  title,
   badge,
   badgeTitle,
   children,
 }: {
   id: OverviewSection;
+  /** Overrides the section's own title — the Session card shows the thread's. */
+  title?: string;
   /** How many items the card holds ("14"), or what they are doing ("3
    *  running"), in a badge beside the title. Empty hides the badge. */
   badge: string;
@@ -74,6 +96,7 @@ function Section({
   children: React.ReactNode;
 }) {
   const collapsed = useThreadOverviewStore((s) => Boolean(s.collapsed[id]));
+  const SectionIcon = SECTION_ICON[id];
   const { toggleSection } = useThreadOverviewStore.use.actions();
   // The body scrolls on its own past a cap, so one long list (a thread that
   // touched forty files) cannot push the other cards out of reach. The fade
@@ -91,13 +114,19 @@ function Section({
         onClick={() => toggleSection(id)}
         className="flex w-full cursor-pointer items-center gap-1.5 px-3 py-2 text-left hover:bg-[var(--muted)]"
       >
+        <SectionIcon size={12} className="shrink-0 text-[var(--muted-foreground)]" aria-hidden />
         <span className="min-w-0 truncate text-xs font-medium text-[var(--secondary-foreground)]">
-          {SECTION_TITLE[id]}
+          {title || SECTION_TITLE[id]}
         </span>
         {badge && (
+          // The hint overlay's keycap (⌘⌥Space): the frosted chip the eye
+          // already knows as "a label to read", not a grey smudge.
           <span
             title={badgeTitle}
-            className="shrink-0 rounded-full bg-[var(--atlas-element-selected)] px-1.5 text-2xs leading-4 text-[var(--muted-foreground)] tabular-nums"
+            className={cn(
+              "inline-flex shrink-0 items-center rounded-full px-1.5 text-2xs leading-4 font-semibold tracking-wide text-foreground tabular-nums",
+              HUD,
+            )}
           >
             {badge}
           </span>
@@ -375,7 +404,7 @@ function MemoriesSection({ tabId }: { tabId: string }) {
   );
 }
 
-const SECTION_VIEW: Record<OverviewSection, (props: { tabId: string }) => React.ReactNode> = {
+const SECTION_VIEW: Record<ListedSection, (props: { tabId: string }) => React.ReactNode> = {
   subagents: SubagentsSection,
   changes: ChangesSection,
   memories: MemoriesSection,
@@ -383,8 +412,19 @@ const SECTION_VIEW: Record<OverviewSection, (props: { tabId: string }) => React.
 
 // ── Panel ──────────────────────────────────────────────────────────────────
 
-export function ThreadOverviewPanel({ tabId }: { tabId: string }) {
+export function ThreadOverviewPanel({
+  tabId,
+  title,
+  onOpenSearch,
+}: {
+  tabId: string;
+  /** The thread's title, as the chat header shows it — heads the Session card. */
+  title?: string;
+  /** Opens the thread's find bar — the Session card's search button. */
+  onOpenSearch?: () => void;
+}) {
   const width = useThreadOverviewStore.use.width();
+  const projectPath = useAppStore.use.currentProject()?.path ?? null;
 
   return (
     // No panel chrome: no border, no header, no fill of its own. The cards ARE
@@ -398,8 +438,11 @@ export function ThreadOverviewPanel({ tabId }: { tabId: string }) {
       // the bar's height here too and the first card begins on the same line
       // the transcript's first row does.
       style={{ width, paddingTop: HEADER_INSET }}
-      className="hide-scrollbar flex h-full max-w-[50%] shrink-0 flex-col gap-2 overflow-y-auto px-2 pb-2"
+      className="hide-scrollbar flex h-full max-w-[50%] shrink-0 flex-col gap-2 overflow-y-auto pr-2 pb-2 pl-5"
     >
+      <Section id="session" title={title} badge="">
+        <SessionBody tabId={tabId} projectPath={projectPath} onOpenSearch={onOpenSearch} />
+      </Section>
       {OVERVIEW_SECTIONS.map((id) => {
         const View = SECTION_VIEW[id];
         return <View key={id} tabId={tabId} />;

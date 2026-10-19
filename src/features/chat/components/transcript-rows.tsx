@@ -15,7 +15,7 @@
 //     arrives as props; actions are fired imperatively via `getState()`.
 
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Bookmark, Brain, ChevronDown, ChevronRight, Code2, Paperclip } from "lucide-react";
+import { Brain, ChevronRight, Code2, FileDiff, Files, Paperclip } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CachedMarkdown } from "@/lib/markdown-cache";
 import { StreamingMarkdown } from "./streaming-markdown";
@@ -865,17 +865,12 @@ export const SeparatorRowView = memo(function SeparatorRowView({ row }: { row: S
 
 // ── Turn footer ────────────────────────────────────────────────────────────
 
-export const TurnFooterRowView = memo(function TurnFooterRowView({
-  row,
-  onSaveKb,
-}: {
-  row: TurnFooterRow;
-  onSaveKb: () => void;
-}) {
-  // `row.files` is the first three; `row.allFiles` is everything. The overflow
-  // line is a disclosure, not a dead count.
-  const [showAll, setShowAll] = useState(false);
-  const files = showAll ? row.allFiles : row.files;
+export const TurnFooterRowView = memo(function TurnFooterRowView({ row }: { row: TurnFooterRow }) {
+  // A fold, like the memory block and a tool call: one quiet line that says
+  // what the turn touched, and the files only when asked for. It was a lifted
+  // card with a header and a Save pill — the loudest thing under every turn,
+  // for a list most readers never open.
+  const [open, setOpen] = useState(false);
   const edits = row.allFiles.filter((f) => f.kind === "edit");
   const added = edits.reduce((s, f) => s + f.added, 0);
   const removed = edits.reduce((s, f) => s + f.removed, 0);
@@ -885,45 +880,54 @@ export const TurnFooterRowView = memo(function TurnFooterRowView({
       : `${row.allFiles.length} file${row.allFiles.length === 1 ? "" : "s"} read`;
 
   return (
-    <Column className="pb-5 pt-2">
-      {/* Full measure width, lifted off the background so it reads as the
-          turn's result rather than another paragraph. Paths show basename only:
-          the leading directories are identical on every row and were eating the
-          width. */}
-      <div className="overflow-hidden rounded-xl border border-[var(--atlas-element-active)] bg-[var(--atlas-element-hover)]">
-        <div className="flex h-[34px] items-center gap-2 px-3.5">
-          <span className="label">{label}</span>
-          {(added > 0 || removed > 0) && (
-            <span className="font-mono text-2xs tabular-nums">
-              {added > 0 && <span className="text-[var(--atlas-diff-added-text)]">+{added}</span>}
-              {removed > 0 && (
-                <span className="ml-1 text-[var(--atlas-status-error-foreground)]">−{removed}</span>
-              )}
-            </span>
+    <Column className="pt-1 pb-4">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className="atlas-marker group/files w-full cursor-pointer text-left text-base text-[var(--muted-foreground)] hover:text-[var(--secondary-foreground)]"
+      >
+        <span className="flex w-4 shrink-0 justify-center">
+          {edits.length > 0 ? (
+            <FileDiff size={ICON_PX} strokeWidth={ICON_STROKE} />
+          ) : (
+            <Files size={ICON_PX} strokeWidth={ICON_STROKE} />
           )}
-          <div className="ml-auto flex items-center gap-1.5">
-            <FooterPill
-              icon={<Bookmark size={11} />}
-              label="Save"
-              title="Save this thread to the knowledge base"
-              onClick={onSaveKb}
-            />
-            {edits.length > 0 && (
-              <FooterPill
-                icon={<Code2 size={11} />}
-                label="Show changes"
-                // The whole turn: its files fill the tree and the first opens.
-                onClick={() => openTurnDiff(row.turnId)}
-              />
+        </span>
+        <span className="min-w-0 truncate">{label}</span>
+        {(added > 0 || removed > 0) && (
+          <span className="shrink-0 font-mono text-2xs tabular-nums">
+            {added > 0 && <span className="text-[var(--atlas-diff-added-text)]">+{added}</span>}
+            {removed > 0 && (
+              <span className="ml-1 text-[var(--atlas-status-error-foreground)]">−{removed}</span>
             )}
-          </div>
-        </div>
-        <div className="border-t border-[var(--atlas-element-selected)] px-3.5 py-2">
-          {files.map((f) => (
-            <div key={f.path} className="flex h-[24px] items-center gap-2 text-xs" title={f.path}>
+          </span>
+        )}
+        <ChevronRight
+          size={ICON_PX}
+          strokeWidth={ICON_STROKE}
+          className={cn(
+            "shrink-0",
+            // The tool fold's reveal: a hint, not chrome, until reached for.
+            open
+              ? "rotate-90 opacity-100"
+              : "opacity-0 group-hover/files:opacity-100 group-focus-visible/files:opacity-100",
+          )}
+        />
+      </button>
+
+      {open && (
+        <ul className="mt-0.5 flex flex-col">
+          {row.allFiles.map((f) => (
+            <li
+              key={f.path}
+              title={f.path}
+              // The memory block's list: a rule under each row, none around.
+              className="flex items-center gap-2.5 border-b border-[var(--border)] py-1.5 text-xs last:border-b-0"
+            >
               <span
                 className={cn(
-                  "w-3 shrink-0 text-center font-mono text-2xs font-semibold",
+                  "flex w-4 shrink-0 justify-center font-mono text-2xs font-semibold",
                   f.kind === "edit"
                     ? f.created
                       ? "text-[var(--atlas-diff-added-text)]"
@@ -948,23 +952,23 @@ export const TurnFooterRowView = memo(function TurnFooterRowView({
                   )}
                 </span>
               )}
-            </div>
+            </li>
           ))}
-          {row.overflow > 0 && (
-            <button
-              type="button"
-              onClick={() => setShowAll((v) => !v)}
-              className="flex h-[20px] cursor-pointer items-center gap-1 text-2xs text-[var(--muted-foreground)] transition-colors hover:text-[var(--secondary-foreground)]"
-            >
-              <ChevronDown
-                size={10}
-                className={cn("transition-transform", showAll && "rotate-180")}
-              />
-              {showAll ? "Show fewer" : `+${row.overflow} more`}
-            </button>
+          {edits.length > 0 && (
+            <li className="pt-1.5">
+              <button
+                type="button"
+                // The whole turn: its files fill the tree and the first opens.
+                onClick={() => openTurnDiff(row.turnId)}
+                className="flex cursor-pointer items-center gap-1.5 text-2xs text-[var(--muted-foreground)] transition-colors hover:text-[var(--secondary-foreground)]"
+              >
+                <Code2 size={11} />
+                Show changes
+              </button>
+            </li>
           )}
-        </div>
-      </div>
+        </ul>
+      )}
     </Column>
   );
 });
@@ -973,36 +977,4 @@ export const TurnFooterRowView = memo(function TurnFooterRowView({
 function baseName(p: string): string {
   const i = p.lastIndexOf("/");
   return i >= 0 ? p.slice(i + 1) : p;
-}
-
-function FooterPill({
-  icon,
-  label,
-  onClick,
-  primary,
-  title,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  onClick: () => void;
-  primary?: boolean;
-  title?: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={title ?? label}
-      className={cn(
-        "inline-flex h-[20px] cursor-pointer items-center gap-1 rounded-full border px-2",
-        "text-2xs font-medium leading-none transition-colors",
-        primary
-          ? "border-[var(--primary)]/40 bg-[var(--atlas-primary-muted)] text-[var(--primary)] hover:bg-[var(--primary)]/20"
-          : "border-border bg-[var(--atlas-element-hover)] text-[var(--secondary-foreground)] hover:bg-[var(--atlas-element-active)] hover:text-[var(--foreground)]",
-      )}
-    >
-      {icon}
-      {label}
-    </button>
-  );
 }

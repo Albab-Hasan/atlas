@@ -27,6 +27,7 @@ import {
   useCommentBucket,
   useCommentDirectory,
   useKeysCommentCount,
+  useThreadOpenSignal,
 } from "../stores/chat-comments-store";
 
 /** Does this thinking or tool row carry a discussion? A boolean, so the row
@@ -61,10 +62,12 @@ export const RowCommentPill = memo(function RowCommentPill({
   const bucket = useCommentBucket(tabId, chatKey);
   const actions = useCommentActions(tabId);
   const directory = useCommentDirectory(tabId);
+  const openSignal = useThreadOpenSignal(tabId, hit?.rowId);
   if (!hit || !actions || !directory || visibleCount(bucket) === 0) return null;
   return (
     <CommentButton
       className="ml-auto transition-none"
+      openSignal={openSignal}
       anchorKind={hit.anchorKind}
       anchorId={hit.rowId}
       comments={bucket}

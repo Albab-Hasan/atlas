@@ -17,6 +17,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { CornerDownRight, MessageSquareMore, Search, X } from "lucide-react";
 import { CommenterAvatar, GuestChip, commenterName } from "@/components/commenter-avatar";
 import { cn } from "@/lib/utils";
+import { useControllableOpen } from "@/lib/use-controllable-open";
 import { timeAgo } from "@/lib/time-ago";
 import type { SessionDetail as Detail, TimelineEntry } from "../types";
 import type { RowComments } from "./session-detail";
@@ -44,13 +45,23 @@ export function CommentsMorph({
   detail,
   comments,
   onJump,
+  open: openProp,
+  onOpenChange,
+  anchorY = "bottom",
 }: {
   detail: Detail;
   comments: RowComments;
   /** Scroll the reader to the entry a thread is hung off. */
   onJump: (anchorId: string) => void;
+  /** Owns the open state when given (the overview's Session card opens this
+   *  from its own button); otherwise the morph keeps its own. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** Which edge the closed button sits on and the panel grows away from.
+   *  "bottom" (default) grows up out of a footer; "top" grows down. */
+  anchorY?: "top" | "bottom";
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useControllableOpen(openProp, onOpenChange);
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
   const root = useRef<HTMLDivElement>(null);
@@ -122,6 +133,7 @@ export function CommentsMorph({
     <div ref={root} className="relative z-10">
       <div
         data-open={open}
+        data-anchor-y={anchorY}
         className={cn(
           "t-morph border border-[var(--border)] bg-[var(--popover)]/85 shadow-md backdrop-blur-xl",
           "data-[open=true]:shadow-lg",

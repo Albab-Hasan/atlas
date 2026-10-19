@@ -132,7 +132,6 @@ function memorySince(sessionId: string): number {
 }
 import { PermissionModal } from "./permission-modal";
 import { ChatCommentsController } from "./chat-comments-controller";
-import { useCommentCount } from "../stores/chat-comments-store";
 import { grantLocksComposer, useNoAiGrant } from "../stores/ai-grant-store";
 import { SessionElicitation } from "./session-elicitation";
 
@@ -142,9 +141,6 @@ const BashHistoryPanel = lazy(() =>
   import("./bash-history-panel").then((m) => ({ default: m.BashHistoryPanel })),
 );
 const PlansPanel = lazy(() => import("./plans-panel").then((m) => ({ default: m.PlansPanel })));
-const ChatCommentsPanel = lazy(() =>
-  import("./chat-comments-panel").then((m) => ({ default: m.ChatCommentsPanel })),
-);
 const ChatSearchPalette = lazy(() =>
   import("./chat-search-palette").then((m) => ({
     default: m.ChatSearchPalette,
@@ -320,10 +316,6 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
   const [roleFilter, setRoleFilter] = useState<"all" | "user" | "assistant">("all");
   const [bashPanelOpen, setBashPanelOpen] = useState(false);
   const [plansPanelOpen, setPlansPanelOpen] = useState(false);
-  const [commentsPanelOpen, setCommentsPanelOpen] = useState(false);
-  // A number or null; changes only when a comment lands or the session's
-  // cloud identity resolves.
-  const commentCount = useCommentCount(tabId);
   // Narrow boolean — changes only when the detail panel opens or closes.
   const detailOpen = useDetailPanelStore((s) => !!s.targets[tabId]);
   // Same bargain for the overview rail: one boolean, so a section collapsing
@@ -1108,26 +1100,18 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
         return;
       }
       setRoleFilter("all");
-      window.dispatchEvent(new CustomEvent("atlas:chat-jump", { detail: { index } }));
+      window.dispatchEvent(new CustomEvent("atlas:chat-jump", { detail: { index, tabId } }));
     },
     [tabId],
   );
   const onToggleBashStable = useCallback(() => {
     setBashPanelOpen((v) => !v);
     setPlansPanelOpen(false);
-    setCommentsPanelOpen(false);
   }, []);
   const onTogglePlansStable = useCallback(() => {
     setPlansPanelOpen((v) => !v);
     setBashPanelOpen(false);
-    setCommentsPanelOpen(false);
   }, []);
-  const onToggleCommentsStable = useCallback(() => {
-    setCommentsPanelOpen((v) => !v);
-    setBashPanelOpen(false);
-    setPlansPanelOpen(false);
-  }, []);
-  const onCloseCommentsStable = useCallback(() => setCommentsPanelOpen(false), []);
   const onNewSessionStable = useCallback(() => openNewAgentChat(), []);
   useEffect(() => {
     const cur = session?.status ?? "idle";
@@ -1644,7 +1628,11 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
                     following disappears under the thing describing it. */}
                 {overviewOpen && (
                   <Suspense fallback={null}>
-                    <ThreadOverviewPanel tabId={tabId} />
+                    <ThreadOverviewPanel
+                      tabId={tabId}
+                      title={headerTitle}
+                      onOpenSearch={onOpenSearchStable}
+                    />
                   </Suspense>
                 )}
               </div>
@@ -1654,16 +1642,12 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
                   title={headerTitle}
                   roleFilter={roleFilter}
                   onRoleFilterChange={setRoleFilter}
-                  onOpenSearch={onOpenSearchStable}
                   pinScopeKey={pinScopeKey}
                   onJumpToPin={onJumpToPinStable}
                   bashPanelOpen={bashPanelOpen}
                   onToggleBash={onToggleBashStable}
                   plansPanelOpen={plansPanelOpen}
                   onTogglePlans={onTogglePlansStable}
-                  commentCount={commentCount}
-                  commentsPanelOpen={commentsPanelOpen}
-                  onToggleComments={onToggleCommentsStable}
                   overviewOpen={overviewOpen}
                   onToggleOverview={onToggleOverviewStable}
                   sidebarOpen={chatSidebarVisible}
@@ -1740,7 +1724,7 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
               onJump={(idx) => {
                 if (roleFilter !== "all") setRoleFilter("all");
                 window.dispatchEvent(
-                  new CustomEvent("atlas:chat-jump", { detail: { index: idx } }),
+                  new CustomEvent("atlas:chat-jump", { detail: { index: idx, tabId } }),
                 );
               }}
               onClose={() => setBashPanelOpen(false)}
@@ -1754,15 +1738,10 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
           </Suspense>
         )}
 
-        {/* Cloud comments: the resolver runs for the pane's lifetime (it is what
-          decides whether the header button exists); the panel only on demand,
-          as a docked flex column that narrows the conversation beside it. */}
+        {/* Cloud comments: the resolver runs for the pane's lifetime. It is
+          what tells the overview's Session card whether this thread is synced,
+          and what feeds comments to the transcript rows and the comments popup. */}
         <ChatCommentsController tabId={tabId} />
-        {commentsPanelOpen && (
-          <Suspense fallback={null}>
-            <ChatCommentsPanel tabId={tabId} onClose={onCloseCommentsStable} />
-          </Suspense>
-        )}
 
         {/* Diff / tool-output detail. Gated on a narrow boolean selector so the
           chunk isn't fetched until the reader first opens it, and so this
@@ -1800,7 +1779,9 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
               onOpenChange={setSearchPaletteOpen}
               messages={session.messages}
               onJump={(idx) =>
-                window.dispatchEvent(new CustomEvent("atlas:chat-jump", { detail: { index: idx } }))
+                window.dispatchEvent(
+                  new CustomEvent("atlas:chat-jump", { detail: { index: idx, tabId } }),
+                )
               }
             />
           </Suspense>
