@@ -1682,7 +1682,16 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
             // against the padding box, so under padding it still spanned the
             // full width and centred half a rail right of the composer. A
             // margin shrinks the box itself, which every child honours.
-            style={overviewWidth > 0 ? { marginRight: `min(${overviewWidth}px, 50%)` } : undefined}
+            //
+            // Only while the rail is DRAWN, which needs a thread: "new agent"
+            // reuses the tab, keeping its open flag over an empty welcome
+            // screen, and the reserve then pushed that composer half a rail
+            // left of everything centred above it.
+            style={
+              overviewWidth > 0 && session.messages.length > 0
+                ? { marginRight: `min(${overviewWidth}px, 50%)` }
+                : undefined
+            }
           >
             {/* Anchored to this whole stack, not to the composer: the card below
               sits directly on top of the composer, so a pill anchored there
