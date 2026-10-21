@@ -411,12 +411,25 @@ jobs:
       # `tests/engine-quarantine.test.ts` keeps `atlas-native-agent` the only
       # manifest allowed to name a `atlas-engine-*` crate, so no other job can reach
       # this sandbox. Flip the flag on any crate that later can.
+      #
+      # Installed is not enough on Ubuntu 24.04: AppArmor's
+      # `restrict_unprivileged_userns` hands an unconfined process's new user
+      # namespace no capabilities, so bwrap's `--unshare-net` cannot bring up
+      # loopback and dies with "loopback: Failed RTM_NEWADDR: Operation not
+      # permitted" before the command runs. A trusted command (no approval,
+      # so sandboxed with networking off) then reports bwrap's error as its
+      # output, which is what `a_commands_output_reaches_its_tool_call` caught.
+      # Desktop installs ship an AppArmor profile for bwrap; the runner does not.
       - name: Install bubblewrap (the engine's Linux sandbox needs it)
         if: matrix.sandbox
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq --no-install-recommends bubblewrap
           bwrap --version
+          if [ -e /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+          bwrap --unshare-all --ro-bind / / true
       - name: Test
         working-directory: crates/${{ matrix.crate }}
         run: cargo test --locked

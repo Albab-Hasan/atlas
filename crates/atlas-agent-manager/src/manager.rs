@@ -655,15 +655,10 @@ impl AgentManager {
             // Anything it says now is about a connection nobody asked for.
             match result {
                 Ok(state) => {
-                    if !this.is_current(&key, &entry) {
+                    let connection = state.connection.clone();
+                    if !this.mark_connected(&key, &entry, state) {
                         return;
                     }
-                    let connection = state.connection.clone();
-                    let mut slot = lock(&entry);
-                    if matches!(&*slot, AgentConnectionEntry::Connecting { .. }) {
-                        *slot = AgentConnectionEntry::Connected(state);
-                    }
-                    drop(slot);
                     this.emit(AgentManagerEvent::Connected { agent: key.clone() });
                     this.evict_when_exited(key, entry, connection);
                 }
@@ -865,6 +860,22 @@ impl AgentManager {
             self.forget_sessions_for(key);
         }
         self.emit(AgentManagerEvent::ConnectionsChanged);
+    }
+
+    /// Moves a current `Connecting` entry to `Connected`; false when the entry
+    /// was replaced while it connected. Both the waiter in `connection` and the
+    /// watcher in `watch_connect_result` call this, whichever the runtime
+    /// polls first: with only the watcher doing it, `connection` could return
+    /// a live transport while the table still read `Connecting`.
+    fn mark_connected(&self, key: &Agent, entry: &Entry, state: AgentConnectedState) -> bool {
+        if !self.is_current(key, entry) {
+            return false;
+        }
+        let mut slot = lock(entry);
+        if matches!(&*slot, AgentConnectionEntry::Connecting { .. }) {
+            *slot = AgentConnectionEntry::Connected(state);
+        }
+        true
     }
 
     fn is_current(&self, key: &Agent, entry: &Entry) -> bool {
@@ -1175,10 +1186,12 @@ impl AgentManager {
 
     /// The connection for `agent`, connecting first if it is not up.
     pub async fn connection(self: &Arc<Self>, agent: Agent) -> Result<Arc<dyn AgentConnection>> {
-        let entry = self.connect_to(agent);
+        let entry = self.connect_to(agent.clone());
         let task = lock(&entry).wait_for_connection();
         let state = task.await.map_err(anyhow::Error::from)?;
-        Ok(state.connection)
+        let connection = state.connection.clone();
+        self.mark_connected(&agent, &entry, state);
+        Ok(connection)
     }
 
     /// Every session-opening path ends here, so this is where the one
