@@ -575,8 +575,8 @@ const CONFIG_HEADER: &str = "\
 # Atlas configuration.
 #
 # Every user-facing Atlas preference lives here. Edit this file by hand or use
-# Settings — both write to it, and Atlas picks up external edits live, with no
-# restart needed for any key below.
+# Settings — both write to it, and Atlas picks up external edits live. A change
+# takes effect at once unless the key's comment says otherwise.
 #
 # Your comments, formatting, and any keys Atlas doesn't recognize survive its
 # own writes. An invalid value is rejected whole: Atlas keeps running on the
@@ -588,304 +588,21 @@ const SCHEMA_VERSION_DOC: &str = "
 # Format version of this file. Atlas manages it; leave it alone.
 ";
 
-/// camelCase key → the comment written directly above it in a generated
-/// `config.toml`.
-///
-/// This is the schema documentation. The `atlas-self-configure` skill
-/// deliberately carries no copy of it: the agent reads the real file, which
-/// explains itself, rather than a table that can drift from the code. A key
-/// missing an entry here therefore ships undocumented —
-/// `settings_docs_cover_every_setting` fails the build if that happens.
-///
-/// Order matches `AppSettings`' field order, and so the generated file's. That
-/// matters for a key that serializes to nothing (`updaterIgnoredVersion` when
-/// unset): its comment is carried down onto the next key that IS present,
-/// rather than dropped.
-const SETTINGS_DOCS: &[(&str, &str)] = &[
-    (
-        "autoAddAtlasGitignore",
-        "# Keep Atlas's directory in each opened git project out of version\n\
-         # control: `.atlas/` goes into the project's .gitignore (created if\n\
-         # needed); a dev build's `.atlas-dev/` goes into .git/info/exclude.\n\
-         # No-op on non-git projects. (default: true)",
-    ),
-    (
-        "enableAtlasLogs",
-        "# Record Atlas-internal events (sign-in, agent lifecycle, file and\n\
-         # browser opens) into the Logs panel. (default: true)",
-    ),
-    (
-        "showHiddenFiles",
-        "# Show dotfiles and dot-directories in the explorer file tree.\n\
-         # (default: true)",
-    ),
-    (
-        "uiScale",
-        "# Interface zoom, where 1.0 is 100%. Also driven by Cmd +/-/0.\n\
-         # Must be a number between 0.5 and 2.0. (default: 1.0)",
-    ),
-    (
-        "shareTelemetry",
-        "# Anonymous product telemetry. Opt-OUT: on by default, coarse metadata\n\
-         # only, never file contents or prompts. See TELEMETRY.md.\n\
-         # (default: true)",
-    ),
-    (
-        "linkTelemetryToAccount",
-        "# Attribute telemetry to your signed-in Atlas account instead of the\n\
-         # anonymous per-device id. Irrelevant while signed out, or while\n\
-         # shareTelemetry is false — both gate it. (default: true)",
-    ),
-    (
-        "embeddingModelId",
-        "# On-device embedding model, named by its directory. Normally managed\n\
-         # for you by the Local Model Manager. Must not be empty.\n\
-         # (default: \"all-MiniLM-L6-v2\")",
-    ),
-    (
-        "theme",
-        "# Theme id for the whole app: chrome, editor, terminal, diffs and syntax.\n\
-         # Unknown ids fall back to \"atlas\" with a warning. (default: \"atlas\")",
-    ),
-    (
-        "themeMode",
-        "# Variant selection: exactly \"system\", \"dark\" or \"light\".\n\
-         # A missing requested variant falls back to the theme's other one.\n\
-         # (default: \"system\")",
-    ),
-    (
-        "themeOverrides",
-        "# Optional user-local patch with base, palette and keys tables, applied\n\
-         # after the active theme variant. Omitted when empty.",
-    ),
-    (
-        "iconTheme",
-        "# File and folder icons, on their own track from the color theme.\n\
-         # \"minimal\" keeps Atlas's own lucide icons; anything else names a VS\n\
-         # Code icon theme, bundled or installed from Open VSX.\n\
-         # (default: \"material-icon-theme\")",
-    ),
-    (
-        "appIcon",
-        "# macOS app icon, by id: \"dark\" (the icon Atlas ships with) or\n\
-         # \"light\". Any other than dark replaces the Dock and Finder icon.\n\
-         # An id this Atlas does not know shows the default. (default: \"dark\")",
-    ),
-    (
-        "adaptiveSuggestions",
-        "# Next-step suggestion chips in the agent chat's per-turn card.\n\
-         # Exactly \"agent\" or \"off\", nothing else. (default: \"agent\")",
-    ),
-    (
-        "agentSwitchBehavior",
-        "# What picking another agent does to a chat that has a conversation:\n\
-         # \"new-tab\" keeps it and opens the new agent in a new tab, \"handoff\"\n\
-         # switches in place and attaches it to the next message, \"reset\"\n\
-         # switches in place and starts over. (default: \"reset\")",
-    ),
-    (
-        "rememberBeforeSwitch",
-        "# Before switching agents on a chat with a conversation, send the agent\n\
-         # being left /remember (when it offers that command) and wait for it\n\
-         # to save what it learned to shared memory. Costs one turn per switch.\n\
-         # (default: false)",
-    ),
-    (
-        "gitBlameInline",
-        "# Inline git blame — a dim author/age/summary annotation trailing the\n\
-         # active line in the editor. (default: true)",
-    ),
-    (
-        "gitAutoFetch",
-        "# Quietly `git fetch` the open project when it opens, when Atlas\n\
-         # regains focus, and every few minutes, so the Pull badge shows what\n\
-         # the remote has. Never pulls or touches your files. (default: true)",
-    ),
-    (
-        "keepAwakeWhileRunning",
-        "# Keep the computer awake while an Atlas agent is actively running.\n\
-         # Prevents idle system sleep; display can still turn off. No effect on\n\
-         # Windows. (default: false)",
-    ),
-    (
-        "autoUpdate",
-        "# Check for a newer signed Atlas release on startup and prompt when one\n\
-         # is available. (default: true)",
-    ),
-    (
-        "curatedPluginSync",
-        "# Let Atlas Agent download the latest curated plugin catalog when it\n\
-         # starts — a network request at every launch. Applies the next time the\n\
-         # agent starts. (default: false)",
-    ),
-    (
-        "instructionSync",
-        "# Mirror CLAUDE.md and .claude/rules/ into a marked block of the active\n\
-         # project's AGENTS.md, kept current as they change, for any agent that\n\
-         # reads AGENTS.md. Writes into the repository; text outside the block\n\
-         # is never changed. Off: the block is taken back out. (default: false)",
-    ),
-    (
-        "updaterIgnoredVersion",
-        "# updaterIgnoredVersion: a release you chose to skip in the update\n\
-         # prompt. Absent unless one was ignored — TOML has no null, so \"unset\"\n\
-         # means the key simply isn't here. Delete the line to clear it; never\n\
-         # write an empty string.",
-    ),
-    (
-        "enterToSend",
-        "# Chat composer send gesture. true = Enter sends and Shift+Enter\n\
-         # inserts a newline; false = only Cmd/Ctrl+Enter sends. Cmd/Ctrl+Enter\n\
-         # sends either way. (default: true)",
-    ),
-    (
-        "agentUiNavigation",
-        "# Let Atlas Agent act on the window: open files at a line, switch tabs\n\
-         # and panels, fill in a chat message, type a command for you to run.\n\
-         # It never switches projects, sends for you or presses Enter. Off: its\n\
-         # UI tools are withdrawn and every call is refused. (default: true)",
-    ),
-    (
-        "agentOrgAccess",
-        "# Let Atlas Agent act in your organization, as you: read the recorded\n\
-         # sessions, comments, members and conversations of the organization a\n\
-         # cloud-bound Project belongs to. Anything that reaches another person\n\
-         # asks you first. Off: its organization tools are withdrawn and every\n\
-         # call is refused. (default: true)",
-    ),
-    (
-        "agentCodeTools",
-        "# Let agents search this project's code through Atlas: grep for text\n\
-         # and find files by name, in-process, respecting .gitignore and never\n\
-         # reading secret files such as .env. Off: the code tools are withdrawn\n\
-         # and every call is refused; agents use their own shell instead.\n\
-         # (default: true)",
-    ),
-    (
-        "memoryDreams",
-        "# Once a day, when there are new sessions, ask the memory model to\n\
-         # propose changes to shared memory (add, merge, archive, rewrite,\n\
-         # link). Proposals wait in Memory > Review; nothing is applied\n\
-         # without you. Uses the same model and consent as extraction.\n\
-         # (default: false)",
-    ),
-    (
-        "memoryRepoMirror",
-        "# Keep a read-only Agent Memory Repo mirror of each project's active\n\
-         # memory, as a local git repository outside the project. No remote,\n\
-         # nothing is pushed. (default: false)",
-    ),
-    (
-        "atlasOnlyMemory",
-        "# Atlas's shared memory is the only memory in Atlas sessions: Claude\n\
-         # Code starts with its auto memory off, Codex with its memories off.\n\
-         # Off: each agent also keeps its own memory files. (default: true)",
-    ),
-    (
-        "terminalNotifications",
-        "# Notify when a command succeeds after running longer than\n\
-         # terminalNotifyMinDurationMs. (The master switch for all notifications\n\
-         # is notificationsEnabled.) (default: true)",
-    ),
-    (
-        "terminalNotifyMinDurationMs",
-        "# A successful command shorter than this many milliseconds never\n\
-         # notifies. Must be between 0 and 3600000. (default: 10000)",
-    ),
-    (
-        "terminalNotifyOnFailure",
-        "# Notify on a non-zero exit code regardless of duration. (default: true)",
-    ),
-    (
-        "terminalNotifyOnAttention",
-        "# Notify when a command wants input — a password prompt, a bell, or an\n\
-         # OSC 9 / OSC 777 notification from the program. (default: true)",
-    ),
-    (
-        "terminalNotifyNative",
-        "# Also raise a macOS notification when the Atlas window is not focused.\n\
-         # (default: true)",
-    ),
-    (
-        "terminalNotifySound",
-        "# Play a short chime with terminal notifications. (default: false)",
-    ),
-    (
-        "notificationsEnabled",
-        "# Notifications master switch. Off silences every notification except\n\
-         # sign-in problems, which always show. (default: true)",
-    ),
-    (
-        "notifyNeedsYouNative",
-        "# OS banner for notifications that need you — a permission request, a\n\
-         # question, a terminal asking for input. Shown only when you are away.\n\
-         # (default: true)",
-    ),
-    (
-        "notifyNeedsYouSound",
-        "# Sound for notifications that need you. (default: true)",
-    ),
-    (
-        "notifyOutcomeNative",
-        "# OS banner when an agent turn or terminal command finishes or fails.\n\
-         # Shown only when you are away. (default: true)",
-    ),
-    (
-        "notifyOutcomeSound",
-        "# Sound for finished / failed notifications. (default: true)",
-    ),
-    (
-        "notifyWarningNative",
-        "# OS banner for warnings — context nearly full, rate limited, retrying,\n\
-         # agent stopped. (default: false)",
-    ),
-    (
-        "notifyWarningSound",
-        "# Sound for warnings. (default: false)",
-    ),
-    (
-        "notifyTeamNative",
-        "# OS banner for Chat direct messages and @mentions. Shown only when you\n\
-         # are away. (default: true)",
-    ),
-    (
-        "notifyTeamSound",
-        "# Sound for Chat notifications. (default: true)",
-    ),
-    (
-        "notifyPermissionActions",
-        "# Show Allow once / Deny buttons on permission banners. Off: the banner\n\
-         # only opens the session. (default: true)",
-    ),
-    (
-        "notificationsMigrated",
-        "# Set once Atlas has folded your earlier terminal and agent notification\n\
-         # choices into the keys above. Leave it alone. (default: false)",
-    ),
-    (
-        "notifyDisabledKinds",
-        "# Notification kinds you switched off in Settings > Notifications, by id,\n\
-         # e.g. [\"terminal-done\", \"git-behind\"]. Unknown ids are ignored; a kind\n\
-         # that must always show (sign-in lost) cannot be silenced. (default: [])",
-    ),
-    (
-        "notifyKindsMigrated",
-        "# Set once Atlas has folded your earlier per-kind notification switches\n\
-         # into notifyDisabledKinds. Leave it alone. (default: false)",
-    ),
-    (
-        "notifyAgentMinDurationMs",
-        "# An agent turn that finished faster than this many milliseconds stays\n\
-         # quiet; failures and requests for you are never held back. 0 turns it\n\
-         # off. Must be between 0 and 3600000. (default: 0)",
-    ),
-    (
-        "favoriteModels",
-        "# Models you starred in the composer's model picker, as\n\
-         # \"agentType:modelId\", e.g. [\"claude-code:opus\"]. Starred models open\n\
-         # the picker on Favorites. Unknown entries are ignored. (default: [])",
-    ),
-];
+// `SETTINGS_DOCS`: camelCase key → the comment written directly above it in a
+// generated `config.toml`. Generated from `src-tauri/settings-registry.toml` by
+// `bun run settings:gen`; edit that file, never the `.gen.rs`.
+//
+// This is the schema documentation. The `atlas-self-configure` skill
+// deliberately carries no copy of it: the agent reads the real file, which
+// explains itself, rather than a table that can drift from the code.
+// `the_settings_registry_matches_app_settings` fails the build if a field has
+// no entry, so nothing ships undocumented.
+//
+// Order matches `AppSettings`' field order, and so the generated file's. That
+// matters for a key that serializes to nothing (`updaterIgnoredVersion` when
+// unset): its comment is carried down onto the next key that IS present,
+// rather than dropped.
+include!("settings_docs.gen.rs");
 
 /// Every key Atlas recognizes under `[settings]`, in file order.
 fn known_settings_keys() -> impl Iterator<Item = &'static str> {
@@ -991,6 +708,42 @@ fn unknown_keys_in(document: &toml_edit::DocumentMut) -> Vec<String> {
         .map(|(k, _)| k.to_string())
         .filter(|k| !known_settings_keys().any(|known| known == k.as_str()))
         .collect()
+}
+
+/// The keys under `[settings]` right now, to tell which a patch then adds.
+fn settings_keys_in(document: &toml_edit::DocumentMut) -> Vec<String> {
+    document
+        .get("settings")
+        .and_then(|i| i.as_table())
+        .map(|table| table.iter().map(|(k, _)| k.to_string()).collect())
+        .unwrap_or_default()
+}
+
+/// Give each key a patch just added to an existing file the comment a fresh
+/// file would have had above it.
+///
+/// Comments are otherwise only written when Atlas generates the whole file,
+/// so a long-lived `config.toml` used to grow keys added in later releases
+/// with nothing explaining them — the file stopped documenting itself the
+/// first time a new setting was touched. Keys that were already present keep
+/// whatever decor they have: a user's own comment is never replaced.
+fn document_added_keys(document: &mut toml_edit::DocumentMut, present: &[String]) {
+    let Some(table) = document.get_mut("settings").and_then(|i| i.as_table_mut()) else {
+        return;
+    };
+    let added: Vec<String> = table
+        .iter()
+        .map(|(k, _)| k.to_string())
+        .filter(|k| !present.contains(k))
+        .collect();
+    for key in added {
+        let Some((_, comment)) = SETTINGS_DOCS.iter().find(|(known, _)| *known == key) else {
+            continue;
+        };
+        if let Some(mut handle) = table.key_mut(&key) {
+            handle.leaf_decor_mut().set_prefix(format!("\n{comment}\n"));
+        }
+    }
 }
 
 fn document_for(settings: &AppSettings) -> toml_edit::DocumentMut {
@@ -2009,7 +1762,9 @@ impl ConfigManager {
         validate(&candidate).map_err(ConfigError::Invalid)?;
 
         let mut doc = self.document.clone();
+        let present = settings_keys_in(&doc);
         patch.write_into(&mut doc);
+        document_added_keys(&mut doc, &present);
         doc["schemaVersion"] = toml_edit::value(i64::from(CONFIG_SCHEMA_VERSION));
 
         let text = doc.to_string();
@@ -3456,5 +3211,243 @@ red = "#ee0000"
             mgr.unknown_keys().is_empty(),
             "comments must not read as unknown keys"
         );
+    }
+
+    // ── The settings registry ────────────────────────────────────────────
+    //
+    // `src-tauri/settings-registry.toml` is the one hand-edited description of every
+    // key. The comments in a generated file, the TS `AppSettings` type and its
+    // defaults, and the docs tables are all generated from it
+    // (`bun run settings:gen`). The one copy that cannot be generated is the
+    // struct above, so these hold the struct to the registry instead: a field
+    // added here without an entry there (or the reverse), a default changed on
+    // one side, a bound or an enum value that disagrees — each one compiles,
+    // ships, and shows the user a Settings row or a comment that lies.
+
+    const SETTINGS_REGISTRY_TOML: &str = include_str!("../../settings-registry.toml");
+
+    #[derive(Deserialize)]
+    struct Registry {
+        setting: Vec<RegistryEntry>,
+    }
+
+    #[derive(Deserialize)]
+    struct RegistryEntry {
+        key: String,
+        #[serde(rename = "type")]
+        kind: String,
+        default: Option<toml::Value>,
+        values: Option<Vec<String>>,
+        min: Option<toml::Value>,
+        max: Option<toml::Value>,
+    }
+
+    fn registry() -> Vec<RegistryEntry> {
+        let parsed: Registry = toml::from_str(SETTINGS_REGISTRY_TOML)
+            .expect("src-tauri/settings-registry.toml parses");
+        assert!(
+            parsed.setting.len() > 40,
+            "floor guard: an empty registry makes every check below vacuous"
+        );
+        parsed.setting
+    }
+
+    /// The keys a default `AppSettings` writes, in the order it writes them.
+    fn default_key_order() -> Vec<String> {
+        let text = toml::to_string(&AppSettings::default()).expect("serializes");
+        text.lines()
+            .take_while(|line| !line.starts_with('['))
+            .filter_map(|line| line.split_once(" = ").map(|(key, _)| key.to_string()))
+            .collect()
+    }
+
+    fn parse_settings(body: &str) -> Result<AppSettings, toml::de::Error> {
+        toml::from_str::<AtlasConfigFile>(&format!("schemaVersion = 1\n\n[settings]\n{body}\n"))
+            .map(|file| file.settings)
+    }
+
+    #[test]
+    fn the_settings_registry_matches_app_settings() {
+        let entries = registry();
+
+        // Same keys, same order. Absent-by-default keys (an unset Option, an
+        // empty table) don't serialize, so they are checked below instead.
+        let expected: Vec<String> = entries
+            .iter()
+            .filter(|entry| entry.default.is_some())
+            .map(|entry| entry.key.clone())
+            .collect();
+        assert_eq!(
+            default_key_order(),
+            expected,
+            "AppSettings and src-tauri/settings-registry.toml disagree on the keys or their order"
+        );
+
+        // Every field the frontend receives has an entry, and nothing extra.
+        let wire = serde_json::to_value(AppSettings::default()).expect("serializes");
+        let wire_keys: Vec<&String> = wire.as_object().expect("an object").keys().collect();
+        for key in &wire_keys {
+            assert!(
+                entries.iter().any(|entry| &&entry.key == key),
+                "`{key}` is an AppSettings field with no entry in src-tauri/settings-registry.toml"
+            );
+        }
+        for entry in &entries {
+            assert!(
+                entry.default.is_some() || !default_key_order().contains(&entry.key),
+                "`{}` has no registry default but serializes by default",
+                entry.key
+            );
+        }
+
+        // Same defaults.
+        let defaults = toml::Value::try_from(AppSettings::default()).expect("serializes");
+        for entry in &entries {
+            let Some(default) = &entry.default else {
+                continue;
+            };
+            assert_eq!(
+                defaults.get(&entry.key),
+                Some(default),
+                "`{}`: the registry default differs from AppSettings::default()",
+                entry.key
+            );
+        }
+
+        // And SETTINGS_DOCS, generated from the registry, is in step with it.
+        let documented: Vec<&str> = known_settings_keys().collect();
+        let registered: Vec<&str> = entries.iter().map(|entry| entry.key.as_str()).collect();
+        assert_eq!(documented, registered, "run `bun run settings:gen`");
+    }
+
+    /// An enum the UI offers a value for that serde then rejects is a
+    /// Settings row that fails on click; the reverse is a value only
+    /// hand-editing can reach.
+    #[test]
+    fn every_registry_enum_value_is_accepted_and_nothing_else_is() {
+        for entry in registry().iter().filter(|entry| entry.kind == "enum") {
+            let values = entry.values.as_ref().expect("an enum lists its values");
+            for value in values {
+                assert!(
+                    parse_settings(&format!("{} = \"{value}\"", entry.key)).is_ok(),
+                    "`{}` = \"{value}\" is in the registry but rejected",
+                    entry.key
+                );
+            }
+            assert!(
+                parse_settings(&format!("{} = \"not-a-real-value\"", entry.key)).is_err(),
+                "`{}` accepts a value the registry doesn't list",
+                entry.key
+            );
+        }
+    }
+
+    /// The registry's bounds are what the UI clamps to and the docs print;
+    /// `validate()` is what actually enforces them.
+    #[test]
+    fn registry_bounds_are_the_ones_validate_enforces() {
+        let number = |value: &toml::Value| {
+            value
+                .as_float()
+                .or_else(|| value.as_integer().map(|n| n as f64))
+                .expect("a numeric bound")
+        };
+        let accepts = |key: &str, value: f64, integer: bool| {
+            let literal = if integer {
+                format!("{}", value as i64)
+            } else {
+                format!("{value:.3}")
+            };
+            parse_settings(&format!("{key} = {literal}"))
+                .ok()
+                .is_some_and(|settings| validate(&settings).is_ok())
+        };
+        for entry in registry() {
+            let integer = entry.kind == "integer";
+            let step = if integer { 1.0 } else { 0.01 };
+            if let Some(max) = &entry.max {
+                let max = number(max);
+                assert!(
+                    accepts(&entry.key, max, integer),
+                    "`{}` rejects its max",
+                    entry.key
+                );
+                assert!(
+                    !accepts(&entry.key, max + step, integer),
+                    "`{}` accepts more than its registry max",
+                    entry.key
+                );
+            }
+            if let Some(min) = &entry.min {
+                let min = number(min);
+                assert!(
+                    accepts(&entry.key, min, integer),
+                    "`{}` rejects its min",
+                    entry.key
+                );
+                assert!(
+                    !accepts(&entry.key, min - step, integer),
+                    "`{}` accepts less than its registry min",
+                    entry.key
+                );
+            }
+        }
+    }
+
+    /// The whole file a fresh install gets, committed, so a change to what
+    /// users see is a reviewable diff rather than something only a new user
+    /// discovers. `ATLAS_BLESS=1 cargo test -p atlas config_default` rewrites
+    /// it.
+    #[test]
+    fn config_default_file_matches_the_committed_copy() {
+        let path =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../docs/reference/config.default.toml");
+        let rendered = document_for(&AppSettings::default()).to_string();
+        if std::env::var_os("ATLAS_BLESS").is_some() {
+            fs::write(&path, &rendered).expect("writes the committed copy");
+            return;
+        }
+        let committed = fs::read_to_string(&path).unwrap_or_default();
+        assert!(
+            committed == rendered,
+            "docs/reference/config.default.toml is stale: run \
+             `ATLAS_BLESS=1 cargo test -p atlas config_default` and review the diff"
+        );
+    }
+
+    /// A key Atlas adds to a file it didn't generate — a setting introduced
+    /// after the file was created, touched for the first time — arrives with
+    /// the same comment a fresh file gives it, and the user's own comments on
+    /// the keys already there are left exactly as they were.
+    #[test]
+    fn a_key_added_to_an_existing_file_arrives_documented() {
+        let (_dir, path) = tmp_config_path();
+        let raw = "schemaVersion = 1\n\n[settings]\n# mine, untouched\nenterToSend = true\n";
+        fs::write(&path, raw).unwrap();
+        let mut mgr = ConfigManager::from_raw(path.clone(), raw).unwrap();
+
+        let patch = SettingsPatch {
+            enter_to_send: Some(false),
+            git_auto_fetch: Some(false),
+            ..Default::default()
+        };
+        mgr.apply_patch(&patch, None).expect("patch applies");
+
+        let on_disk = fs::read_to_string(&path).unwrap();
+        assert!(on_disk.contains("# mine, untouched\nenterToSend = false"));
+        let (_, comment) = SETTINGS_DOCS
+            .iter()
+            .find(|(key, _)| *key == "gitAutoFetch")
+            .unwrap();
+        assert!(
+            on_disk.contains(&format!("{comment}\ngitAutoFetch = false")),
+            "the new key has no comment:\n{on_disk}"
+        );
+        assert_eq!(
+            on_disk.matches("# mine, untouched").count(),
+            1,
+            "an existing key's decor must not be rewritten"
+        );
+        ConfigManager::from_raw(path, &on_disk).expect("still a valid config");
     }
 }

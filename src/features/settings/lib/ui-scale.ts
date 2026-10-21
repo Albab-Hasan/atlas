@@ -5,8 +5,8 @@
 //! font-size scaling wouldn't work because the app uses px-based utilities
 //! (`text-xs`, `h-[32px]`) everywhere.
 //!
-//! The factor is persisted as `AppSettings.uiScale` (Rust `state.json`) and
-//! re-applied on boot via the project store's `hydrate`.
+//! The factor is persisted as `uiScale` in `config.toml` and re-applied on
+//! boot by the settings store's `hydrate`.
 
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 

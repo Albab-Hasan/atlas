@@ -1,0 +1,864 @@
+// Generated from src-tauri/settings-registry.toml — do not edit. Run `bun run settings:gen` after editing that file.
+
+import type { ThemeOverride } from "@/features/theme/resolve-theme";
+
+/**
+ * Every key under `[settings]` in `config.toml`, typed. The Rust side is
+ * `AppSettings` in `src-tauri/src/state/atlas_config.rs`; a Rust test holds
+ * that struct to the same source this file is generated from.
+ */
+export interface AppSettings {
+  /**
+   * Keep Atlas's directory in each opened git project out of version control: `.atlas/` goes
+   * into the project's .gitignore (created if needed); a dev build's `.atlas-dev/` goes into
+   * .git/info/exclude. No-op on non-git projects.
+   */
+  autoAddAtlasGitignore: boolean;
+  /**
+   * Record Atlas-internal events (sign-in, agent lifecycle, file and browser opens) into the
+   * Logs panel.
+   */
+  enableAtlasLogs: boolean;
+  /** Show dotfiles and dot-directories in the explorer file tree. */
+  showHiddenFiles: boolean;
+  /**
+   * Interface zoom, where 1.0 is 100%. Also driven by Cmd +/-/0. Must be a number between 0.5
+   * and 2.0.
+   */
+  uiScale: number;
+  /**
+   * Anonymous product telemetry. Opt-OUT: on by default, coarse metadata only, never file
+   * contents or prompts. See TELEMETRY.md.
+   */
+  shareTelemetry: boolean;
+  /**
+   * Attribute telemetry to your signed-in Atlas account instead of the anonymous per-device id.
+   * Irrelevant while signed out, or while shareTelemetry is false — both gate it.
+   */
+  linkTelemetryToAccount: boolean;
+  /**
+   * On-device embedding model, named by its directory. Normally managed for you by the Local
+   * Model Manager. Must not be empty.
+   */
+  embeddingModelId: string;
+  /**
+   * Theme id for the whole app: chrome, editor, terminal, diffs and syntax. Unknown ids fall
+   * back to "atlas" with a warning.
+   */
+  theme: string;
+  /**
+   * Variant selection: exactly "system", "dark" or "light". A missing requested variant falls
+   * back to the theme's other one.
+   */
+  themeMode: "system" | "dark" | "light";
+  /**
+   * Optional user-local patch with base, palette and keys tables, applied after the active
+   * theme variant. Omitted when empty.
+   */
+  themeOverrides: ThemeOverride;
+  /**
+   * File and folder icons, on their own track from the color theme. "minimal" keeps Atlas's own
+   * lucide icons; anything else names a VS Code icon theme, bundled or installed from Open VSX.
+   */
+  iconTheme: string;
+  /**
+   * macOS app icon, by id: "dark" (the icon Atlas ships with) or "light". Any other than dark
+   * replaces the Dock and Finder icon. An id this Atlas does not know shows the default.
+   */
+  appIcon: string;
+  /**
+   * Next-step suggestion chips in the agent chat's per-turn card. Exactly "agent" or "off",
+   * nothing else.
+   */
+  adaptiveSuggestions: "agent" | "off";
+  /**
+   * What picking another agent does to a chat that has a conversation: "new-tab" keeps it and
+   * opens the new agent in a new tab, "handoff" switches in place and attaches it to the next
+   * message, "reset" switches in place and starts over.
+   */
+  agentSwitchBehavior: "reset" | "new-tab" | "handoff";
+  /**
+   * Before switching agents on a chat with a conversation, send the agent being left /remember
+   * (when it offers that command) and wait for it to save what it learned to shared memory.
+   * Costs one turn per switch.
+   */
+  rememberBeforeSwitch: boolean;
+  /**
+   * Inline git blame — a dim author/age/summary annotation trailing the active line in the
+   * editor.
+   */
+  gitBlameInline: boolean;
+  /**
+   * Quietly `git fetch` the open project when it opens, when Atlas regains focus, and every few
+   * minutes, so the Pull badge shows what the remote has. Never pulls or touches your files.
+   */
+  gitAutoFetch: boolean;
+  /**
+   * Keep the computer awake while an Atlas agent is actively running. Prevents idle system
+   * sleep; display can still turn off. No effect on Windows.
+   */
+  keepAwakeWhileRunning: boolean;
+  /** Check for a newer signed Atlas release on startup and prompt when one is available. */
+  autoUpdate: boolean;
+  /**
+   * Let Atlas Agent download the latest curated plugin catalog when it starts — a network
+   * request at every launch. Applies the next time the agent starts.
+   */
+  curatedPluginSync: boolean;
+  /**
+   * Mirror CLAUDE.md and .claude/rules/ into a marked block of the active project's AGENTS.md,
+   * kept current as they change, for any agent that reads AGENTS.md. Writes into the
+   * repository; text outside the block is never changed. Off: the block is taken back out.
+   */
+  instructionSync: boolean;
+  /**
+   * A release you chose to skip in the update prompt. Absent unless one was ignored — TOML has
+   * no null, so "unset" means the key simply isn't here. Delete the line to clear it; never
+   * write an empty string.
+   */
+  updaterIgnoredVersion: string | null;
+  /**
+   * Chat composer send gesture. true = Enter sends and Shift+Enter inserts a newline; false =
+   * only Cmd/Ctrl+Enter sends. Cmd/Ctrl+Enter sends either way.
+   */
+  enterToSend: boolean;
+  /**
+   * Let Atlas Agent act on the window: open files at a line, switch tabs and panels, fill in a
+   * chat message, type a command for you to run. It never switches projects, sends for you or
+   * presses Enter. Off: its UI tools are withdrawn and every call is refused.
+   */
+  agentUiNavigation: boolean;
+  /**
+   * Let Atlas Agent act in your organization, as you: read the recorded sessions, comments,
+   * members and conversations of the organization a cloud-bound Project belongs to. Anything
+   * that reaches another person asks you first. Off: its organization tools are withdrawn and
+   * every call is refused.
+   */
+  agentOrgAccess: boolean;
+  /**
+   * Let agents search this project's code through Atlas: grep for text and find files by name,
+   * in-process, respecting .gitignore and never reading secret files such as .env. Off: the
+   * code tools are withdrawn and every call is refused; agents use their own shell instead.
+   */
+  agentCodeTools: boolean;
+  /**
+   * Once a day, when there are new sessions, ask the memory model to propose changes to shared
+   * memory (add, merge, archive, rewrite, link). Proposals wait in Memory > Review; nothing is
+   * applied without you. Uses the same model and consent as extraction.
+   */
+  memoryDreams: boolean;
+  /**
+   * Keep a read-only Agent Memory Repo mirror of each project's active memory, as a local git
+   * repository outside the project. No remote, nothing is pushed.
+   */
+  memoryRepoMirror: boolean;
+  /**
+   * Atlas's shared memory is the only memory in Atlas sessions: agents that keep their own
+   * memory, such as Claude Code's auto memory, start with it turned off. Off: each agent also
+   * keeps its own memory files.
+   */
+  atlasOnlyMemory: boolean;
+  /**
+   * Legacy: superseded by notifyDisabledKinds. Read once by the notification migration and
+   * ignored after; safe to delete once notificationsMigrated is true.
+   */
+  terminalNotifications: boolean;
+  /**
+   * A successful command shorter than this many milliseconds never notifies. Must be between 0
+   * and 3600000.
+   */
+  terminalNotifyMinDurationMs: number;
+  /**
+   * Legacy: superseded by notifyDisabledKinds. Read once by the notification migration and
+   * ignored after; safe to delete once notificationsMigrated is true.
+   */
+  terminalNotifyOnFailure: boolean;
+  /**
+   * Legacy: superseded by notifyDisabledKinds. Read once by the notification migration and
+   * ignored after; safe to delete once notificationsMigrated is true.
+   */
+  terminalNotifyOnAttention: boolean;
+  /**
+   * Legacy: superseded by the notify*Native keys. Read once by the notification migration and
+   * ignored after; safe to delete once notificationsMigrated is true.
+   */
+  terminalNotifyNative: boolean;
+  /**
+   * Legacy: superseded by the notify*Sound keys. Read once by the notification migration and
+   * ignored after; safe to delete once notificationsMigrated is true.
+   */
+  terminalNotifySound: boolean;
+  /**
+   * Notifications master switch. Off silences every notification except sign-in problems, which
+   * always show.
+   */
+  notificationsEnabled: boolean;
+  /**
+   * OS banner for notifications that need you — a permission request, a question, a terminal
+   * asking for input. Shown only when you are away.
+   */
+  notifyNeedsYouNative: boolean;
+  /** Sound for notifications that need you. */
+  notifyNeedsYouSound: boolean;
+  /**
+   * OS banner when an agent turn or terminal command finishes or fails. Shown only when you are
+   * away.
+   */
+  notifyOutcomeNative: boolean;
+  /** Sound for finished / failed notifications. */
+  notifyOutcomeSound: boolean;
+  /** OS banner for warnings — context nearly full, rate limited, retrying, agent stopped. */
+  notifyWarningNative: boolean;
+  /** Sound for warnings. */
+  notifyWarningSound: boolean;
+  /** OS banner for Chat direct messages and @mentions. Shown only when you are away. */
+  notifyTeamNative: boolean;
+  /** Sound for Chat notifications. */
+  notifyTeamSound: boolean;
+  /**
+   * Show Allow once / Deny buttons on permission banners. Off: the banner only opens the
+   * session.
+   */
+  notifyPermissionActions: boolean;
+  /**
+   * Set once Atlas has folded your earlier terminal and agent notification choices into the
+   * keys above. Leave it alone.
+   */
+  notificationsMigrated: boolean;
+  /**
+   * Notification kinds you switched off in Settings > Notifications, by id, e.g.
+   * ["terminal-done", "git-behind"]. Unknown ids are ignored; a kind that must always show
+   * (sign-in lost) cannot be silenced.
+   */
+  notifyDisabledKinds: string[];
+  /**
+   * Set once Atlas has folded your earlier per-kind notification switches into
+   * notifyDisabledKinds. Leave it alone.
+   */
+  notifyKindsMigrated: boolean;
+  /**
+   * An agent turn that finished faster than this many milliseconds stays quiet; failures and
+   * requests for you are never held back. 0 turns it off. Must be between 0 and 3600000.
+   */
+  notifyAgentMinDurationMs: number;
+  /**
+   * Models you starred in the composer's model picker, as "agentType:modelId", e.g.
+   * ["claude-code:opus"]. Starred models open the picker on Favorites. Unknown entries are
+   * ignored.
+   */
+  favoriteModels: string[];
+}
+
+export type SettingKey = keyof AppSettings;
+
+export const DEFAULT_SETTINGS: AppSettings = {
+  autoAddAtlasGitignore: true,
+  enableAtlasLogs: true,
+  showHiddenFiles: true,
+  uiScale: 1,
+  shareTelemetry: true,
+  linkTelemetryToAccount: true,
+  embeddingModelId: "all-MiniLM-L6-v2",
+  theme: "atlas",
+  themeMode: "system",
+  themeOverrides: {},
+  iconTheme: "material-icon-theme",
+  appIcon: "dark",
+  adaptiveSuggestions: "agent",
+  agentSwitchBehavior: "reset",
+  rememberBeforeSwitch: false,
+  gitBlameInline: true,
+  gitAutoFetch: true,
+  keepAwakeWhileRunning: false,
+  autoUpdate: true,
+  curatedPluginSync: false,
+  instructionSync: false,
+  updaterIgnoredVersion: null,
+  enterToSend: true,
+  agentUiNavigation: true,
+  agentOrgAccess: true,
+  agentCodeTools: true,
+  memoryDreams: false,
+  memoryRepoMirror: false,
+  atlasOnlyMemory: true,
+  terminalNotifications: true,
+  terminalNotifyMinDurationMs: 10000,
+  terminalNotifyOnFailure: true,
+  terminalNotifyOnAttention: true,
+  terminalNotifyNative: true,
+  terminalNotifySound: false,
+  notificationsEnabled: true,
+  notifyNeedsYouNative: true,
+  notifyNeedsYouSound: true,
+  notifyOutcomeNative: true,
+  notifyOutcomeSound: true,
+  notifyWarningNative: false,
+  notifyWarningSound: false,
+  notifyTeamNative: true,
+  notifyTeamSound: true,
+  notifyPermissionActions: true,
+  notificationsMigrated: false,
+  notifyDisabledKinds: [],
+  notifyKindsMigrated: false,
+  notifyAgentMinDurationMs: 0,
+  favoriteModels: [],
+};
+
+export type SettingType =
+  | "boolean"
+  | "integer"
+  | "number"
+  | "string"
+  | "enum"
+  | "string-list"
+  | "optional-string"
+  | "table";
+
+/**
+ * Where a setting is changed: a Settings row (`live`), another part of the app
+ * (`elsewhere`), only by editing the file (`file-only`), by Atlas itself
+ * (`internal`), or nowhere any more (`legacy`).
+ */
+export type SettingStatus = "live" | "elsewhere" | "file-only" | "internal" | "legacy";
+
+export const SETTINGS_PAGES = [
+  {
+    id: "general",
+    title: "General",
+    description: "Interface, the composer, and how Atlas treats your project's files.",
+  },
+  {
+    id: "appearance",
+    title: "Appearance",
+    description: "Theme, mode, file icons and the app icon.",
+  },
+  {
+    id: "agents",
+    title: "Agents",
+    description: "How agents behave in a chat, what Atlas Agent may do, and your models.",
+  },
+  {
+    id: "memory",
+    title: "Memory",
+    description: "Shared memory across agents, and instructions mirrored for them.",
+  },
+  {
+    id: "notifications",
+    title: "Notifications",
+    description: "What notifies you, how, and after how long.",
+  },
+  {
+    id: "source-control",
+    title: "Source Control",
+    description: "Git in the editor and in the background.",
+  },
+  {
+    id: "privacy",
+    title: "Privacy",
+    description: "Usage data and Atlas's own logs.",
+  },
+  {
+    id: "updates",
+    title: "Updates",
+    description: "Atlas releases and Atlas Agent's plugin catalog.",
+  },
+] as const;
+
+export type SettingsPageId = (typeof SETTINGS_PAGES)[number]["id"];
+
+export interface SettingMeta {
+  key: SettingKey;
+  type: SettingType;
+  status: SettingStatus;
+  page: SettingsPageId;
+  section: string;
+  title: string;
+  summary: string;
+  values?: readonly string[];
+  min?: number;
+  max?: number;
+  platforms?: readonly ("macos" | "windows" | "linux")[];
+  /** When a change takes effect, if not immediately. */
+  applies?: string;
+  /** For `elsewhere`: where in the app it is changed. */
+  setIn?: string;
+}
+
+export const SETTINGS_REGISTRY: readonly SettingMeta[] = [
+  {
+    key: "autoAddAtlasGitignore",
+    type: "boolean",
+    status: "live",
+    page: "general",
+    section: "Files",
+    title: "Keep .atlas out of git",
+    summary: "Add Atlas's per-project directory to each git project's .gitignore when it opens.",
+  },
+  {
+    key: "enableAtlasLogs",
+    type: "boolean",
+    status: "live",
+    page: "privacy",
+    section: "Diagnostics",
+    title: "Atlas logs",
+    summary: "Record sign-in, agent lifecycle, and file and browser opens into the Logs panel.",
+  },
+  {
+    key: "showHiddenFiles",
+    type: "boolean",
+    status: "live",
+    page: "general",
+    section: "Files",
+    title: "Show hidden files",
+    summary: "Show dotfiles and dot-directories in the explorer file tree.",
+  },
+  {
+    key: "uiScale",
+    type: "number",
+    status: "live",
+    page: "general",
+    section: "Interface",
+    title: "Interface zoom",
+    summary: "Scale the whole interface: text, icons and spacing together.",
+    min: 0.5,
+    max: 2,
+  },
+  {
+    key: "shareTelemetry",
+    type: "boolean",
+    status: "live",
+    page: "privacy",
+    section: "Usage data",
+    title: "Share usage data",
+    summary:
+      "Send privacy-preserving usage data to help improve Atlas. Never prompts, code, paths or keys.",
+  },
+  {
+    key: "linkTelemetryToAccount",
+    type: "boolean",
+    status: "live",
+    page: "privacy",
+    section: "Usage data",
+    title: "Link usage data to my account",
+    summary:
+      "While signed in, attribute usage data to your account instead of an anonymous device id.",
+  },
+  {
+    key: "embeddingModelId",
+    type: "string",
+    status: "elsewhere",
+    page: "memory",
+    section: "Models",
+    title: "Embedding model",
+    summary: "The on-device model that embeds memory for search by meaning.",
+    setIn: "Settings → Local Models",
+  },
+  {
+    key: "theme",
+    type: "string",
+    status: "live",
+    page: "appearance",
+    section: "Theme",
+    title: "Theme",
+    summary: "One theme for the whole app: chrome, editor, terminal, diffs and syntax.",
+  },
+  {
+    key: "themeMode",
+    type: "enum",
+    status: "live",
+    page: "appearance",
+    section: "Theme",
+    title: "Mode",
+    summary: "Follow the system, or always use the theme's dark or light variant.",
+    values: ["system", "dark", "light"],
+  },
+  {
+    key: "themeOverrides",
+    type: "table",
+    status: "file-only",
+    page: "appearance",
+    section: "Theme",
+    title: "Theme overrides",
+    summary:
+      "A personal patch of base, palette and key colours applied on top of the active theme.",
+  },
+  {
+    key: "iconTheme",
+    type: "string",
+    status: "live",
+    page: "appearance",
+    section: "Icons",
+    title: "File icon theme",
+    summary: "File and folder icons, chosen separately from the colour theme.",
+  },
+  {
+    key: "appIcon",
+    type: "string",
+    status: "live",
+    page: "appearance",
+    section: "App icon",
+    title: "App icon",
+    summary: "The icon in the Dock, Finder and Launchpad.",
+    platforms: ["macos"],
+  },
+  {
+    key: "adaptiveSuggestions",
+    type: "enum",
+    status: "live",
+    page: "agents",
+    section: "Chat",
+    title: "Next-step suggestions",
+    summary: "After each turn, the agent suggests two or three follow-ups as clickable chips.",
+    values: ["agent", "off"],
+  },
+  {
+    key: "agentSwitchBehavior",
+    type: "enum",
+    status: "live",
+    page: "agents",
+    section: "Switching agents",
+    title: "Switching agents in a chat",
+    summary: "What picking another agent does once a chat has a conversation.",
+    values: ["reset", "new-tab", "handoff"],
+  },
+  {
+    key: "rememberBeforeSwitch",
+    type: "boolean",
+    status: "live",
+    page: "agents",
+    section: "Switching agents",
+    title: "Save to memory before switching agents",
+    summary: "Ask the agent you are leaving to save what it learned to shared memory first.",
+  },
+  {
+    key: "gitBlameInline",
+    type: "boolean",
+    status: "live",
+    page: "source-control",
+    section: "Editor",
+    title: "Inline Git blame",
+    summary: "Show who last changed the current line, and when, at the end of the line.",
+  },
+  {
+    key: "gitAutoFetch",
+    type: "boolean",
+    status: "live",
+    page: "source-control",
+    section: "Repositories",
+    title: "Auto-fetch from remote",
+    summary:
+      "Quietly fetch the open project so the Pull badge shows what the remote has. Never pulls.",
+  },
+  {
+    key: "keepAwakeWhileRunning",
+    type: "boolean",
+    status: "live",
+    page: "general",
+    section: "Interface",
+    title: "Keep awake while an agent is working",
+    summary: "Prevent idle system sleep while an agent is running. The display can still turn off.",
+    platforms: ["macos", "linux"],
+  },
+  {
+    key: "autoUpdate",
+    type: "boolean",
+    status: "live",
+    page: "updates",
+    section: "Atlas",
+    title: "Automatic updates",
+    summary: "Check for a newer signed release on startup and prompt when one is available.",
+  },
+  {
+    key: "curatedPluginSync",
+    type: "boolean",
+    status: "live",
+    page: "updates",
+    section: "Atlas Agent",
+    title: "Keep Atlas Agent's plugin catalog up to date",
+    summary: "Download the latest curated plugin catalog when Atlas Agent starts.",
+    applies: "the next time Atlas Agent starts",
+  },
+  {
+    key: "instructionSync",
+    type: "boolean",
+    status: "live",
+    page: "memory",
+    section: "Instructions",
+    title: "Mirror CLAUDE.md and .claude/rules into AGENTS.md",
+    summary:
+      "Keep a marked block of the project's AGENTS.md in step with CLAUDE.md and .claude/rules.",
+  },
+  {
+    key: "updaterIgnoredVersion",
+    type: "optional-string",
+    status: "internal",
+    page: "updates",
+    section: "Atlas",
+    title: "Skipped release",
+    summary: "A release you chose to skip in the update prompt.",
+  },
+  {
+    key: "enterToSend",
+    type: "boolean",
+    status: "live",
+    page: "general",
+    section: "Composer",
+    title: "Enter to send",
+    summary: "Enter sends and Shift+Enter inserts a newline. Off: only ⌘/Ctrl+Enter sends.",
+  },
+  {
+    key: "agentUiNavigation",
+    type: "boolean",
+    status: "live",
+    page: "agents",
+    section: "Atlas Agent permissions",
+    title: "Let Atlas Agent navigate the app",
+    summary:
+      "Open files at a line, switch tabs and panels, and fill in a message or command for you.",
+  },
+  {
+    key: "agentOrgAccess",
+    type: "boolean",
+    status: "live",
+    page: "agents",
+    section: "Atlas Agent permissions",
+    title: "Let Atlas Agent act in your organization",
+    summary: "Read your organization's sessions, comments and conversations, and act there as you.",
+  },
+  {
+    key: "agentCodeTools",
+    type: "boolean",
+    status: "live",
+    page: "agents",
+    section: "Atlas Agent permissions",
+    title: "Let agents search code with Atlas",
+    summary:
+      "Give agents Atlas's in-process grep and find-files, which respect .gitignore and skip secrets.",
+  },
+  {
+    key: "memoryDreams",
+    type: "boolean",
+    status: "live",
+    page: "memory",
+    section: "Shared memory",
+    title: "Nightly memory review",
+    summary:
+      "Once a day, propose changes to shared memory for you to review. Nothing applies without you.",
+  },
+  {
+    key: "memoryRepoMirror",
+    type: "boolean",
+    status: "live",
+    page: "memory",
+    section: "Shared memory",
+    title: "Mirror memory as an Agent Memory Repo",
+    summary: "Keep a read-only local git copy of each project's memory, outside the project.",
+  },
+  {
+    key: "atlasOnlyMemory",
+    type: "boolean",
+    status: "live",
+    page: "memory",
+    section: "Shared memory",
+    title: "Atlas is the only memory in Atlas sessions",
+    summary:
+      "Turn off each agent's own memory so every agent reads and writes the one shared memory.",
+  },
+  {
+    key: "terminalNotifications",
+    type: "boolean",
+    status: "legacy",
+    page: "notifications",
+    section: "Legacy",
+    title: "Terminal notifications (legacy)",
+    summary: "Superseded by the per-kind switches in Notifications.",
+  },
+  {
+    key: "terminalNotifyMinDurationMs",
+    type: "integer",
+    status: "live",
+    page: "notifications",
+    section: "Notifications",
+    title: "Notify on command success after",
+    summary:
+      "A terminal command that succeeds faster than this stays quiet. Failures always notify.",
+    min: 0,
+    max: 3600000,
+  },
+  {
+    key: "terminalNotifyOnFailure",
+    type: "boolean",
+    status: "legacy",
+    page: "notifications",
+    section: "Legacy",
+    title: "Notify on command failure (legacy)",
+    summary: "Superseded by the per-kind switches in Notifications.",
+  },
+  {
+    key: "terminalNotifyOnAttention",
+    type: "boolean",
+    status: "legacy",
+    page: "notifications",
+    section: "Legacy",
+    title: "Notify when a command wants input (legacy)",
+    summary: "Superseded by the per-kind switches in Notifications.",
+  },
+  {
+    key: "terminalNotifyNative",
+    type: "boolean",
+    status: "legacy",
+    page: "notifications",
+    section: "Legacy",
+    title: "Terminal system notifications (legacy)",
+    summary: "Superseded by the per-tier System notification switches.",
+  },
+  {
+    key: "terminalNotifySound",
+    type: "boolean",
+    status: "legacy",
+    page: "notifications",
+    section: "Legacy",
+    title: "Terminal notification sound (legacy)",
+    summary: "Superseded by the per-tier Sound switches.",
+  },
+  {
+    key: "notificationsEnabled",
+    type: "boolean",
+    status: "live",
+    page: "notifications",
+    section: "Notifications",
+    title: "Notifications",
+    summary: "Every notification below. Sign-in problems always show.",
+  },
+  {
+    key: "notifyNeedsYouNative",
+    type: "boolean",
+    status: "live",
+    page: "notifications",
+    section: "Needs you",
+    title: "System notification",
+    summary: "An OS banner for a permission request, a question, or a terminal asking for input.",
+  },
+  {
+    key: "notifyNeedsYouSound",
+    type: "boolean",
+    status: "live",
+    page: "notifications",
+    section: "Needs you",
+    title: "Sound",
+    summary: "A short sound with notifications that need you.",
+  },
+  {
+    key: "notifyOutcomeNative",
+    type: "boolean",
+    status: "live",
+    page: "notifications",
+    section: "Outcomes",
+    title: "System notification",
+    summary: "An OS banner when an agent turn or terminal command finishes or fails.",
+  },
+  {
+    key: "notifyOutcomeSound",
+    type: "boolean",
+    status: "live",
+    page: "notifications",
+    section: "Outcomes",
+    title: "Sound",
+    summary: "A short sound when something finishes or fails.",
+  },
+  {
+    key: "notifyWarningNative",
+    type: "boolean",
+    status: "live",
+    page: "notifications",
+    section: "Warnings",
+    title: "System notification",
+    summary: "An OS banner for context nearly full, rate limits, retries and stopped agents.",
+  },
+  {
+    key: "notifyWarningSound",
+    type: "boolean",
+    status: "live",
+    page: "notifications",
+    section: "Warnings",
+    title: "Sound",
+    summary: "A short sound with warnings.",
+  },
+  {
+    key: "notifyTeamNative",
+    type: "boolean",
+    status: "live",
+    page: "notifications",
+    section: "Team",
+    title: "System notification",
+    summary: "An OS banner for Chat direct messages and @mentions.",
+  },
+  {
+    key: "notifyTeamSound",
+    type: "boolean",
+    status: "live",
+    page: "notifications",
+    section: "Team",
+    title: "Sound",
+    summary: "A short sound with Chat notifications.",
+  },
+  {
+    key: "notifyPermissionActions",
+    type: "boolean",
+    status: "live",
+    page: "notifications",
+    section: "Needs you",
+    title: "Banner actions on permission requests",
+    summary:
+      "Show Allow once and Deny on a permission banner, so you can answer without opening Atlas.",
+  },
+  {
+    key: "notificationsMigrated",
+    type: "boolean",
+    status: "internal",
+    page: "notifications",
+    section: "Legacy",
+    title: "Notification choices migrated",
+    summary: "Set once Atlas has folded earlier notification choices into the current keys.",
+  },
+  {
+    key: "notifyDisabledKinds",
+    type: "string-list",
+    status: "live",
+    page: "notifications",
+    section: "Kinds",
+    title: "Notification kinds",
+    summary: "One switch per kind of notification, from command finished to Git behind.",
+  },
+  {
+    key: "notifyKindsMigrated",
+    type: "boolean",
+    status: "internal",
+    page: "notifications",
+    section: "Legacy",
+    title: "Notification kinds migrated",
+    summary: "Set once Atlas has folded earlier per-kind switches into notifyDisabledKinds.",
+  },
+  {
+    key: "notifyAgentMinDurationMs",
+    type: "integer",
+    status: "live",
+    page: "notifications",
+    section: "Notifications",
+    title: "Notify on agent finish after",
+    summary:
+      "An agent turn that finishes faster than this stays quiet. Failures and requests always notify.",
+    min: 0,
+    max: 3600000,
+  },
+  {
+    key: "favoriteModels",
+    type: "string-list",
+    status: "elsewhere",
+    page: "agents",
+    section: "Models",
+    title: "Favorite models",
+    summary: "Models you starred in the composer's model picker.",
+    setIn: "the star in the composer's model picker",
+  },
+];

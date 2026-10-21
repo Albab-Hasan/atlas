@@ -2,12 +2,15 @@
 
 Reference for Atlas's user-facing preferences file. Written for both humans
 hand-editing the file and agents using the `atlas-self-configure` skill
-(`src-tauri/resources/skills/atlas-self-configure/SKILL.md`) — the skill's
-key table is a copy of the one below, and both are compiled into the test
-binary via `include_str!` so a Rust test (`every_known_setting_key_is_*` in
-`state/atlas_config.rs`) fails the build the moment either one drops a key;
-see [Testing](#testing).
+(`src-tauri/resources/skills/atlas-self-configure/SKILL.md`). The skill
+deliberately carries no key table: it sends the agent to the file's own
+comments, which are generated from the same registry as the schema table
+below. See [The settings registry](#the-settings-registry) and
+[Testing](#testing).
 
+- **Settings registry:** `src-tauri/settings-registry.toml` — every key's type,
+  default, bounds, Settings location and comment. Everything else below is
+  generated from it or tested against it.
 - **Source of truth (Rust):** `src-tauri/src/state/atlas_config.rs`
   (schema, defaults, validation, migration) and
   `src-tauri/src/commands/atlas_config.rs` (Tauri commands + file watcher).
@@ -57,9 +60,12 @@ key Atlas doesn't recognize. Chosen over JSON (no comments) and YAML
 
 Atlas writes the file **self-documenting**: a header, then a comment above
 every key giving what it does, its default, and any constraint on its value.
-Those comments come from `SETTINGS_DOCS` in `state/atlas_config.rs` — the same
-table `unknown_keys_in` uses to decide what Atlas recognizes — so they can't
-drift from what validation accepts.
+Those comments come from the settings registry, `src-tauri/settings-registry.toml`,
+through the generated `SETTINGS_DOCS` table in `state/settings_docs.gen.rs` —
+the same table `unknown_keys_in` uses to decide what Atlas recognizes — so they
+can't drift from what validation accepts. The complete file a fresh install
+gets is committed as [`config.default.toml`](config.default.toml); see
+[The settings registry](#the-settings-registry).
 
 That is deliberate, and it's why the bundled `atlas-self-configure` skill
 carries no key table of its own: an agent reads the real file and gets a
@@ -70,14 +76,14 @@ that was projected into `~/.agents/skills` at some earlier version. The
 halves of that in place.
 
 A generated file looks like this (abridged — every key gets the same
-treatment):
+treatment; `config.default.toml` is the whole thing):
 
 ```toml
 # Atlas configuration.
 #
 # Every user-facing Atlas preference lives here. Edit this file by hand or use
-# Settings — both write to it, and Atlas picks up external edits live, with no
-# restart needed for any key below.
+# Settings — both write to it, and Atlas picks up external edits live. A change
+# takes effect at once unless the key's comment says otherwise.
 #
 # Your comments, formatting, and any keys Atlas doesn't recognize survive its
 # own writes. An invalid value is rejected whole: Atlas keeps running on the
@@ -249,60 +255,87 @@ Comments are only ever written into a file Atlas generates — first migration,
 or "Recreate defaults". Atlas never injects them into a file a user or agent
 wrote; `toml_edit` just preserves whatever comments are already there.
 
+## The settings registry
+
+`src-tauri/settings-registry.toml` is the one hand-edited description of every key
+under `[settings]`. `bun run settings:gen` writes everything derived from it:
+
+| Output | What it is |
+|---|---|
+| `src-tauri/src/state/settings_docs.gen.rs` | `SETTINGS_DOCS`, the comment written above each key in a fresh file |
+| `src/features/settings/lib/settings-registry.gen.ts` | the TS `AppSettings` type, `DEFAULT_SETTINGS`, and per-key metadata (page, section, title, status) for the Settings UI and its search |
+| `docs/reference/settings.json` | the same metadata, read by the docs site (`bun run sync:settings` in `docs-atlas`) |
+| the schema table below | between the `generated:settings` markers |
+
+The Rust `AppSettings` struct, its serde defaults and `SettingsPatch` stay
+hand-written. `the_settings_registry_matches_app_settings` holds them to the
+registry: same keys, same order, same defaults, same bounds, and every enum
+value accepted. So adding a setting is a field on the struct, an entry in the
+registry, and `bun run settings:gen`; forgetting either half fails a test.
+
+Each entry's `status` says where the key is changed: `live` (a Settings row),
+`elsewhere` (another part of the app), `file-only`, `internal` (Atlas's own
+bookkeeping), or `legacy` (read only by a migration; safe to delete).
+
 ## Schema
 
-| Key | Type | Default | Validation |
-|---|---|---|---|
-| `autoAddAtlasGitignore` | boolean | `true` | — |
-| `enableAtlasLogs` | boolean | `true` | — |
-| `showHiddenFiles` | boolean | `true` | — |
-| `uiScale` | number | `1.0` | finite, `0.5`–`2.0` inclusive |
-| `shareTelemetry` | boolean | `true` | — |
-| `linkTelemetryToAccount` | boolean | `true` | — |
-| `embeddingModelId` | string | `"all-MiniLM-L6-v2"` | non-empty |
-| `theme` | string | `"atlas"` | known theme id; an unknown id is logged and falls back to `"atlas"` |
-| `themeMode` | `"system"` \| `"dark"` \| `"light"` | `"system"` | exactly one of these values; a missing requested variant falls back to the theme's other variant. Light is persisted but hidden in Settings until light-mode QA completes. |
-| `themeOverrides` | table | absent | optional `base`, `palette`, and `keys` patch applied after the active theme variant |
-| `iconTheme` | string | `"material-icon-theme"` | a plain id (letters, digits, `.`, `-`, `_`) — it names a directory under `~/.config/atlas/icon-themes/`. `"minimal"` keeps Atlas's lucide icons. See `docs/reference/icon-themes.md` |
-| `appIcon` | string | `"dark"` | a plain id (letters, digits, `-`, `_`) from `src-tauri/icons/app-icons/app-icons.json` — today `"dark"` or `"light"`. An id this Atlas does not ship shows the default without rewriting the file. macOS only: `"dark"` is the bundle's own Liquid Glass icon; any other replaces the Dock icon and the bundle's Finder/Launchpad icon, re-applied at every launch |
-| `adaptiveSuggestions` | `"agent"` \| `"off"` | `"agent"` | exactly one of these two strings |
-| `agentSwitchBehavior` | `"new-tab"` \| `"handoff"` \| `"reset"` | `"reset"` | exactly one of these three strings. An empty chat always switches in place and a running one always gets a new tab, whatever this says |
-| `gitBlameInline` | boolean | `true` | — |
-| `gitAutoFetch` | boolean | `true` | — |
-| `keepAwakeWhileRunning` | boolean | `false` | no effect on Windows |
-| `autoUpdate` | boolean | `true` | — |
-| `curatedPluginSync` | boolean | `false` | — |
-| `instructionSync` | boolean | `false` | — . See [Mirrored instructions](#mirrored-instructions-instructionsync) |
-| `rememberBeforeSwitch` | boolean | `false` | — . Acts only on a chat with a conversation whose agent advertises `/remember` (the bundled `remember` skill); waits at most 3 minutes, and the user can switch at once |
-| `updaterIgnoredVersion` | string, or absent | absent | — |
-| `enterToSend` | boolean | `true` | — |
-| `agentUiNavigation` | boolean | `true` | — |
-| `agentOrgAccess` | boolean | `true` | — |
-| `agentCodeTools` | boolean | `true` | — |
-| `memoryDreams` | boolean | `false` | — |
-| `memoryRepoMirror` | boolean | `false` | — |
-| `atlasOnlyMemory` | boolean | `true` | — |
-| `terminalNotifications` | boolean | `true` | — |
-| `terminalNotifyMinDurationMs` | integer | `10000` | 0 ≤ n ≤ 3600000 |
-| `terminalNotifyOnFailure` | boolean | `true` | — |
-| `terminalNotifyOnAttention` | boolean | `true` | — |
-| `terminalNotifyNative` | boolean | `true` | — |
-| `terminalNotifySound` | boolean | `false` | — |
-| `notificationsEnabled` | boolean | `true` | — |
-| `notifyNeedsYouNative` | boolean | `true` | — |
-| `notifyNeedsYouSound` | boolean | `true` | — |
-| `notifyOutcomeNative` | boolean | `true` | — |
-| `notifyOutcomeSound` | boolean | `true` | — |
-| `notifyWarningNative` | boolean | `false` | — |
-| `notifyWarningSound` | boolean | `false` | — |
-| `notifyTeamNative` | boolean | `true` | — |
-| `notifyTeamSound` | boolean | `true` | — |
-| `notifyPermissionActions` | boolean | `true` | — |
-| `notificationsMigrated` | boolean | `false` | — |
-| `notifyDisabledKinds` | array of strings | `[]` | — |
-| `notifyKindsMigrated` | boolean | `false` | — |
-| `notifyAgentMinDurationMs` | integer | `0` | 0 ≤ n ≤ 3600000 |
-| `favoriteModels` | array of strings | `[]` | — |
+<!-- generated:settings -->
+<!-- Generated from src-tauri/settings-registry.toml — do not edit. Run `bun run settings:gen` after editing that file. -->
+
+| Key | Type | Default | Where to change it | Validation |
+|---|---|---|---|---|
+| `autoAddAtlasGitignore` | boolean | `true` | General › Files › Keep .atlas out of git | — |
+| `enableAtlasLogs` | boolean | `true` | Privacy › Diagnostics › Atlas logs | — |
+| `showHiddenFiles` | boolean | `true` | General › Files › Show hidden files | — |
+| `uiScale` | number | `1.0` | General › Interface › Interface zoom | finite, `0.5`–`2.0` inclusive |
+| `shareTelemetry` | boolean | `true` | Privacy › Usage data › Share usage data | — |
+| `linkTelemetryToAccount` | boolean | `true` | Privacy › Usage data › Link usage data to my account | — |
+| `embeddingModelId` | string | `"all-MiniLM-L6-v2"` | Settings → Local Models | non-empty |
+| `theme` | string | `"atlas"` | Appearance › Theme › Theme | known theme id; an unknown id is logged and falls back to `"atlas"` |
+| `themeMode` | `"system"` \| `"dark"` \| `"light"` | `"system"` | Appearance › Theme › Mode | exactly one of these values; a missing requested variant falls back to the theme's other variant |
+| `themeOverrides` | table | absent | file only | optional `base`, `palette`, and `keys` patch applied after the active theme variant; a bad entry is dropped, not fatal |
+| `iconTheme` | string | `"material-icon-theme"` | Appearance › Icons › File icon theme | a plain id (letters, digits, `.`, `-`, `_`) — it names a directory under `~/.config/atlas/icon-themes/`. `"minimal"` keeps Atlas's lucide icons. See `docs/reference/icon-themes.md` |
+| `appIcon` | string | `"dark"` | Appearance › App icon › App icon | a plain id (letters, digits, `-`, `_`) from `src-tauri/icons/app-icons/app-icons.json` — today `"dark"` or `"light"`. An id this Atlas does not ship shows the default without rewriting the file |
+| `adaptiveSuggestions` | `"agent"` \| `"off"` | `"agent"` | Agents › Chat › Next-step suggestions | exactly one of these two strings |
+| `agentSwitchBehavior` | `"reset"` \| `"new-tab"` \| `"handoff"` | `"reset"` | Agents › Switching agents › Switching agents in a chat | exactly one of these three strings. An empty chat always switches in place and a running one always gets a new tab, whatever this says |
+| `rememberBeforeSwitch` | boolean | `false` | Agents › Switching agents › Save to memory before switching agents | — . Acts only on a chat with a conversation whose agent advertises `/remember` (the bundled `remember` skill); waits at most 3 minutes, and the user can switch at once |
+| `gitBlameInline` | boolean | `true` | Source Control › Editor › Inline Git blame | — |
+| `gitAutoFetch` | boolean | `true` | Source Control › Repositories › Auto-fetch from remote | — |
+| `keepAwakeWhileRunning` | boolean | `false` | General › Interface › Keep awake while an agent is working | no effect on Windows |
+| `autoUpdate` | boolean | `true` | Updates › Atlas › Automatic updates | — |
+| `curatedPluginSync` | boolean | `false` | Updates › Atlas Agent › Keep Atlas Agent's plugin catalog up to date | — |
+| `instructionSync` | boolean | `false` | Memory › Instructions › Mirror CLAUDE.md and .claude/rules into AGENTS.md | — . See [Mirrored instructions](#mirrored-instructions-instructionsync) |
+| `updaterIgnoredVersion` | string, or absent | absent | managed by Atlas | — |
+| `enterToSend` | boolean | `true` | General › Composer › Enter to send | — |
+| `agentUiNavigation` | boolean | `true` | Agents › Atlas Agent permissions › Let Atlas Agent navigate the app | — |
+| `agentOrgAccess` | boolean | `true` | Agents › Atlas Agent permissions › Let Atlas Agent act in your organization | — |
+| `agentCodeTools` | boolean | `true` | Agents › Atlas Agent permissions › Let agents search code with Atlas | — |
+| `memoryDreams` | boolean | `false` | Memory › Shared memory › Nightly memory review | — |
+| `memoryRepoMirror` | boolean | `false` | Memory › Shared memory › Mirror memory as an Agent Memory Repo | — |
+| `atlasOnlyMemory` | boolean | `true` | Memory › Shared memory › Atlas is the only memory in Atlas sessions | — |
+| `terminalNotifications` | boolean | `true` | legacy — no effect | — |
+| `terminalNotifyMinDurationMs` | integer | `10000` | Notifications › Notifications › Notify on command success after | 0 ≤ n ≤ 3600000 |
+| `terminalNotifyOnFailure` | boolean | `true` | legacy — no effect | — |
+| `terminalNotifyOnAttention` | boolean | `true` | legacy — no effect | — |
+| `terminalNotifyNative` | boolean | `true` | legacy — no effect | — |
+| `terminalNotifySound` | boolean | `false` | legacy — no effect | — |
+| `notificationsEnabled` | boolean | `true` | Notifications › Notifications › Notifications | — |
+| `notifyNeedsYouNative` | boolean | `true` | Notifications › Needs you › System notification | — |
+| `notifyNeedsYouSound` | boolean | `true` | Notifications › Needs you › Sound | — |
+| `notifyOutcomeNative` | boolean | `true` | Notifications › Outcomes › System notification | — |
+| `notifyOutcomeSound` | boolean | `true` | Notifications › Outcomes › Sound | — |
+| `notifyWarningNative` | boolean | `false` | Notifications › Warnings › System notification | — |
+| `notifyWarningSound` | boolean | `false` | Notifications › Warnings › Sound | — |
+| `notifyTeamNative` | boolean | `true` | Notifications › Team › System notification | — |
+| `notifyTeamSound` | boolean | `true` | Notifications › Team › Sound | — |
+| `notifyPermissionActions` | boolean | `true` | Notifications › Needs you › Banner actions on permission requests | — |
+| `notificationsMigrated` | boolean | `false` | managed by Atlas | — |
+| `notifyDisabledKinds` | array of strings | `[]` | Notifications › Kinds › Notification kinds | unknown ids are ignored |
+| `notifyKindsMigrated` | boolean | `false` | managed by Atlas | — |
+| `notifyAgentMinDurationMs` | integer | `0` | Notifications › Notifications › Notify on agent finish after | 0 ≤ n ≤ 3600000 |
+| `favoriteModels` | array of strings | `[]` | the star in the composer's model picker | entries are `agentType:modelId`; unknown entries are ignored |
+
+<!-- /generated:settings -->
 
 Any other key under `[settings]` is left on disk untouched and reported as an
 `unknownKeys` entry in `get_atlas_config_info` — never treated as an error,
@@ -560,6 +593,12 @@ schema accepts only `"agent"` or `"off"`.
 
 ## Testing
 
+- Rust: `the_settings_registry_matches_app_settings` pins `AppSettings` to
+  `src-tauri/settings-registry.toml`, and `the_default_file_matches_the_committed_copy`
+  pins the generated file to `docs/reference/config.default.toml`
+  (`ATLAS_BLESS=1 cargo test -p atlas config_default` rewrites it).
+- TS: `tests/settings-registry.test.ts` fails when any generated output is
+  stale (`bun run settings:gen`).
 - Rust: `src-tauri/src/state/atlas_config.rs` (`#[cfg(test)] mod tests`) —
   defaults, missing-key fallback, comment/unknown-key preservation across a
   patch, invalid values, unsupported future schema, malformed cold-start and

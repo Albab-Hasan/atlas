@@ -99,6 +99,12 @@ export const EXTRA_INPUTS = [
     why: "include_str! in the tests module of src-tauri/src/state/atlas_config.rs",
   },
   {
+    path: "docs/reference/config.default.toml",
+    packages: ["atlas"],
+    testOnly: true,
+    why: "config_default_file_matches_the_committed_copy in src-tauri/src/state/atlas_config.rs",
+  },
+  {
     path: "crates/atlas-kb-server/",
     packages: ["atlas"],
     why: "commands/knowledge_export.rs locates and compiles it at runtime",

@@ -24,6 +24,8 @@
     "test:contracts": "vitest run tests/",
     "theme:keys": "node scripts/generate-theme-keys.mjs",
     "theme:keys:check": "node scripts/generate-theme-keys.mjs --check",
+    "settings:gen": "node scripts/generate-settings.mjs",
+    "settings:gen:check": "node scripts/generate-settings.mjs --check",
     "icons:render": "node scripts/app-icons.mjs",
     "icons:check": "node scripts/app-icons.mjs --check",
     "test:rust": "bash scripts/test-rust.sh",
@@ -161,7 +163,10 @@
     "@codemirror/view": "^6.43.0"
   },
   "lint-staged": {
-    "{src,tests,scripts}/**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}": ["oxfmt --write", "oxlint"],
+    "{src,tests,scripts}/**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}": [
+      "oxfmt --write",
+      "oxlint"
+    ],
     "{src,tests,scripts}/**/*.{json,css}": "oxfmt --write",
     "**/*.rs": "node scripts/rustfmt-staged.mjs"
   },
