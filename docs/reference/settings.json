@@ -4,17 +4,22 @@
     {
       "id": "general",
       "title": "General",
-      "description": "Interface, the composer, and how Atlas treats your project's files."
+      "description": "Interface, the app icon, and how Atlas treats your project's files."
     },
     {
       "id": "appearance",
       "title": "Appearance",
-      "description": "Theme, mode, file icons and the app icon."
+      "description": "One theme for the whole app, and whether it follows your system."
     },
     {
-      "id": "agents",
-      "title": "Agents",
-      "description": "How agents behave in a chat, what Atlas Agent may do, and your models."
+      "id": "icons",
+      "title": "Icons",
+      "description": "File and folder icons, chosen separately from the theme."
+    },
+    {
+      "id": "chat",
+      "title": "Chat",
+      "description": "The composer, switching agents, and what Atlas Agent may do."
     },
     {
       "id": "memory",
@@ -34,7 +39,7 @@
     {
       "id": "privacy",
       "title": "Privacy",
-      "description": "Usage data and Atlas's own logs."
+      "description": "Usage data, Atlas's own logs, and the settings file itself."
     },
     {
       "id": "updates",
@@ -175,8 +180,8 @@
       "key": "iconTheme",
       "type": "string",
       "status": "live",
-      "page": "appearance",
-      "section": "Icons",
+      "page": "icons",
+      "section": "File icons",
       "title": "File icon theme",
       "summary": "File and folder icons, chosen separately from the colour theme.",
       "default": "\"material-icon-theme\"",
@@ -187,8 +192,8 @@
       "key": "appIcon",
       "type": "string",
       "status": "live",
-      "page": "appearance",
-      "section": "App icon",
+      "page": "general",
+      "section": "Interface",
       "title": "App icon",
       "summary": "The icon in the Dock, Finder and Launchpad.",
       "platforms": [
@@ -202,8 +207,8 @@
       "key": "adaptiveSuggestions",
       "type": "enum",
       "status": "live",
-      "page": "agents",
-      "section": "Chat",
+      "page": "chat",
+      "section": "Conversation",
       "title": "Next-step suggestions",
       "summary": "After each turn, the agent suggests two or three follow-ups as clickable chips.",
       "values": [
@@ -218,7 +223,7 @@
       "key": "agentSwitchBehavior",
       "type": "enum",
       "status": "live",
-      "page": "agents",
+      "page": "chat",
       "section": "Switching agents",
       "title": "Switching agents in a chat",
       "summary": "What picking another agent does once a chat has a conversation.",
@@ -235,7 +240,7 @@
       "key": "rememberBeforeSwitch",
       "type": "boolean",
       "status": "live",
-      "page": "agents",
+      "page": "chat",
       "section": "Switching agents",
       "title": "Save to memory before switching agents",
       "summary": "Ask the agent you are leaving to save what it learned to shared memory first.",
@@ -336,7 +341,7 @@
       "key": "enterToSend",
       "type": "boolean",
       "status": "live",
-      "page": "general",
+      "page": "chat",
       "section": "Composer",
       "title": "Enter to send",
       "summary": "Enter sends and Shift+Enter inserts a newline. Off: only ⌘/Ctrl+Enter sends.",
@@ -348,7 +353,7 @@
       "key": "agentUiNavigation",
       "type": "boolean",
       "status": "live",
-      "page": "agents",
+      "page": "chat",
       "section": "Atlas Agent permissions",
       "title": "Let Atlas Agent navigate the app",
       "summary": "Open files at a line, switch tabs and panels, and fill in a message or command for you.",
@@ -360,7 +365,7 @@
       "key": "agentOrgAccess",
       "type": "boolean",
       "status": "live",
-      "page": "agents",
+      "page": "chat",
       "section": "Atlas Agent permissions",
       "title": "Let Atlas Agent act in your organization",
       "summary": "Read your organization's sessions, comments and conversations, and act there as you.",
@@ -372,7 +377,7 @@
       "key": "agentCodeTools",
       "type": "boolean",
       "status": "live",
-      "page": "agents",
+      "page": "chat",
       "section": "Atlas Agent permissions",
       "title": "Let agents search code with Atlas",
       "summary": "Give agents Atlas's in-process grep and find-files, which respect .gitignore and skip secrets.",
@@ -664,7 +669,7 @@
       "key": "favoriteModels",
       "type": "string-list",
       "status": "elsewhere",
-      "page": "agents",
+      "page": "chat",
       "section": "Models",
       "title": "Favorite models",
       "summary": "Models you starred in the composer's model picker.",

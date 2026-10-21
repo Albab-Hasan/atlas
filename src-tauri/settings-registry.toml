@@ -39,8 +39,8 @@
 #               file-only no UI; edit config.toml by hand
 #               internal  Atlas's own bookkeeping; never edit
 #               legacy    no longer read except by a migration; safe to delete
-#   page        Settings page id: general | appearance | agents | memory |
-#               notifications | source-control | privacy | updates
+#   page        Settings page id (a `[[page]]` id, also a Settings section):
+#               general, appearance, icons, chat, memory, notifications, source-control, privacy, updates
 #   section     heading inside that page.
 #   title       the row's label, sentence case, no trailing period.
 #   summary     one sentence for the row's description and for search results.
@@ -63,17 +63,22 @@
 [[page]]
 id = "general"
 title = "General"
-description = "Interface, the composer, and how Atlas treats your project's files."
+description = "Interface, the app icon, and how Atlas treats your project's files."
 
 [[page]]
 id = "appearance"
 title = "Appearance"
-description = "Theme, mode, file icons and the app icon."
+description = "One theme for the whole app, and whether it follows your system."
 
 [[page]]
-id = "agents"
-title = "Agents"
-description = "How agents behave in a chat, what Atlas Agent may do, and your models."
+id = "icons"
+title = "Icons"
+description = "File and folder icons, chosen separately from the theme."
+
+[[page]]
+id = "chat"
+title = "Chat"
+description = "The composer, switching agents, and what Atlas Agent may do."
 
 [[page]]
 id = "memory"
@@ -93,7 +98,7 @@ description = "Git in the editor and in the background."
 [[page]]
 id = "privacy"
 title = "Privacy"
-description = "Usage data and Atlas's own logs."
+description = "Usage data, Atlas's own logs, and the settings file itself."
 
 [[page]]
 id = "updates"
@@ -260,8 +265,8 @@ key = "iconTheme"
 type = "string"
 default = "material-icon-theme"
 status = "live"
-page = "appearance"
-section = "Icons"
+page = "icons"
+section = "File icons"
 title = "File icon theme"
 summary = "File and folder icons, chosen separately from the colour theme."
 doc = """
@@ -277,8 +282,8 @@ type = "string"
 default = "dark"
 status = "live"
 platforms = ["macos"]
-page = "appearance"
-section = "App icon"
+page = "general"
+section = "Interface"
 title = "App icon"
 summary = "The icon in the Dock, Finder and Launchpad."
 doc = """
@@ -294,8 +299,8 @@ type = "enum"
 values = ["agent", "off"]
 default = "agent"
 status = "live"
-page = "agents"
-section = "Chat"
+page = "chat"
+section = "Conversation"
 title = "Next-step suggestions"
 summary = "After each turn, the agent suggests two or three follow-ups as clickable chips."
 doc = """
@@ -310,7 +315,7 @@ type = "enum"
 values = ["reset", "new-tab", "handoff"]
 default = "reset"
 status = "live"
-page = "agents"
+page = "chat"
 section = "Switching agents"
 title = "Switching agents in a chat"
 summary = "What picking another agent does once a chat has a conversation."
@@ -326,7 +331,7 @@ key = "rememberBeforeSwitch"
 type = "boolean"
 default = false
 status = "live"
-page = "agents"
+page = "chat"
 section = "Switching agents"
 title = "Save to memory before switching agents"
 summary = "Ask the agent you are leaving to save what it learned to shared memory first."
@@ -452,7 +457,7 @@ key = "enterToSend"
 type = "boolean"
 default = true
 status = "live"
-page = "general"
+page = "chat"
 section = "Composer"
 title = "Enter to send"
 summary = "Enter sends and Shift+Enter inserts a newline. Off: only ⌘/Ctrl+Enter sends."
@@ -467,7 +472,7 @@ key = "agentUiNavigation"
 type = "boolean"
 default = true
 status = "live"
-page = "agents"
+page = "chat"
 section = "Atlas Agent permissions"
 title = "Let Atlas Agent navigate the app"
 summary = "Open files at a line, switch tabs and panels, and fill in a message or command for you."
@@ -484,7 +489,7 @@ key = "agentOrgAccess"
 type = "boolean"
 default = true
 status = "live"
-page = "agents"
+page = "chat"
 section = "Atlas Agent permissions"
 title = "Let Atlas Agent act in your organization"
 summary = "Read your organization's sessions, comments and conversations, and act there as you."
@@ -501,7 +506,7 @@ key = "agentCodeTools"
 type = "boolean"
 default = true
 status = "live"
-page = "agents"
+page = "chat"
 section = "Atlas Agent permissions"
 title = "Let agents search code with Atlas"
 summary = "Give agents Atlas's in-process grep and find-files, which respect .gitignore and skip secrets."
@@ -860,7 +865,7 @@ type = "string-list"
 default = []
 status = "elsewhere"
 set_in = "the star in the composer's model picker"
-page = "agents"
+page = "chat"
 section = "Models"
 title = "Favorite models"
 summary = "Models you starred in the composer's model picker."

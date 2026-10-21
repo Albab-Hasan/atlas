@@ -1,35 +1,6 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
-export function SectionTitle({ title, subtitle }: { title: string; subtitle: string }) {
-  return (
-    <div>
-      <h2 className="text-sm font-semibold text-foreground">{title}</h2>
-      <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>
-    </div>
-  );
-}
-
-export function SettingRow({
-  label,
-  description,
-  children,
-}: {
-  label: string;
-  description: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex items-start justify-between gap-4">
-      <div>
-        <p className="text-sm font-medium text-foreground">{label}</p>
-        <p className="text-2xs text-muted-foreground mt-0.5">{description}</p>
-      </div>
-      <div className="shrink-0">{children}</div>
-    </div>
-  );
-}
-
 /**
  * Toggle — controlled OR uncontrolled. If `checked` is provided the parent
  * owns the state and `onChange` is fired on click; otherwise we keep

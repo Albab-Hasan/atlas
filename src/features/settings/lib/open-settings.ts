@@ -14,9 +14,12 @@ import { useSettingsNav, type SettingsSection } from "../stores/settings-nav-sto
  *   section, where the initial state has long since been read.
  *
  * Setting one without the other leaves half the ticket's requirement working.
+ *
+ * `anchor` names one row on that section (a setting key, e.g. `"gitAutoFetch"`)
+ * to scroll to and flash once it renders.
  */
-export function openSettingsSection(section: SettingsSection): void {
-  useSettingsNav.getState().goTo(section);
+export function openSettingsSection(section: SettingsSection, anchor?: string): void {
+  useSettingsNav.getState().goTo(section, anchor);
   useLayoutStore.getState().actions.addTab({
     id: "settings",
     type: "settings",

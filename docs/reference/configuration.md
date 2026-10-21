@@ -294,11 +294,11 @@ bookkeeping), or `legacy` (read only by a migration; safe to delete).
 | `theme` | string | `"atlas"` | Appearance › Theme › Theme | known theme id; an unknown id is logged and falls back to `"atlas"` |
 | `themeMode` | `"system"` \| `"dark"` \| `"light"` | `"system"` | Appearance › Theme › Mode | exactly one of these values; a missing requested variant falls back to the theme's other variant |
 | `themeOverrides` | table | absent | file only | optional `base`, `palette`, and `keys` patch applied after the active theme variant; a bad entry is dropped, not fatal |
-| `iconTheme` | string | `"material-icon-theme"` | Appearance › Icons › File icon theme | a plain id (letters, digits, `.`, `-`, `_`) — it names a directory under `~/.config/atlas/icon-themes/`. `"minimal"` keeps Atlas's lucide icons. See `docs/reference/icon-themes.md` |
-| `appIcon` | string | `"dark"` | Appearance › App icon › App icon | a plain id (letters, digits, `-`, `_`) from `src-tauri/icons/app-icons/app-icons.json` — today `"dark"` or `"light"`. An id this Atlas does not ship shows the default without rewriting the file |
-| `adaptiveSuggestions` | `"agent"` \| `"off"` | `"agent"` | Agents › Chat › Next-step suggestions | exactly one of these two strings |
-| `agentSwitchBehavior` | `"reset"` \| `"new-tab"` \| `"handoff"` | `"reset"` | Agents › Switching agents › Switching agents in a chat | exactly one of these three strings. An empty chat always switches in place and a running one always gets a new tab, whatever this says |
-| `rememberBeforeSwitch` | boolean | `false` | Agents › Switching agents › Save to memory before switching agents | — . Acts only on a chat with a conversation whose agent advertises `/remember` (the bundled `remember` skill); waits at most 3 minutes, and the user can switch at once |
+| `iconTheme` | string | `"material-icon-theme"` | Icons › File icons › File icon theme | a plain id (letters, digits, `.`, `-`, `_`) — it names a directory under `~/.config/atlas/icon-themes/`. `"minimal"` keeps Atlas's lucide icons. See `docs/reference/icon-themes.md` |
+| `appIcon` | string | `"dark"` | General › Interface › App icon | a plain id (letters, digits, `-`, `_`) from `src-tauri/icons/app-icons/app-icons.json` — today `"dark"` or `"light"`. An id this Atlas does not ship shows the default without rewriting the file |
+| `adaptiveSuggestions` | `"agent"` \| `"off"` | `"agent"` | Chat › Conversation › Next-step suggestions | exactly one of these two strings |
+| `agentSwitchBehavior` | `"reset"` \| `"new-tab"` \| `"handoff"` | `"reset"` | Chat › Switching agents › Switching agents in a chat | exactly one of these three strings. An empty chat always switches in place and a running one always gets a new tab, whatever this says |
+| `rememberBeforeSwitch` | boolean | `false` | Chat › Switching agents › Save to memory before switching agents | — . Acts only on a chat with a conversation whose agent advertises `/remember` (the bundled `remember` skill); waits at most 3 minutes, and the user can switch at once |
 | `gitBlameInline` | boolean | `true` | Source Control › Editor › Inline Git blame | — |
 | `gitAutoFetch` | boolean | `true` | Source Control › Repositories › Auto-fetch from remote | — |
 | `keepAwakeWhileRunning` | boolean | `false` | General › Interface › Keep awake while an agent is working | no effect on Windows |
@@ -306,10 +306,10 @@ bookkeeping), or `legacy` (read only by a migration; safe to delete).
 | `curatedPluginSync` | boolean | `false` | Updates › Atlas Agent › Keep Atlas Agent's plugin catalog up to date | — |
 | `instructionSync` | boolean | `false` | Memory › Instructions › Mirror CLAUDE.md and .claude/rules into AGENTS.md | — . See [Mirrored instructions](#mirrored-instructions-instructionsync) |
 | `updaterIgnoredVersion` | string, or absent | absent | managed by Atlas | — |
-| `enterToSend` | boolean | `true` | General › Composer › Enter to send | — |
-| `agentUiNavigation` | boolean | `true` | Agents › Atlas Agent permissions › Let Atlas Agent navigate the app | — |
-| `agentOrgAccess` | boolean | `true` | Agents › Atlas Agent permissions › Let Atlas Agent act in your organization | — |
-| `agentCodeTools` | boolean | `true` | Agents › Atlas Agent permissions › Let agents search code with Atlas | — |
+| `enterToSend` | boolean | `true` | Chat › Composer › Enter to send | — |
+| `agentUiNavigation` | boolean | `true` | Chat › Atlas Agent permissions › Let Atlas Agent navigate the app | — |
+| `agentOrgAccess` | boolean | `true` | Chat › Atlas Agent permissions › Let Atlas Agent act in your organization | — |
+| `agentCodeTools` | boolean | `true` | Chat › Atlas Agent permissions › Let agents search code with Atlas | — |
 | `memoryDreams` | boolean | `false` | Memory › Shared memory › Nightly memory review | — |
 | `memoryRepoMirror` | boolean | `false` | Memory › Shared memory › Mirror memory as an Agent Memory Repo | — |
 | `atlasOnlyMemory` | boolean | `true` | Memory › Shared memory › Atlas is the only memory in Atlas sessions | — |
@@ -458,7 +458,10 @@ auto-repaired, renamed, or overwritten by Atlas on its own:
   file it didn't validate first.
 
 Any status other than `"ok"` reaches the user as a banner at the top of
-Settings → General, with "Open config" and "Recreate defaults" beside it.
+Settings → General, with "Open config.toml" and "Recreate defaults" beside it.
+Settings → Privacy › Settings file shows the same status at any time, with the
+file's path and the `unknownKeys` list, so a typo'd key is visible rather
+than silently ignored.
 Both the boot-time status (carried on `bootstrap_app_state`'s
 `configStatus`) and later hot-reload failures (`atlas:config-error`) land
 there, so a config that failed to load at startup can't quietly serve

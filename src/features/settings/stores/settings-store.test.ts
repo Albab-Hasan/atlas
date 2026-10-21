@@ -8,6 +8,7 @@ import { DEFAULT_SETTINGS, type AppSettings } from "../lib/app-settings";
 const applyConfiguredTheme = vi.fn();
 const applyConfiguredIconTheme = vi.fn();
 const updateAtlasConfig = vi.fn();
+const setTelemetryEnabled = vi.fn();
 let configChanged: ((payload: { settings: AppSettings; generation: number }) => void) | undefined;
 
 vi.mock("@/features/theme/stores/theme-store", () => ({
@@ -15,6 +16,9 @@ vi.mock("@/features/theme/stores/theme-store", () => ({
 }));
 vi.mock("@/features/icon-theme/stores/icon-theme-store", () => ({
   applyConfiguredIconTheme: (...args: unknown[]) => applyConfiguredIconTheme(...args),
+}));
+vi.mock("@/features/telemetry/posthog-client", () => ({
+  setEnabled: (...args: unknown[]) => setTelemetryEnabled(...args),
 }));
 vi.mock("@/features/settings/lib/ui-scale", () => ({ DEFAULT_SCALE: 1, applyUiScale: () => {} }));
 vi.mock("@/features/settings/lib/atlas-config-api", () => ({
@@ -156,5 +160,26 @@ describe("icon appearance", () => {
 
     expect(applyConfiguredIconTheme).toHaveBeenCalledTimes(1);
     expect(applyConfiguredIconTheme).toHaveBeenCalledWith("seti", "light");
+  });
+});
+
+describe("telemetry side effect", () => {
+  /** The crash reporter is frontend-only, so the store, not one switch, has to
+   *  flip it: a reset, Restore defaults and a hand edit all go through here. */
+  it("re-enables the crash reporter whenever shareTelemetry comes back on", async () => {
+    useSettingsStore.getState().actions.hydrate({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        shareTelemetry: false,
+        notificationsMigrated: true,
+        notifyKindsMigrated: true,
+      },
+      configGeneration: 1,
+    });
+    configChanged?.({
+      settings: { ...DEFAULT_SETTINGS, notificationsMigrated: true, notifyKindsMigrated: true },
+      generation: 2,
+    });
+    await vi.waitFor(() => expect(setTelemetryEnabled).toHaveBeenLastCalledWith(true));
   });
 });

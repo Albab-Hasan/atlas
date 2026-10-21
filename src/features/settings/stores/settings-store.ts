@@ -128,6 +128,14 @@ function applySettingsSideEffects(next: AppSettings, previous: AppSettings): voi
   if (next.iconTheme !== previous.iconTheme) applyIcons(next.iconTheme, next.themeMode);
   // Agents are offered the code tools when a session opens, so an empty chat
   // opened while they were off is rebound to get them.
+  // Rust re-syncs its own telemetry gate on every settings commit; the
+  // frontend-only crash reporter is the one thing it can't reach. Here rather
+  // than on the switch, so a reset, Restore defaults or a hand edit reaches it.
+  if (next.shareTelemetry !== previous.shareTelemetry) {
+    void import("@/features/telemetry/posthog-client").then((m) =>
+      m.setEnabled(next.shareTelemetry),
+    );
+  }
   if (next.agentCodeTools && !previous.agentCodeTools) {
     void import("@/features/chat/lib/rebind-empty-chats").then((m) => m.rebindEmptyChats());
   }
