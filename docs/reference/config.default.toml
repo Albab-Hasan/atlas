@@ -52,8 +52,8 @@ theme = "atlas"
 # variant falls back to the theme's other one. (default: "system")
 themeMode = "system"
 
-# Optional user-local patch with base, palette and keys tables, applied after
-# the active theme variant. Omitted when empty.
+# themeOverrides: Optional user-local patch with base, palette and keys
+# tables, applied after the active theme variant. Omitted when empty.
 # File and folder icons, on their own track from the color theme. "minimal"
 # keeps Atlas's own lucide icons; anything else names a VS Code icon theme,
 # bundled or installed from Open VSX. (default: "material-icon-theme")

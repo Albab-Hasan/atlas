@@ -43,7 +43,7 @@ const SETTINGS_DOCS: &[(&str, &str)] = &[
     ),
     (
         "themeOverrides",
-        "# Optional user-local patch with base, palette and keys tables, applied after\n# the active theme variant. Omitted when empty.",
+        "# themeOverrides: Optional user-local patch with base, palette and keys\n# tables, applied after the active theme variant. Omitted when empty.",
     ),
     (
         "iconTheme",

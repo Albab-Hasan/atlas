@@ -10,6 +10,14 @@ import { useSettingsStore } from "../../stores/settings-store";
 import type { AppSettings, BooleanSettingKey } from "../../lib/app-settings";
 import { settingMeta } from "../../lib/settings-sections";
 
+/** "Needs you: System notification", not just "System notification": one page
+ *  can hold several rows with the same title, one per section, and a screen
+ *  reader moving between controls hears only this name. */
+function accessibleName(setting: keyof AppSettings): string {
+  const meta = settingMeta(setting);
+  return `${meta.section}: ${meta.title}`;
+}
+
 export function SettingSwitch({
   setting,
   disabled,
@@ -26,7 +34,7 @@ export function SettingSwitch({
     <Switch
       checked={checked}
       disabled={disabled}
-      aria-label={settingMeta(setting).title}
+      aria-label={accessibleName(setting)}
       onCheckedChange={(next) => {
         void updateSettings({ [setting]: next } as Partial<AppSettings>);
         onChange?.(next);
@@ -60,7 +68,7 @@ export function SettingSelect<K extends EnumKey>({
       value={value}
       options={options}
       disabled={disabled}
-      aria-label={settingMeta(setting).title}
+      aria-label={accessibleName(setting)}
       onValueChange={(next) => void updateSettings({ [setting]: next } as Partial<AppSettings>)}
     />
   );

@@ -313,7 +313,7 @@ function wrap(text, width) {
  */
 export function configComment(setting) {
   let text = setting.doc;
-  if (setting.type === "optional-string") text = `${setting.key}: ${text}`;
+  if (ABSENT_BY_DEFAULT.has(setting.type)) text = `${setting.key}: ${text}`;
   const literal = tomlLiteral(setting);
   if (literal !== null) text = `${text} (default: ${literal})`;
   return wrap(text, COMMENT_WIDTH - 2)
@@ -575,10 +575,12 @@ function spliceDocs(current, block) {
  * way. `oxfmt` is a pinned dev dependency, so the output is deterministic.
  */
 function formatTs(content, relative) {
+  // Windows gets `.cmd` shims in `.bin`, which only run through a shell.
+  const windows = process.platform === "win32";
   const result = spawnSync(
-    path.join(REPO_ROOT, "node_modules", ".bin", "oxfmt"),
+    path.join(REPO_ROOT, "node_modules", ".bin", windows ? "oxfmt.cmd" : "oxfmt"),
     [`--stdin-filepath=${relative}`],
-    { input: content, encoding: "utf8", cwd: REPO_ROOT },
+    { input: content, encoding: "utf8", cwd: REPO_ROOT, shell: windows },
   );
   if (result.status !== 0) {
     throw new Error(`oxfmt failed on ${relative}: ${result.stderr || result.error}`);

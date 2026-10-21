@@ -27,7 +27,7 @@ export function ConfigErrorBanner() {
   if (!configError) return null;
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-warning/40 bg-warning-muted p-3">
-      <p className="label">Atlas is using the last valid settings: config.toml has a problem</p>
+      <p className="label">There is a problem with your settings</p>
       <p className="break-all font-mono text-2xs text-secondary-foreground">{configError}</p>
       <div className="flex gap-2">
         <Button variant="outline" size="sm" onClick={() => void openConfigFile()}>

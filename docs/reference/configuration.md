@@ -597,7 +597,7 @@ schema accepts only `"agent"` or `"off"`.
 ## Testing
 
 - Rust: `the_settings_registry_matches_app_settings` pins `AppSettings` to
-  `src-tauri/settings-registry.toml`, and `the_default_file_matches_the_committed_copy`
+  `src-tauri/settings-registry.toml`, and `config_default_file_matches_the_committed_copy`
   pins the generated file to `docs/reference/config.default.toml`
   (`ATLAS_BLESS=1 cargo test -p atlas config_default` rewrites it).
 - TS: `tests/settings-registry.test.ts` fails when any generated output is
