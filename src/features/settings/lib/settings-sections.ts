@@ -195,7 +195,7 @@ const EXTRA_SEARCH_ITEMS: readonly SearchItem[] = [
     title: "Import a theme",
     where: "Appearance › Themes",
     section: "appearance",
-    anchor: "theme",
+    anchor: "themeLight",
     terms: "colour color vscode zed shadcn convert export",
   },
   {

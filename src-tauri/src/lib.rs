@@ -240,7 +240,8 @@ pub fn run() {
                 let settings = config.effective();
                 let system_is_light = matches!(window.theme(), Ok(tauri::Theme::Light));
                 let color = window_background::window_background(
-                    &settings.theme,
+                    &settings.theme_light,
+                    &settings.theme_dark,
                     settings.theme_mode,
                     system_is_light,
                 );

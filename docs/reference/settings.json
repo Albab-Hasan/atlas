@@ -131,15 +131,27 @@
       "validation": "non-empty"
     },
     {
-      "key": "theme",
+      "key": "themeLight",
       "type": "string",
       "status": "live",
       "page": "appearance",
       "section": "Themes",
-      "title": "Theme",
-      "summary": "One theme for the whole app: chrome, editor, terminal, diffs and syntax.",
+      "title": "Light theme",
+      "summary": "The theme Atlas uses while it's light: chrome, editor, terminal, diffs and syntax.",
       "default": "\"atlas\"",
-      "doc": "Theme id for the whole app: chrome, editor, terminal, diffs and syntax. Unknown ids fall back to \"atlas\" with a warning.",
+      "doc": "Theme id used while Atlas is light, for the whole app: chrome, editor, terminal, diffs and syntax. A theme with no light variant shows its dark one. Unknown ids fall back to \"atlas\" with a warning.",
+      "validation": "known theme id; an unknown id is logged and falls back to `\"atlas\"`"
+    },
+    {
+      "key": "themeDark",
+      "type": "string",
+      "status": "live",
+      "page": "appearance",
+      "section": "Themes",
+      "title": "Dark theme",
+      "summary": "The theme Atlas uses while it's dark: chrome, editor, terminal, diffs and syntax.",
+      "default": "\"atlas\"",
+      "doc": "Theme id used while Atlas is dark, for the whole app. A theme with no dark variant shows its light one. Unknown ids fall back to \"atlas\" with a warning.",
       "validation": "known theme id; an unknown id is logged and falls back to `\"atlas\"`"
     },
     {
@@ -148,15 +160,15 @@
       "status": "live",
       "page": "appearance",
       "section": "Colour scheme",
-      "title": "Mode",
-      "summary": "Follow the system, or always use the theme's dark or light variant.",
+      "title": "Colour scheme",
+      "summary": "Follow the system, or always be light or dark.",
       "values": [
         "system",
         "dark",
         "light"
       ],
       "default": "\"system\"",
-      "doc": "Variant selection: exactly \"system\", \"dark\" or \"light\". A missing requested variant falls back to the theme's other one.",
+      "doc": "Exactly \"system\", \"dark\" or \"light\": whether Atlas is light or dark, and so which of themeLight and themeDark it uses.",
       "validation": "exactly one of these values; a missing requested variant falls back to the theme's other variant"
     },
     {

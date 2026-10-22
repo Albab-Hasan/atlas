@@ -1,11 +1,10 @@
 /**
  * System / Light / Dark, as three pictures of the app rather than three words.
  *
- * Each card is the active theme's own miniature in that appearance, so the
- * choice shows what it gives you: Light draws the theme's light variant, Dark
- * its dark one, and System both, split down the middle. A theme with only one
- * variant draws that one in both cards — which is also what picking the other
- * would give you (`resolveTheme` falls back to the variant it has).
+ * Each card is a miniature of what that choice gives you: Light draws your
+ * light theme, Dark your dark one, and System both, split down the middle. A
+ * theme with only one variant draws that one — which is also what Atlas would
+ * show (`resolveTheme` falls back to the variant it has).
  */
 
 import { Monitor, Moon, Sun, type LucideIcon } from "lucide-react";
@@ -27,11 +26,13 @@ const MODES = [
 
 export function ColourSchemeSection() {
   const themeMode = useSettingsStore((s) => s.settings.themeMode);
-  const themeId = useSettingsStore((s) => s.settings.theme);
+  const themeLight = useSettingsStore((s) => s.settings.themeLight);
+  const themeDark = useSettingsStore((s) => s.settings.themeDark);
   const { updateSettings } = useSettingsStore.use.actions();
-  const full = useThemeStore((s) => s.loaded[themeId]);
-  const light = full ? previewTheme(full, "light") : null;
-  const dark = full ? previewTheme(full, "dark") : null;
+  const lightTheme = useThemeStore((s) => s.loaded[themeLight]);
+  const darkTheme = useThemeStore((s) => s.loaded[themeDark]);
+  const light = lightTheme ? previewTheme(lightTheme, "light") : null;
+  const dark = darkTheme ? previewTheme(darkTheme, "dark") : null;
   const index = Math.max(
     0,
     MODES.findIndex((m) => m.mode === themeMode),

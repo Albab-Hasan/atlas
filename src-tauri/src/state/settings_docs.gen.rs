@@ -34,12 +34,16 @@ const SETTINGS_DOCS: &[(&str, &str)] = &[
         "# On-device embedding model, named by its directory. Normally managed for you\n# by the Local Model Manager. Must not be empty. (default: \"all-MiniLM-L6-v2\")",
     ),
     (
-        "theme",
-        "# Theme id for the whole app: chrome, editor, terminal, diffs and syntax.\n# Unknown ids fall back to \"atlas\" with a warning. (default: \"atlas\")",
+        "themeLight",
+        "# Theme id used while Atlas is light, for the whole app: chrome, editor,\n# terminal, diffs and syntax. A theme with no light variant shows its dark\n# one. Unknown ids fall back to \"atlas\" with a warning. (default: \"atlas\")",
+    ),
+    (
+        "themeDark",
+        "# Theme id used while Atlas is dark, for the whole app. A theme with no dark\n# variant shows its light one. Unknown ids fall back to \"atlas\" with a\n# warning. (default: \"atlas\")",
     ),
     (
         "themeMode",
-        "# Variant selection: exactly \"system\", \"dark\" or \"light\". A missing requested\n# variant falls back to the theme's other one. (default: \"system\")",
+        "# Exactly \"system\", \"dark\" or \"light\": whether Atlas is light or dark, and so\n# which of themeLight and themeDark it uses. (default: \"system\")",
     ),
     (
         "themeOverrides",

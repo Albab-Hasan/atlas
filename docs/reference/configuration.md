@@ -159,8 +159,9 @@ bookkeeping).
 | `shareTelemetry` | boolean | `true` | Privacy › Usage data › Share usage data | — |
 | `linkTelemetryToAccount` | boolean | `true` | Privacy › Usage data › Link usage data to my account | — |
 | `embeddingModelId` | string | `"all-MiniLM-L6-v2"` | Settings → Local Models | non-empty |
-| `theme` | string | `"atlas"` | Appearance › Themes › Theme | known theme id; an unknown id is logged and falls back to `"atlas"` |
-| `themeMode` | `"system"` \| `"dark"` \| `"light"` | `"system"` | Appearance › Colour scheme › Mode | exactly one of these values; a missing requested variant falls back to the theme's other variant |
+| `themeLight` | string | `"atlas"` | Appearance › Themes › Light theme | known theme id; an unknown id is logged and falls back to `"atlas"` |
+| `themeDark` | string | `"atlas"` | Appearance › Themes › Dark theme | known theme id; an unknown id is logged and falls back to `"atlas"` |
+| `themeMode` | `"system"` \| `"dark"` \| `"light"` | `"system"` | Appearance › Colour scheme › Colour scheme | exactly one of these values; a missing requested variant falls back to the theme's other variant |
 | `themeOverrides` | table | absent | file only | optional `base`, `palette`, and `keys` patch applied after the active theme variant; a bad entry is dropped, not fatal |
 | `iconTheme` | string | `"material-icon-theme"` | Appearance › File icons › File icon theme | a plain id (letters, digits, `.`, `-`, `_`) — it names a directory under `~/.config/atlas/icon-themes/`. `"minimal"` keeps Atlas's lucide icons. See `docs/reference/icon-themes.md` |
 | `appIcon` | string | `"dark"` | Appearance › Interface › App icon | a plain id (letters, digits, `-`, `_`) from `src-tauri/icons/app-icons/app-icons.json` — today `"dark"` or `"light"`. An id this Atlas does not ship shows the default without rewriting the file |

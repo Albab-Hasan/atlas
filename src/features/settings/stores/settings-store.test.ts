@@ -80,7 +80,11 @@ describe("settings side effects", () => {
     });
 
     expect(applyConfiguredTheme).toHaveBeenCalledTimes(1);
-    expect(applyConfiguredTheme).toHaveBeenCalledWith("atlas", "dark", next);
+    expect(applyConfiguredTheme).toHaveBeenCalledWith(
+      { light: "atlas", dark: "atlas" },
+      "dark",
+      next,
+    );
   });
 
   it("ignores key order inside the overrides", () => {
@@ -111,7 +115,11 @@ describe("icon appearance", () => {
     // appearance did — and what the theme store does once the file is loaded
     // is apply it.
     configChanged?.({
-      settings: { ...useSettingsStore.getState().settings, theme: "monokai", themeMode: "light" },
+      settings: {
+        ...useSettingsStore.getState().settings,
+        themeLight: "monokai",
+        themeMode: "light",
+      },
       generation: 2,
     });
     applyTheme(monokai, "light");

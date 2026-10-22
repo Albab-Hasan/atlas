@@ -44,12 +44,18 @@ linkTelemetryToAccount = true
 # by the Local Model Manager. Must not be empty. (default: "all-MiniLM-L6-v2")
 embeddingModelId = "all-MiniLM-L6-v2"
 
-# Theme id for the whole app: chrome, editor, terminal, diffs and syntax.
-# Unknown ids fall back to "atlas" with a warning. (default: "atlas")
-theme = "atlas"
+# Theme id used while Atlas is light, for the whole app: chrome, editor,
+# terminal, diffs and syntax. A theme with no light variant shows its dark
+# one. Unknown ids fall back to "atlas" with a warning. (default: "atlas")
+themeLight = "atlas"
 
-# Variant selection: exactly "system", "dark" or "light". A missing requested
-# variant falls back to the theme's other one. (default: "system")
+# Theme id used while Atlas is dark, for the whole app. A theme with no dark
+# variant shows its light one. Unknown ids fall back to "atlas" with a
+# warning. (default: "atlas")
+themeDark = "atlas"
+
+# Exactly "system", "dark" or "light": whether Atlas is light or dark, and so
+# which of themeLight and themeDark it uses. (default: "system")
 themeMode = "system"
 
 # themeOverrides: Optional user-local patch with base, palette and keys

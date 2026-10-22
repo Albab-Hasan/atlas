@@ -2,32 +2,37 @@
  * The theme library: every installed theme as a live miniature, and the way
  * in for new ones.
  *
- * Picking a card applies the theme; the Dark/Light swatches on a card swap
- * only that card's miniature, so both variants can be seen before choosing.
- * Importing opens in a dialog over the page — a shadcn, Zed or VS Code theme
- * converted by Rust, with the report of what mapped shown before anything is
- * written (`theme-import-panel.tsx`).
+ * Atlas wears two themes, one while it is light and one while it is dark
+ * (`themeLight`, `themeDark`). Picking a card uses that theme for both; the
+ * sun and moon on a card set just one half, so a light theme from one family
+ * can sit beside a dark one from another. A ring on a swatch marks the half a
+ * theme is filling. Importing opens in a dialog over the page — a shadcn, Zed
+ * or VS Code theme converted by Rust, with the report of what mapped shown
+ * before anything is written (`theme-import-panel.tsx`).
  */
 
 import { memo, useCallback, useEffect, useState } from "react";
-import { AlertTriangle, Download } from "lucide-react";
+import { AlertTriangle, Download, Moon, Sun } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/ui/button";
 import { Dialog, DialogContent } from "@/ui/dialog";
 import { Icon } from "@/ui/icon";
 import { Hint } from "@/ui/tooltip";
-import { useThemeStore } from "@/features/theme/stores/theme-store";
+import { themeIdFor, useThemeStore } from "@/features/theme/stores/theme-store";
 import { appearanceForMode } from "@/features/theme/apply-theme";
 import { previewTheme, type ThemePreview } from "@/features/theme/preview-theme";
 import { ThemeMiniature } from "@/features/theme/components/theme-miniature";
 import type { Theme, ThemeAppearance, ThemeSummary } from "@/features/theme/lib/theme-api";
+import type { AppSettings } from "../../lib/app-settings";
 import { useSettingsStore } from "../../stores/settings-store";
 import { SettingsSection } from "../layout/settings-layout";
 import { ThemeImportPanel } from "../theme-import-panel";
 
 export function ThemesSection() {
-  const settings = useSettingsStore.use.settings();
+  const themeLight = useSettingsStore((s) => s.settings.themeLight);
+  const themeDark = useSettingsStore((s) => s.settings.themeDark);
+  const themeMode = useSettingsStore((s) => s.settings.themeMode);
   const { updateSettings } = useSettingsStore.use.actions();
   const themes = useThemeStore.use.themes();
   const loaded = useThemeStore.use.loaded();
@@ -36,7 +41,7 @@ export function ThemesSection() {
   const error = useThemeStore.use.error();
   const { load, loadAll, reapply } = useThemeStore.use.actions();
   const [importing, setImporting] = useState(false);
-  /** Per-card appearance override — see `AppearanceSwatch`. */
+  /** The variant a card's miniature shows while a swatch is hovered. */
   const [previewing, setPreviewing] = useState<Record<string, ThemeAppearance>>({});
 
   useEffect(() => {
@@ -50,32 +55,43 @@ export function ThemesSection() {
     void loadAll();
   }, [loadAll, themes]);
 
-  /** What the user would actually get if they clicked a card right now. */
-  const appearance = appearanceForMode(settings.themeMode);
+  /** The appearance Atlas is in, so each miniature shows what you would see. */
+  const appearance = appearanceForMode(themeMode);
+  const showing = themeIdFor({ light: themeLight, dark: themeDark }, themeMode);
 
-  // Both stable, because `ThemeCard` is memoised: a card whose props did not
-  // change must not re-render.
-  const onPreview = useCallback((id: string, next: ThemeAppearance) => {
-    setPreviewing((state) => ({ ...state, [id]: next }));
+  // Stable, because `ThemeCard` is memoised: a card whose props did not change
+  // must not re-render.
+  const onPreview = useCallback((id: string, next: ThemeAppearance | null) => {
+    setPreviewing(({ [id]: _previous, ...rest }) => (next ? { ...rest, [id]: next } : rest));
   }, []);
 
-  const onApply = useCallback(
-    (id: string, name: string) => {
-      // Clicking the theme you are already on writes the same id back, and
-      // `applySettingsSideEffects` — rightly — skips a value that did not
-      // change. That made the obvious way to pick up a hand-edit ("click it
-      // again") do nothing at all, so ask the theme store directly instead.
-      if (id === settings.theme) void reapply();
-      else updateSettings({ theme: id });
-      toast.success(`Applied “${name}” theme`);
+  const onPick = useCallback(
+    (id: string, name: string, half: ThemeAppearance | "both") => {
+      const patch: Partial<AppSettings> =
+        half === "light"
+          ? { themeLight: id }
+          : half === "dark"
+            ? { themeDark: id }
+            : { themeLight: id, themeDark: id };
+      // Writing the values already set changes nothing, and
+      // `applySettingsSideEffects` — rightly — skips it. That made the obvious
+      // way to pick up a hand-edit ("click it again") do nothing at all, so
+      // ask the theme store directly instead.
+      const unchanged =
+        (patch.themeLight ?? themeLight) === themeLight &&
+        (patch.themeDark ?? themeDark) === themeDark;
+      if (unchanged) void reapply();
+      else void updateSettings(patch);
+      toast.success(half === "both" ? `Applied “${name}”` : `“${name}” is now your ${half} theme`);
     },
-    [settings.theme, reapply, updateSettings],
+    [themeLight, themeDark, reapply, updateSettings],
   );
 
   return (
     <SettingsSection
       title="Themes"
-      anchor="theme"
+      anchor="themeLight"
+      description="Pick a card to use it in both light and dark, or the sun or moon to set just one."
       action={
         <Hint label="Convert a shadcn, Zed or VS Code theme">
           <Button size="sm" variant="ghost" onClick={() => setImporting(true)}>
@@ -116,10 +132,12 @@ export function ThemesSection() {
             key={theme.id}
             summary={theme}
             full={loaded[theme.id]}
-            selected={theme.id === settings.theme}
+            showing={theme.id === showing}
+            isLight={theme.id === themeLight}
+            isDark={theme.id === themeDark}
             appearance={previewing[theme.id] ?? appearance}
             onPreview={onPreview}
-            onApply={onApply}
+            onPick={onPick}
           />
         ))}
       </div>
@@ -140,7 +158,7 @@ export function ThemesSection() {
             onImported={(id) => {
               // The watcher will re-list the catalog; applying it here is what
               // makes the import visibly land.
-              updateSettings({ theme: id });
+              void updateSettings({ themeLight: id, themeDark: id });
               void load();
             }}
           />
@@ -151,48 +169,56 @@ export function ThemesSection() {
 }
 
 /**
- * One theme in the grid: a live preview of the theme, the name, and the
- * dark/light affordance.
+ * One theme in the grid: a live preview of it, its name, and a swatch for each
+ * variant it has.
  *
- * The card's OWN chrome — the selected border, the card surface, the name —
- * stays on the active theme; only `ThemeMiniature` carries the previewed
- * theme's variables, so nothing here has to be applied to be seen.
+ * The card's OWN chrome — the border, the surface, the name — stays on the
+ * active theme; only `ThemeMiniature` and the swatches carry the previewed
+ * theme's colours, so nothing here has to be applied to be seen.
  *
  * Memoised, because a miniature is ~40 elements and 124 inline custom
- * properties: resolving a theme is free once cached, but reconciling fifteen
- * of these on every search keystroke is not. Every prop is stable — the
+ * properties: resolving a theme is free once cached, but reconciling every
+ * card whenever one swatch is hovered is not. Every prop is stable — the
  * summaries come from the store, the documents from its `loaded` map, and the
- * two callbacks are `useCallback`ed above — so a keystroke only pays for the
- * cards that actually appear or disappear.
+ * two callbacks are `useCallback`ed above.
  */
 const ThemeCard = memo(function ThemeCard({
   summary,
   full,
-  selected,
+  showing,
+  isLight,
+  isDark,
   appearance,
   onPreview,
-  onApply,
+  onPick,
 }: {
   summary: ThemeSummary;
   /** `undefined` until `loadAll` has the document. */
   full: Theme | undefined;
-  selected: boolean;
+  /** This is the theme on screen right now. */
+  showing: boolean;
+  isLight: boolean;
+  isDark: boolean;
   appearance: ThemeAppearance;
-  onPreview: (id: string, appearance: ThemeAppearance) => void;
-  onApply: (id: string, name: string) => void;
+  onPreview: (id: string, appearance: ThemeAppearance | null) => void;
+  onPick: (id: string, name: string, half: ThemeAppearance | "both") => void;
 }) {
   const preview = full ? previewTheme(full, appearance) : null;
-  const dark = full && summary.hasDark ? previewTheme(full, "dark") : null;
   const light = full && summary.hasLight ? previewTheme(full, "light") : null;
+  const dark = full && summary.hasDark ? previewTheme(full, "dark") : null;
 
   return (
     <button
       type="button"
-      onClick={() => onApply(summary.id, summary.name)}
+      onClick={() => onPick(summary.id, summary.name, "both")}
       className={cn(
-        "flex cursor-pointer flex-col overflow-hidden rounded-lg border text-left transition-colors",
-        "bg-card",
-        selected ? "border-primary" : "border-border hover:border-border-strong",
+        "flex min-w-0 cursor-pointer flex-col overflow-hidden rounded-lg border bg-card text-left",
+        "transition-colors duration-fast ease-out-strong",
+        showing
+          ? "border-primary"
+          : isLight || isDark
+            ? "border-border-strong"
+            : "border-border hover:border-border-strong",
       )}
     >
       {preview ? (
@@ -203,17 +229,11 @@ const ThemeCard = memo(function ThemeCard({
         <div className="h-28 w-full shrink-0 bg-element-selected" />
       )}
 
-      <div className="flex w-full items-start gap-1.5 border-t border-border-subtle p-2.5">
+      <div className="flex w-full items-center gap-2 border-t border-border-subtle px-2.5 py-2">
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
-            <span className="truncate text-sm font-medium text-foreground">{summary.name}</span>
-            {selected && <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />}
-          </div>
-          <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+          <p className="truncate text-xs font-medium text-foreground">{summary.name}</p>
+          <p className="flex items-center gap-1.5 text-2xs text-muted-foreground">
             <span className="truncate">{summary.author}</span>
-            {!summary.builtIn && (
-              <span className="shrink-0 text-3xs uppercase tracking-wide text-disabled">Local</span>
-            )}
             {/* A theme that loaded but carries keys Atlas does not know. Those
                 keys are preserved, not applied, so the author sees the name
                 they typed do nothing until they are told. */}
@@ -231,28 +251,29 @@ const ThemeCard = memo(function ThemeCard({
                   aria-label={`${summary.warnings.length} unknown theme key(s)`}
                   className="flex shrink-0 items-center gap-0.5 text-warning"
                 >
-                  <AlertTriangle size={9} />
+                  <Icon icon={AlertTriangle} size="xs" />
                   {summary.warnings.length}
                 </span>
               </Hint>
             )}
           </p>
         </div>
-
         <div className="flex shrink-0 items-center gap-1">
-          <AppearanceSwatch
-            label="Dark"
-            theme={summary.name}
-            preview={dark}
-            active={preview?.appearance === "dark"}
-            onPick={() => onPreview(summary.id, "dark")}
-          />
-          <AppearanceSwatch
-            label="Light"
-            theme={summary.name}
+          <HalfSwatch
+            half="light"
+            theme={summary}
             preview={light}
-            active={preview?.appearance === "light"}
-            onPick={() => onPreview(summary.id, "light")}
+            chosen={isLight}
+            onPreview={onPreview}
+            onPick={onPick}
+          />
+          <HalfSwatch
+            half="dark"
+            theme={summary}
+            preview={dark}
+            chosen={isDark}
+            onPreview={onPreview}
+            onPick={onPick}
           />
         </div>
       </div>
@@ -261,70 +282,70 @@ const ThemeCard = memo(function ThemeCard({
 });
 
 /**
- * The "this theme also has a light variant" affordance, and the control that
- * swaps the miniature to it.
- *
- * Thirteen of the fifteen built-ins now ship both, and a card that previewed
- * only the appearance you happen to be in would hide half of what you are
- * choosing. So the two variants are always both on the card — each swatch is
- * painted in ITS OWN variant's background, foreground and brand colour, which
- * says "there is a light one, and it looks like this" without a click. The
- * miniature still opens on the appearance the current `themeMode` would give
- * you; clicking a swatch swaps it, for that card only, without applying
- * anything.
+ * A theme's light or dark variant as a small disc in that variant's own
+ * colours: its background, its foreground drawing the sun or moon, and a ring
+ * in its brand colour when it is the half you have chosen. Clicking sets that
+ * half to this theme; hovering swaps the card's miniature to it.
  *
  * A `<span role="button">` rather than a `<button>`: the whole card is already
- * the apply control, and a nested `<button>` is invalid inside it. Same shape
- * as the icon picker's remove control, including the `stopPropagation` that
- * keeps swapping the preview from also applying the theme.
+ * the pick-both control, and a nested `<button>` is invalid inside it. The
+ * `stopPropagation` keeps setting one half from also setting both.
  */
-function AppearanceSwatch({
-  label,
+function HalfSwatch({
+  half,
   theme,
   preview,
-  active,
+  chosen,
+  onPreview,
   onPick,
 }: {
-  label: string;
-  theme: string;
+  half: ThemeAppearance;
+  theme: ThemeSummary;
   /** `null` when this theme has no such variant, or is not loaded yet. */
   preview: ThemePreview | null;
-  active: boolean;
-  onPick: () => void;
+  chosen: boolean;
+  onPreview: (id: string, appearance: ThemeAppearance | null) => void;
+  onPick: (id: string, name: string, half: ThemeAppearance | "both") => void;
 }) {
   if (!preview) return null;
+  const label = chosen
+    ? `${theme.name} is your ${half} theme`
+    : `Use ${theme.name} as your ${half} theme`;
   return (
-    <Hint label={`Preview ${theme} in ${label.toLowerCase()}`}>
+    <Hint label={label}>
       <span
         role="button"
         tabIndex={0}
-        aria-pressed={active}
-        aria-label={`Preview ${theme} in ${label.toLowerCase()}`}
+        aria-pressed={chosen}
+        aria-label={label}
         onClick={(event) => {
           event.stopPropagation();
-          onPick();
+          onPick(theme.id, theme.name, half);
         }}
         onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") event.currentTarget.click();
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            event.stopPropagation();
+            onPick(theme.id, theme.name, half);
+          }
         }}
+        onMouseEnter={() => onPreview(theme.id, half)}
+        onMouseLeave={() => onPreview(theme.id, null)}
         style={{
           backgroundColor: preview.swatch.background,
           color: preview.swatch.foreground,
-          // Never transparent: a dark variant's swatch is near-black on a
-          // near-black card, and with no edge it simply vanished. Its own
-          // foreground always contrasts with its own background — that is what
-          // makes it a foreground — so the edge is legible in either variant,
-          // and the brand colour is what marks the one being shown.
-          borderColor: active ? preview.swatch.primary : preview.swatch.foreground,
+          // A dark disc on a dark card has no edge of its own; its foreground
+          // always contrasts with its background, so it draws one. Chosen, the
+          // ring is the variant's brand colour instead.
+          borderColor: chosen ? preview.swatch.primary : preview.swatch.foreground,
         }}
         className={cn(
-          "flex h-4 cursor-pointer items-center gap-0.5 rounded-sm border px-1",
-          "text-3xs font-medium uppercase tracking-wide transition-opacity",
-          active ? "opacity-100" : "opacity-60 hover:opacity-100",
+          "flex size-6 cursor-pointer items-center justify-center rounded-full border outline-none",
+          "transition-opacity duration-fast ease-out-strong focus-visible:ring-1 focus-visible:ring-ring",
+          chosen ? "border-2 opacity-100" : "opacity-50 hover:opacity-100",
         )}
       >
-        <span className="size-1 rounded-full" style={{ backgroundColor: preview.swatch.primary }} />
-        {label}
+        <Icon icon={half === "light" ? Sun : Moon} size="xs" />
       </span>
     </Hint>
   );

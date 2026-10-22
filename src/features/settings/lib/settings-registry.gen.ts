@@ -42,13 +42,19 @@ export interface AppSettings {
    */
   embeddingModelId: string;
   /**
-   * Theme id for the whole app: chrome, editor, terminal, diffs and syntax. Unknown ids fall
-   * back to "atlas" with a warning.
+   * Theme id used while Atlas is light, for the whole app: chrome, editor, terminal, diffs and
+   * syntax. A theme with no light variant shows its dark one. Unknown ids fall back to "atlas"
+   * with a warning.
    */
-  theme: string;
+  themeLight: string;
   /**
-   * Variant selection: exactly "system", "dark" or "light". A missing requested variant falls
-   * back to the theme's other one.
+   * Theme id used while Atlas is dark, for the whole app. A theme with no dark variant shows
+   * its light one. Unknown ids fall back to "atlas" with a warning.
+   */
+  themeDark: string;
+  /**
+   * Exactly "system", "dark" or "light": whether Atlas is light or dark, and so which of
+   * themeLight and themeDark it uses.
    */
   themeMode: "system" | "dark" | "light";
   /**
@@ -295,7 +301,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   shareTelemetry: true,
   linkTelemetryToAccount: true,
   embeddingModelId: "all-MiniLM-L6-v2",
-  theme: "atlas",
+  themeLight: "atlas",
+  themeDark: "atlas",
   themeMode: "system",
   themeOverrides: {},
   iconTheme: "material-icon-theme",
@@ -500,13 +507,22 @@ export const SETTINGS_REGISTRY: readonly SettingMeta[] = [
     setIn: "Settings → Local Models",
   },
   {
-    key: "theme",
+    key: "themeLight",
     type: "string",
     status: "live",
     page: "appearance",
     section: "Themes",
-    title: "Theme",
-    summary: "One theme for the whole app: chrome, editor, terminal, diffs and syntax.",
+    title: "Light theme",
+    summary: "The theme Atlas uses while it's light: chrome, editor, terminal, diffs and syntax.",
+  },
+  {
+    key: "themeDark",
+    type: "string",
+    status: "live",
+    page: "appearance",
+    section: "Themes",
+    title: "Dark theme",
+    summary: "The theme Atlas uses while it's dark: chrome, editor, terminal, diffs and syntax.",
   },
   {
     key: "themeMode",
@@ -514,8 +530,8 @@ export const SETTINGS_REGISTRY: readonly SettingMeta[] = [
     status: "live",
     page: "appearance",
     section: "Colour scheme",
-    title: "Mode",
-    summary: "Follow the system, or always use the theme's dark or light variant.",
+    title: "Colour scheme",
+    summary: "Follow the system, or always be light or dark.",
     values: ["system", "dark", "light"],
   },
   {

@@ -117,11 +117,16 @@ function applySettingsSideEffects(next: AppSettings, previous: AppSettings): voi
   if (next.uiScale !== previous.uiScale) applyUiScale(next.uiScale);
   if (displaySettingsChanged(next, previous)) applyDisplaySettings(next);
   if (
-    next.theme !== previous.theme ||
+    next.themeLight !== previous.themeLight ||
+    next.themeDark !== previous.themeDark ||
     next.themeMode !== previous.themeMode ||
     !sameValue(next.themeOverrides, previous.themeOverrides)
   ) {
-    applyConfiguredTheme(next.theme, next.themeMode, next.themeOverrides);
+    applyConfiguredTheme(
+      { light: next.themeLight, dark: next.themeDark },
+      next.themeMode,
+      next.themeOverrides,
+    );
   }
   // A theme or mode change reaches the icons through `atlas:theme-applied`,
   // once the appearance it resolves to is known; only a new icon theme has to
@@ -252,9 +257,13 @@ export const useSettingsStore = createSelectors(
         // so it can only run here, not in the pre-mount boot path).
         applyUiScale(settings.uiScale);
         applyDisplaySettings(settings);
-        // Resolve and apply the one persisted theme across chrome, editor,
-        // terminal, diffs and syntax variables.
-        applyConfiguredTheme(settings.theme, settings.themeMode, settings.themeOverrides);
+        // Resolve and apply the persisted theme for the current appearance
+        // across chrome, editor, terminal, diffs and syntax variables.
+        applyConfiguredTheme(
+          { light: settings.themeLight, dark: settings.themeDark },
+          settings.themeMode,
+          settings.themeOverrides,
+        );
         // The icon catalog is only listed here; no icon is fetched until a
         // row asks for one (decision 12).
         applyIcons(settings.iconTheme, settings.themeMode);

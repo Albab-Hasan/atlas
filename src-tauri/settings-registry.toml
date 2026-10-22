@@ -212,17 +212,33 @@ the Local Model Manager. Must not be empty.
 validation = "non-empty"
 
 [[setting]]
-key = "theme"
+key = "themeLight"
 type = "string"
 default = "atlas"
 status = "live"
 page = "appearance"
 section = "Themes"
-title = "Theme"
-summary = "One theme for the whole app: chrome, editor, terminal, diffs and syntax."
+title = "Light theme"
+summary = "The theme Atlas uses while it's light: chrome, editor, terminal, diffs and syntax."
 doc = """
-Theme id for the whole app: chrome, editor, terminal, diffs and syntax.
+Theme id used while Atlas is light, for the whole app: chrome, editor,
+terminal, diffs and syntax. A theme with no light variant shows its dark one.
 Unknown ids fall back to "atlas" with a warning.
+"""
+validation = "known theme id; an unknown id is logged and falls back to `\"atlas\"`"
+
+[[setting]]
+key = "themeDark"
+type = "string"
+default = "atlas"
+status = "live"
+page = "appearance"
+section = "Themes"
+title = "Dark theme"
+summary = "The theme Atlas uses while it's dark: chrome, editor, terminal, diffs and syntax."
+doc = """
+Theme id used while Atlas is dark, for the whole app. A theme with no dark
+variant shows its light one. Unknown ids fall back to "atlas" with a warning.
 """
 validation = "known theme id; an unknown id is logged and falls back to `\"atlas\"`"
 
@@ -234,11 +250,11 @@ default = "system"
 status = "live"
 page = "appearance"
 section = "Colour scheme"
-title = "Mode"
-summary = "Follow the system, or always use the theme's dark or light variant."
+title = "Colour scheme"
+summary = "Follow the system, or always be light or dark."
 doc = """
-Variant selection: exactly "system", "dark" or "light". A missing requested
-variant falls back to the theme's other one.
+Exactly "system", "dark" or "light": whether Atlas is light or dark, and so
+which of themeLight and themeDark it uses.
 """
 validation = "exactly one of these values; a missing requested variant falls back to the theme's other variant"
 

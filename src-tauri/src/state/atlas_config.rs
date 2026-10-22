@@ -327,9 +327,13 @@ pub struct AppSettings {
     /// consumer via the shared provider. See `crate::commands::models`.
     #[serde(default = "default_embedding_model")]
     pub embedding_model_id: String,
-    /// One theme covers Atlas chrome, editor, terminal, diffs and syntax.
+    /// The theme used while Atlas is light. One theme covers Atlas chrome,
+    /// editor, terminal, diffs and syntax.
     #[serde(default = "default_theme")]
-    pub theme: String,
+    pub theme_light: String,
+    /// The theme used while Atlas is dark.
+    #[serde(default = "default_theme")]
+    pub theme_dark: String,
     /// Whether to follow the OS appearance or request one variant explicitly.
     #[serde(default)]
     pub theme_mode: ThemeMode,
@@ -571,7 +575,8 @@ impl Default for AppSettings {
             share_telemetry: true,
             link_telemetry_to_account: true,
             embedding_model_id: default_embedding_model(),
-            theme: default_theme(),
+            theme_light: default_theme(),
+            theme_dark: default_theme(),
             theme_mode: ThemeMode::default(),
             theme_overrides: ThemeOverride::default(),
             icon_theme: default_icon_theme(),
@@ -715,11 +720,16 @@ pub fn validate(settings: &AppSettings) -> Result<(), ValidationIssue> {
             message: "must not be empty".to_string(),
         });
     }
-    if settings.theme.trim().is_empty() {
-        return Err(ValidationIssue {
-            key: "theme",
-            message: "must not be empty".to_string(),
-        });
+    for (key, value) in [
+        ("themeLight", &settings.theme_light),
+        ("themeDark", &settings.theme_dark),
+    ] {
+        if value.trim().is_empty() {
+            return Err(ValidationIssue {
+                key,
+                message: "must not be empty".to_string(),
+            });
+        }
     }
     // An icon theme id is used as a directory name under
     // `~/.config/atlas/icon-themes/`, so a value with a separator or a `..` in
@@ -1002,7 +1012,8 @@ pub struct SettingsPatch {
     pub share_telemetry: Option<bool>,
     pub link_telemetry_to_account: Option<bool>,
     pub embedding_model_id: Option<String>,
-    pub theme: Option<String>,
+    pub theme_light: Option<String>,
+    pub theme_dark: Option<String>,
     pub theme_mode: Option<ThemeMode>,
     pub theme_overrides: Option<ThemeOverride>,
     pub icon_theme: Option<String>,
@@ -1078,8 +1089,11 @@ impl SettingsPatch {
         if let Some(v) = &self.embedding_model_id {
             settings.embedding_model_id = v.clone();
         }
-        if let Some(v) = &self.theme {
-            settings.theme = v.clone();
+        if let Some(v) = &self.theme_light {
+            settings.theme_light = v.clone();
+        }
+        if let Some(v) = &self.theme_dark {
+            settings.theme_dark = v.clone();
         }
         if let Some(v) = self.theme_mode {
             settings.theme_mode = v;
@@ -1318,8 +1332,11 @@ impl SettingsPatch {
         if let Some(v) = &self.embedding_model_id {
             table["embeddingModelId"] = toml_edit::value(v.as_str());
         }
-        if let Some(v) = &self.theme {
-            table["theme"] = toml_edit::value(v.as_str());
+        if let Some(v) = &self.theme_light {
+            table["themeLight"] = toml_edit::value(v.as_str());
+        }
+        if let Some(v) = &self.theme_dark {
+            table["themeDark"] = toml_edit::value(v.as_str());
         }
         if let Some(v) = self.theme_mode {
             table["themeMode"] = toml_edit::value(match v {
@@ -1367,8 +1384,8 @@ impl SettingsPatch {
 // Theme fallback
 // ---------------------------------------------------------------------------
 
-/// Serve the default theme for this session when `settings.theme` does not
-/// resolve — **in memory only**.
+/// Serve the default theme for this session when `themeLight` or `themeDark`
+/// does not resolve — **in memory only**.
 ///
 /// This used to write `theme = "atlas"` back to `config.toml`, which turned
 /// anything that made one lookup fail — a user theme mid-edit that briefly did
@@ -1376,9 +1393,11 @@ impl SettingsPatch {
 /// into the permanent loss of the user's choice. The file keeps what the user
 /// wrote; the next load, once the theme resolves again, uses it.
 fn fallback_unknown_theme(settings: &mut AppSettings) {
-    if let Err(error) = atlas_theme::get_theme(&settings.theme) {
-        tracing::warn!(target: "atlas::themes", theme = %settings.theme, "theme in config.toml does not resolve ({error}); using atlas for this session");
-        settings.theme = default_theme();
+    for theme in [&mut settings.theme_light, &mut settings.theme_dark] {
+        if let Err(error) = atlas_theme::get_theme(theme) {
+            tracing::warn!(target: "atlas::themes", theme = %theme, "theme in config.toml does not resolve ({error}); using atlas for this session");
+            *theme = default_theme();
+        }
     }
 }
 
@@ -2109,7 +2128,8 @@ mod tests {
         let mgr = ConfigManager::from_raw(path, raw).expect("partial file parses");
         assert!(!mgr.effective().enter_to_send);
         // Every other field is absent from the file — must be the compiled default.
-        assert_eq!(mgr.effective().theme, default_theme());
+        assert_eq!(mgr.effective().theme_light, default_theme());
+        assert_eq!(mgr.effective().theme_dark, default_theme());
         assert_eq!(mgr.effective().ui_scale, default_ui_scale());
         assert!(mgr.effective().auto_update);
     }
@@ -2298,16 +2318,16 @@ someFutureKey = \"left alone\"
     #[test]
     fn unknown_config_theme_falls_back_in_memory_and_is_never_rewritten() {
         let (_dir, path) = tmp_config_path();
-        let raw = "schemaVersion = 1\n\n[settings]\ntheme = \"from-a-newer-atlas\"\n";
+        let raw = "schemaVersion = 1\n\n[settings]\nthemeDark = \"from-a-newer-atlas\"\n";
         let manager = ConfigManager::from_raw(path.clone(), raw).expect("unknown id falls back");
 
-        assert_eq!(manager.effective().theme, default_theme());
+        assert_eq!(manager.effective().theme_dark, default_theme());
         assert_eq!(manager.last_raw, raw, "a failed lookup rewrites nothing");
 
         // And through the cold-start path.
         fs::write(&path, raw).unwrap();
         let manager = ConfigManager::load_at(path.clone());
-        assert_eq!(manager.effective().theme, default_theme());
+        assert_eq!(manager.effective().theme_dark, default_theme());
         assert_eq!(fs::read_to_string(&path).unwrap(), raw);
     }
 
@@ -2328,7 +2348,8 @@ someFutureKey = \"left alone\"
             share_telemetry: Some(!defaults.share_telemetry),
             link_telemetry_to_account: Some(!defaults.link_telemetry_to_account),
             embedding_model_id: Some("another-model".to_string()),
-            theme: Some("dracula".to_string()),
+            theme_light: Some("dracula".to_string()),
+            theme_dark: Some("vesper".to_string()),
             theme_mode: Some(ThemeMode::Light),
             theme_overrides: Some(ThemeOverride {
                 base: BTreeMap::from([("radius".to_string(), "0.5rem".to_string())]),

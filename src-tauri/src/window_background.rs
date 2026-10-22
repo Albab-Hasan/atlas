@@ -24,23 +24,33 @@ use tauri::window::Color;
 /// whose background is not a plain hex colour still opens on.
 pub const FALLBACK: Color = Color(0, 0, 0, 255);
 
-/// The window background for `theme_id` under `mode`.
+/// The window background for the theme `mode` selects: `light_id` while Atlas
+/// is light, `dark_id` while it is dark.
 ///
 /// `system_is_light` is the OS appearance, used only when the mode is
 /// `System` — the same question `appearanceForMode` answers in TypeScript.
-pub fn window_background(theme_id: &str, mode: ThemeMode, system_is_light: bool) -> Color {
-    let Ok(theme) = atlas_theme::get_theme(theme_id) else {
+pub fn window_background(
+    light_id: &str,
+    dark_id: &str,
+    mode: ThemeMode,
+    system_is_light: bool,
+) -> Color {
+    let wants_light = wants_light(mode, system_is_light);
+    let Ok(theme) = atlas_theme::get_theme(if wants_light { light_id } else { dark_id }) else {
         return FALLBACK;
     };
-    background_of(&theme, mode, system_is_light).unwrap_or(FALLBACK)
+    background_of(&theme, wants_light).unwrap_or(FALLBACK)
 }
 
-fn background_of(theme: &Theme, mode: ThemeMode, system_is_light: bool) -> Option<Color> {
-    let wants_light = match mode {
+fn wants_light(mode: ThemeMode, system_is_light: bool) -> bool {
+    match mode {
         ThemeMode::Light => true,
         ThemeMode::Dark => false,
         ThemeMode::System => system_is_light,
-    };
+    }
+}
+
+fn background_of(theme: &Theme, wants_light: bool) -> Option<Color> {
     // Same fallback order as `chooseVariant` in `resolve-theme.ts`: the
     // requested variant, then whichever one the theme does have.
     let variant = if wants_light {
@@ -115,11 +125,11 @@ mod tests {
     fn mode_picks_the_variant() {
         let t = theme(Some("#191724"), Some("#faf4ed"));
         assert_eq!(
-            background_of(&t, ThemeMode::Dark, true),
+            background_of(&t, wants_light(ThemeMode::Dark, true)),
             Some(Color(0x19, 0x17, 0x24, 255))
         );
         assert_eq!(
-            background_of(&t, ThemeMode::Light, false),
+            background_of(&t, wants_light(ThemeMode::Light, false)),
             Some(Color(0xfa, 0xf4, 0xed, 255))
         );
     }
@@ -128,11 +138,11 @@ mod tests {
     fn system_mode_follows_the_os() {
         let t = theme(Some("#191724"), Some("#faf4ed"));
         assert_eq!(
-            background_of(&t, ThemeMode::System, true),
+            background_of(&t, wants_light(ThemeMode::System, true)),
             Some(Color(0xfa, 0xf4, 0xed, 255))
         );
         assert_eq!(
-            background_of(&t, ThemeMode::System, false),
+            background_of(&t, wants_light(ThemeMode::System, false)),
             Some(Color(0x19, 0x17, 0x24, 255))
         );
     }
@@ -140,10 +150,7 @@ mod tests {
     #[test]
     fn a_missing_variant_falls_back_to_the_other() {
         let t = theme(Some("#0a0a0a"), None);
-        assert_eq!(
-            background_of(&t, ThemeMode::Light, true),
-            Some(Color(0x0a, 0x0a, 0x0a, 255))
-        );
+        assert_eq!(background_of(&t, true), Some(Color(0x0a, 0x0a, 0x0a, 255)));
     }
 
     #[test]
@@ -161,10 +168,10 @@ mod tests {
     #[test]
     fn every_built_in_theme_yields_a_colour() {
         for theme in atlas_theme::built_in_themes().expect("built-ins load") {
-            for mode in [ThemeMode::Dark, ThemeMode::Light, ThemeMode::System] {
+            for wants_light in [false, true] {
                 assert!(
-                    background_of(&theme, mode, true).is_some(),
-                    "{} has no launch background in {mode:?}",
+                    background_of(&theme, wants_light).is_some(),
+                    "{} has no launch background (light: {wants_light})",
                     theme.id
                 );
             }

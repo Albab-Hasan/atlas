@@ -442,7 +442,8 @@ export function EditorPanel({ tabId, filePath, containerHeight }: EditorPanelPro
 
   // Live-reskin the editor when the persisted theme changes — reconfigure the
   // theme compartment in place so the buffer/undo history survive.
-  const theme = useSettingsStore.use.settings().theme;
+  const themeLight = useSettingsStore.use.settings().themeLight;
+  const themeDark = useSettingsStore.use.settings().themeDark;
   useEffect(() => {
     const refreshTheme = () => {
       const view = viewRef.current;
@@ -452,7 +453,7 @@ export function EditorPanel({ tabId, filePath, containerHeight }: EditorPanelPro
     refreshTheme();
     window.addEventListener("atlas:theme-applied", refreshTheme);
     return () => window.removeEventListener("atlas:theme-applied", refreshTheme);
-  }, [theme]);
+  }, [themeLight, themeDark]);
 
   // Live-toggle inline blame: reconfigure the compartment in place; turning it
   // on also fetches a fresh snapshot (the extension starts empty).
