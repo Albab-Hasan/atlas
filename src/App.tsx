@@ -121,6 +121,7 @@ import {
   listenUpdateChecking,
 } from "@/features/updater/lib/updater-api";
 import { Toaster, toast } from "sonner";
+import { TOAST_ICONS } from "@/components/toast-icons";
 import { agentMeta } from "@/features/agents/lib/agent-meta";
 import { IconThemeFonts } from "@/features/icon-theme/components/file-icon";
 import {
@@ -1484,6 +1485,8 @@ export function App() {
       <IconThemeFonts />
       <Toaster
         position="bottom-right"
+        closeButton
+        icons={TOAST_ICONS}
         toastOptions={{
           style: {
             background: "var(--card)",
