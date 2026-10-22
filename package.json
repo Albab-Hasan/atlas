@@ -23,6 +23,7 @@
     "test": "vitest run",
     "test:contracts": "vitest run tests/",
     "theme:keys": "node scripts/generate-theme-keys.mjs",
+    "theme:pierre": "node scripts/theme-pierre.mjs",
     "theme:keys:check": "node scripts/generate-theme-keys.mjs --check",
     "settings:gen": "node scripts/generate-settings.mjs",
     "settings:gen:check": "node scripts/generate-settings.mjs --check",
@@ -132,6 +133,7 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@pierre/theme": "2.0.0",
     "@tailwindcss/vite": "^4.3.3",
     "@tauri-apps/cli": "^2.11.4",
     "@testing-library/dom": "^10.4.1",

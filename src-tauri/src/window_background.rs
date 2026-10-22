@@ -12,16 +12,16 @@
 //! different times: this one is before the webview exists, that one is before
 //! the first stylesheet.
 //!
-//! Only the `background` BASE TOKEN is read — no derivation. Resolution proper
-//! happens in TypeScript (decision 14) and this is the one value every theme
-//! sets verbatim, so there is nothing here for the two to disagree about.
+//! Only the `background` BASE TOKEN is read. A theme may leave it out
+//! (ADR-0022), so it goes through `atlas_theme::derive`, the Rust half of the
+//! one derivation engine — the same answer `resolveBase` gives the webview.
 
 use crate::state::atlas_config::ThemeMode;
 use atlas_theme::Theme;
 use tauri::window::Color;
 
 /// What Atlas has always opened on, and what a theme that cannot be read or
-/// whose background is not a plain hex colour still opens on.
+/// whose background is not a colour still opens on.
 pub const FALLBACK: Color = Color(0, 0, 0, 255);
 
 /// The window background for the theme `mode` selects: `light_id` while Atlas
@@ -53,41 +53,24 @@ fn wants_light(mode: ThemeMode, system_is_light: bool) -> bool {
 fn background_of(theme: &Theme, wants_light: bool) -> Option<Color> {
     // Same fallback order as `chooseVariant` in `resolve-theme.ts`: the
     // requested variant, then whichever one the theme does have.
-    let variant = if wants_light {
-        theme.light.as_ref().or(theme.dark.as_ref())
-    } else {
-        theme.dark.as_ref().or(theme.light.as_ref())
-    }?;
-    parse_hex(variant.base.get("background")?)
-}
-
-/// `#rgb`, `#rrggbb` and `#rrggbbaa`. Every built-in theme writes hex; anything
-/// else (a theme author's `oklch()`) returns `None` and keeps the fallback,
-/// which is one frame of the old behaviour rather than a wrong colour.
-fn parse_hex(value: &str) -> Option<Color> {
-    let digits = value.trim().strip_prefix('#')?;
-    if !digits.chars().all(|c| c.is_ascii_hexdigit()) {
-        return None;
-    }
-    let byte = |slice: &str| u8::from_str_radix(slice, 16).ok();
-    match digits.len() {
-        3 => {
-            let d: Vec<u8> = digits
-                .chars()
-                .map(|c| byte(&format!("{c}{c}")))
-                .collect::<Option<_>>()?;
-            Some(Color(d[0], d[1], d[2], 255))
-        }
-        6 | 8 => Some(Color(
-            byte(&digits[0..2])?,
-            byte(&digits[2..4])?,
-            byte(&digits[4..6])?,
-            // A translucent base token would make the window see-through, which
-            // is the compositor cost the opaque window exists to avoid.
-            255,
-        )),
-        _ => None,
-    }
+    let (variant, dark) = match (wants_light, &theme.light, &theme.dark) {
+        (true, Some(light), _) => (light, false),
+        (false, _, Some(dark)) => (dark, true),
+        (_, Some(light), None) => (light, false),
+        (_, None, Some(dark)) => (dark, true),
+        (_, None, None) => return None,
+    };
+    let base = atlas_theme::derive::resolve_base(&variant.base, &variant.palette, dark);
+    let color = atlas_theme::color::parse(base.get("background")?)?;
+    // A translucent background would make the window see-through, which is the
+    // compositor cost the opaque window exists to avoid: alpha is dropped.
+    let channel = |value: f64| value.round().clamp(0.0, 255.0) as u8;
+    Some(Color(
+        channel(color.r),
+        channel(color.g),
+        channel(color.b),
+        255,
+    ))
 }
 
 #[cfg(test)]
@@ -95,9 +78,7 @@ mod tests {
     use super::*;
     use atlas_theme::ThemeVariant;
 
-    /// A variant carrying only the one base token this module reads. Built by
-    /// hand rather than parsed, because the loader rightly rejects a TOML theme
-    /// that is missing any of the other 43 required base tokens.
+    /// A variant carrying only the one base token this module reads.
     fn variant(background: &str) -> ThemeVariant {
         ThemeVariant {
             base: [("background".to_string(), background.to_string())]
@@ -115,6 +96,7 @@ mod tests {
             name: "Test".into(),
             author: "Atlas".into(),
             license: "MIT".into(),
+            base: Default::default(),
             dark: dark.map(variant),
             light: light.map(variant),
             warnings: Vec::new(),
@@ -154,14 +136,19 @@ mod tests {
     }
 
     #[test]
-    fn hex_forms() {
-        assert_eq!(parse_hex("#abc"), Some(Color(0xaa, 0xbb, 0xcc, 255)));
-        assert_eq!(parse_hex(" #0A0A0A "), Some(Color(10, 10, 10, 255)));
-        // Alpha is read but discarded: the window stays opaque.
-        assert_eq!(parse_hex("#10203080"), Some(Color(0x10, 0x20, 0x30, 255)));
-        assert_eq!(parse_hex("oklch(0.2 0 0)"), None);
-        assert_eq!(parse_hex("#12345"), None);
-        assert_eq!(parse_hex("#gggggg"), None);
+    fn any_colour_notation_and_alpha_is_dropped() {
+        let read = |value: &str| background_of(&theme(Some(value), None), false);
+        assert_eq!(read("#abc"), Some(Color(0xaa, 0xbb, 0xcc, 255)));
+        assert_eq!(read("#10203080"), Some(Color(0x10, 0x20, 0x30, 255)));
+        assert_eq!(read("oklch(1 0 0)"), Some(Color(255, 255, 255, 255)));
+        assert_eq!(read("var(--nope)"), None);
+    }
+
+    #[test]
+    fn a_theme_without_a_background_gets_the_appearance_default() {
+        let mut t = theme(None, Some("#faf4ed"));
+        t.light.as_mut().unwrap().base.clear();
+        assert_eq!(background_of(&t, true), Some(Color(255, 255, 255, 255)));
     }
 
     /// The whole point of the feature: no shipped theme may fall back to black.

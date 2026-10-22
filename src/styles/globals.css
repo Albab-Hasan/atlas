@@ -763,7 +763,7 @@
      `<ChatInput minHeight={80}>` type-checks and silently does nothing against
      the hardcoded 44px below. */
   font-family:
-    var(--atlas-composer-font, var(--atlas-ui-font, system-ui)),
+    var(--atlas-composer-font, var(--font-sans)),
     system-ui,
     -apple-system,
     BlinkMacSystemFont,
@@ -998,13 +998,9 @@
     height: 100%;
     width: 100%;
     overflow: hidden;
-    /* `uiFontFamily`, while set, leads; the system font stays behind it. */
-    font-family:
-      var(--atlas-ui-font, -apple-system),
-      "SF Pro Text",
-      -apple-system,
-      system-ui,
-      sans-serif;
+    /* `--font-sans`: the `uiFontFamily` setting, else the theme's font, else
+       the system font (the display-settings block at the end of this file). */
+    font-family: var(--font-sans);
     font-size: 13px;
     line-height: 1.45;
     color: var(--foreground);
@@ -2165,9 +2161,7 @@ html[data-chat-code-wrap="off"] .prose-chat pre {
   background: var(--card);
   color: var(--foreground);
   font-size: 12px;
-  font-family:
-    var(--atlas-code-font, ui-monospace), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    monospace;
+  font-family: var(--font-mono);
 }
 .prose-chat pre code {
   padding: 0;
@@ -2874,10 +2868,121 @@ html[data-chat-code-wrap="off"] .prose-chat pre {
   margin-left: 0;
 }
 
+[data-sonner-toaster]
+  [data-sonner-toast][data-styled="true"]:has([data-cancel]):has([data-toast-copy])
+  [data-content] {
+  flex-basis: calc(100% - 60px);
+}
+
+/* The close button (`<Toaster closeButton>`): a small round X that only shows
+   while the toast is hovered or holds keyboard focus. Sonner pins it to the
+   top-LEFT corner in LTR; ours overlaps the top-RIGHT one, where the eye goes
+   to dismiss. Positioned here rather than through sonner's
+   `--toast-close-button-*` variables, which it declares on
+   `[data-sonner-toaster][dir=ltr]` and so would need a specificity fight of
+   its own. Colours are Atlas tokens — sonner's light-theme greys would sit on
+   our card as a white disc. Same (0,4,0)+ prefix as above; the hover rule
+   carries the extra `:hover` sonner's own does, so it wins on specificity
+   rather than on import order. */
+[data-sonner-toaster] [data-sonner-toast][data-styled="true"] [data-close-button] {
+  left: auto;
+  right: 0;
+  transform: translate(35%, -35%);
+  background: var(--popover);
+  border-color: var(--border);
+  color: var(--muted-foreground);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.15s ease,
+    color 0.15s ease;
+}
+[data-sonner-toaster] [data-sonner-toast][data-styled="true"]:hover [data-close-button],
+[data-sonner-toaster] [data-sonner-toast][data-styled="true"]:focus-visible [data-close-button],
+[data-sonner-toaster]
+  [data-sonner-toast][data-styled="true"]:has(:focus-visible)
+  [data-close-button] {
+  opacity: 1;
+  pointer-events: auto;
+}
+[data-sonner-toaster] [data-sonner-toast][data-styled="true"]:hover [data-close-button]:hover {
+  background: var(--popover);
+  border-color: var(--border);
+  color: var(--foreground);
+}
+[data-sonner-toaster] [data-sonner-toast][data-styled="true"] [data-close-button]:focus-visible {
+  box-shadow: 0 0 0 1px var(--ring);
+  color: var(--foreground);
+}
+
+/* The copy button (src/components/toast-icons.tsx). It is rendered INSIDE
+   sonner's `[data-icon]` box — the icon slot is the only per-toast node the
+   Toaster accepts — so that box is flattened with `display: contents`, making
+   the glyph and the button flex items of the toast itself, and `order` moves
+   the button after the text and before any action buttons. Only boxes holding
+   our glyph are flattened: the loading spinner positions itself against
+   `[data-icon]` and needs it to stay a box.
+
+   Flattening costs one thing: sonner hides the stacked-behind toasts' content
+   with `> * { opacity: 0 }`, and opacity on a `display: contents` box paints
+   nothing — hence the explicit rule for the glyph and the button.
+
+   Error toasts show the button outright (the message is the thing people copy
+   into a bug report); every other type reveals it on hover or keyboard focus,
+   like the close button. */
+[data-sonner-toaster]
+  [data-sonner-toast][data-styled="true"]
+  [data-icon]:has(> [data-toast-glyph]) {
+  display: contents;
+}
+[data-sonner-toaster] [data-sonner-toast][data-styled="true"] [data-toast-glyph] {
+  display: flex;
+  flex-shrink: 0;
+  /* What sonner gives the box being flattened (its LTR icon margins). */
+  margin-left: -3px;
+  margin-right: 4px;
+}
+[data-sonner-toaster]
+  [data-sonner-toast][data-styled="true"]:has([data-toast-copy])
+  [data-content] {
+  order: 1;
+}
+[data-sonner-toaster] [data-sonner-toast][data-styled="true"]:has([data-toast-copy]) [data-button] {
+  order: 3;
+}
+[data-sonner-toaster] [data-sonner-toast][data-styled="true"] [data-toast-copy] {
+  order: 2;
+  flex-shrink: 0;
+  align-self: flex-end;
+  opacity: 0;
+  transition:
+    opacity 0.15s ease,
+    color 0.15s ease,
+    background-color 0.15s ease;
+}
+[data-sonner-toaster] [data-sonner-toast][data-styled="true"] [data-toast-copy] svg {
+  margin: 0;
+}
+[data-sonner-toaster] [data-sonner-toast][data-styled="true"][data-type="error"] [data-toast-copy],
+[data-sonner-toaster] [data-sonner-toast][data-styled="true"]:hover [data-toast-copy],
+[data-sonner-toaster] [data-sonner-toast][data-styled="true"]:focus-visible [data-toast-copy],
+[data-sonner-toaster]
+  [data-sonner-toast][data-styled="true"]:has(:focus-visible)
+  [data-toast-copy] {
+  opacity: 1;
+}
+[data-sonner-toaster]
+  [data-sonner-toast][data-styled="true"][data-expanded="false"][data-front="false"]
+  :is([data-toast-glyph], [data-toast-copy]) {
+  opacity: 0;
+}
+
 /* ── Display settings (`features/settings/lib/display-settings.ts`) ────────── */
 
-/* `uiFontFamily` / `codeFontFamily`, while set, over the defaults in
-   `tokens.css` (a theme never sets fonts). Every `font-sans` / `font-mono`
+/* Which font wins, for both families: the user's setting, then the active
+   theme's `font-sans` / `font-mono` (which `apply-theme.ts` writes in its own
+   `html:root` block), then Atlas's default in `tokens.css`. The attribute is
+   what lets a setting outrank the theme. Every `font-sans` / `font-mono`
    utility, and every rule that reads those two, follows. */
 html:root[data-ui-font] {
   --font-sans: var(--atlas-ui-font), system-ui, sans-serif;

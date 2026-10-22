@@ -29,11 +29,14 @@ import {
 } from "@/features/theme/lib/theme-import-api";
 import type { TypedHandlers } from "../types";
 import importedThemesJson from "./imported-themes.json";
-import builtinThemesJson from "./builtin-themes.json";
+import { BUILTIN_THEMES } from "./builtin-themes";
 
-/** `[tweakcn Catppuccin, Rosé Pine, Rosé Pine Dawn, Nocturne Bright]`. */
-const imported = importedThemesJson as Theme[];
-const builtins = builtinThemesJson as Theme[];
+/** `[tweakcn Catppuccin, Rosé Pine, Rosé Pine Dawn, Nocturne Bright]`.
+ *  Through `unknown`: TS widens a JSON array of themes where only some set a
+ *  font to `"font-mono"?: undefined` on the rest, which `Record<string,
+ *  string>` rejects. The shape is Rust's, pinned by its snapshot test. */
+const imported = importedThemesJson as unknown as Theme[];
+const builtins = BUILTIN_THEMES;
 
 const byId = (id: string): Theme => {
   const theme = imported.find((candidate) => candidate.id === id);
@@ -142,6 +145,11 @@ const SHADCN: ThemeImportPreview = {
           value: "oklch(0.7871 0.1187 304.7693)",
         },
         {
+          target: "dark.base.font-sans",
+          source: "--font-sans (@theme)",
+          value: "Montserrat, sans-serif",
+        },
+        {
           target: "light.base.background",
           source: "--background (light)",
           value: "oklch(0.9578 0.0058 264.5321)",
@@ -160,12 +168,6 @@ const SHADCN: ThemeImportPreview = {
         },
       ],
       ignored: [
-        {
-          source: "--font-sans, --font-serif, --font-mono (@theme)",
-          category: "fonts",
-          reason: "an Atlas theme does not set fonts; pick them in Settings → Appearance",
-          weight: 3,
-        },
         {
           source: "--shadow-color, --shadow-opacity, --shadow-blur, …",
           category: "shadow recipe",
@@ -412,7 +414,14 @@ function exportOf(id: string): ShadcnExport {
   };
 }
 
-const THEME_LEVEL = ["radius", "tracking-normal", "spacing"];
+const THEME_LEVEL = [
+  "radius",
+  "font-sans",
+  "font-serif",
+  "font-mono",
+  "tracking-normal",
+  "spacing",
+];
 
 function stripThemeLevel(base: Record<string, string>): Record<string, string> {
   return Object.fromEntries(Object.entries(base).filter(([token]) => !THEME_LEVEL.includes(token)));

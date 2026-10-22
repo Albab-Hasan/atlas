@@ -189,7 +189,7 @@ fn build(
             continue;
         }
         let mut draft = VariantDraft::new(appearance);
-        for token in BASE_TOKENS {
+        for token in BASE_TOKENS.iter().chain(FONT_TOKENS) {
             let found = vars
                 .get(*token)
                 .map(|value| (format!("--{token} ({appearance})"), value))
@@ -221,7 +221,7 @@ fn build(
             }
         }
         draft.fill_palette();
-        draft.fill_required_base();
+        draft.fill_base();
         drafts.push(draft);
     }
     if drafts.is_empty() {
@@ -232,7 +232,10 @@ fn build(
     let mut reported = std::collections::BTreeSet::new();
     for (where_, vars) in [("@theme", theme_vars), ("light", light), ("dark", dark)] {
         for (name, value) in vars {
-            if BASE_TOKENS.contains(&name.as_str()) || name == "letter-spacing" {
+            if BASE_TOKENS.contains(&name.as_str())
+                || FONT_TOKENS.contains(&name.as_str())
+                || name == "letter-spacing"
+            {
                 continue;
             }
             if css::is_alias(value) {
@@ -241,13 +244,7 @@ fn build(
             if !reported.insert(name.clone()) {
                 continue;
             }
-            if FONT_TOKENS.contains(&name.as_str()) {
-                report.ignore(
-                    format!("--{name} ({where_})"),
-                    "fonts",
-                    "an Atlas theme does not set fonts; pick them in Settings → Appearance",
-                );
-            } else if SHADOW_RECIPE.contains(&name.as_str()) {
+            if SHADOW_RECIPE.contains(&name.as_str()) {
                 report.ignore(
                     format!("--{name}"),
                     "shadow recipe",

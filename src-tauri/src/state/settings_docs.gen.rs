@@ -211,11 +211,11 @@ const SETTINGS_DOCS: &[(&str, &str)] = &[
     ),
     (
         "uiFontFamily",
-        "# The font for Atlas's interface and chats, as a CSS font-family list such as\n# \"Inter, sans-serif\". Empty uses the system font. A font that isn't installed\n# falls through to the next one in the list. (default: \"\")",
+        "# The font for Atlas's interface and chats, as a CSS font-family list such as\n# \"Inter, sans-serif\". Empty uses the theme's font-sans if it sets one, else\n# the system font. A font that isn't installed falls through to the next one\n# in the list. (default: \"\")",
     ),
     (
         "codeFontFamily",
-        "# The font for the editor, diffs and code in chats, as a CSS font-family list\n# such as \"JetBrains Mono, monospace\". Empty uses Atlas's default monospace\n# fonts. The terminal uses it too unless terminalFontFamily is set. (default:\n# \"\")",
+        "# The font for the editor, diffs and code in chats, as a CSS font-family list\n# such as \"JetBrains Mono, monospace\". Empty uses the theme's font-mono if it\n# sets one, else the platform's monospace font. The terminal uses it too\n# unless terminalFontFamily is set. (default: \"\")",
     ),
     (
         "composerFontFamily",

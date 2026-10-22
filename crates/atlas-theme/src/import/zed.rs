@@ -268,7 +268,7 @@ fn import_one(
 
     draft.fill_palette();
     derive_base_tokens(&mut draft, style);
-    draft.fill_required_base();
+    draft.fill_base();
 
     record_ignored(style, &mut report);
     report.note(

@@ -8,17 +8,21 @@
  * can sit beside a dark one from another. A ring on an orb marks the half a
  * theme is filling. Importing opens in a dialog over the page — a shadcn, Zed
  * or VS Code theme converted by Rust, with the report of what mapped shown
- * before anything is written (`theme-import-panel.tsx`).
+ * before anything is written (`theme-import-panel.tsx`). Creating, duplicating
+ * and editing open the theme editor, which floats over the whole app
+ * (`theme-editor-panel.tsx`), so it outlives this page.
  */
 
 import { memo, useCallback, useEffect, useState } from "react";
-import { AlertTriangle, Download, Moon, Sun } from "lucide-react";
+import { AlertTriangle, Copy, Download, Moon, Pencil, Plus, Sun } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/ui/button";
 import { Dialog, DialogContent } from "@/ui/dialog";
 import { Icon } from "@/ui/icon";
 import { Hint } from "@/ui/tooltip";
+import { appearanceForMode } from "@/features/theme/apply-theme";
+import { useThemeEditorStore } from "@/features/theme/stores/theme-editor-store";
 import { themeIdFor, useThemeStore } from "@/features/theme/stores/theme-store";
 import { previewTheme, type ThemePreview } from "@/features/theme/preview-theme";
 import type { Theme, ThemeAppearance, ThemeSummary } from "@/features/theme/lib/theme-api";
@@ -39,6 +43,7 @@ export function ThemesSection() {
   const error = useThemeStore.use.error();
   const { load, loadAll, reapply } = useThemeStore.use.actions();
   const [importing, setImporting] = useState(false);
+  const { open: openEditor } = useThemeEditorStore.use.actions();
 
   useEffect(() => {
     void load();
@@ -75,18 +80,34 @@ export function ThemesSection() {
     [themeLight, themeDark, reapply, updateSettings],
   );
 
+  // Whichever half is on screen is the one the editor starts on, so the first
+  // change made is the first change seen.
+  const onEdit = useCallback(
+    (sourceId: string, kind: "create" | "duplicate" | "edit") =>
+      openEditor({ kind, sourceId, initialAppearance: appearanceForMode(themeMode) }),
+    [openEditor, themeMode],
+  );
+
   return (
     <SettingsSection
       title="Themes"
       anchor="themeLight"
       description="Pick a theme for both light and dark, or one of its orbs to set just that half."
       action={
-        <Hint label="Convert a shadcn, Zed or VS Code theme">
-          <Button size="sm" variant="ghost" onClick={() => setImporting(true)}>
-            <Icon icon={Download} size="sm" />
-            Import theme
-          </Button>
-        </Hint>
+        <div className="flex items-center gap-1">
+          <Hint label="Convert a shadcn, Zed or VS Code theme">
+            <Button size="sm" variant="ghost" onClick={() => setImporting(true)}>
+              <Icon icon={Download} size="sm" />
+              Import theme
+            </Button>
+          </Hint>
+          <Hint label="Start from two colours of the theme you're using">
+            <Button size="sm" variant="ghost" onClick={() => onEdit(showing, "create")}>
+              <Icon icon={Plus} size="sm" />
+              Create theme
+            </Button>
+          </Hint>
+        </div>
       }
     >
       {/* A file Rust could not load is skipped rather than fatal, which is
@@ -124,6 +145,7 @@ export function ThemesSection() {
             isLight={theme.id === themeLight}
             isDark={theme.id === themeDark}
             onPick={onPick}
+            onEdit={onEdit}
           />
         ))}
       </div>
@@ -173,6 +195,7 @@ const ThemeCard = memo(function ThemeCard({
   isLight,
   isDark,
   onPick,
+  onEdit,
 }: {
   summary: ThemeSummary;
   /** `undefined` until `loadAll` has the document. */
@@ -182,6 +205,7 @@ const ThemeCard = memo(function ThemeCard({
   isLight: boolean;
   isDark: boolean;
   onPick: (id: string, name: string, half: ThemeAppearance | "both") => void;
+  onEdit: (sourceId: string, kind: "duplicate" | "edit") => void;
 }) {
   const light = full && summary.hasLight ? previewTheme(full, "light") : null;
   const dark = full && summary.hasDark ? previewTheme(full, "dark") : null;
@@ -191,7 +215,7 @@ const ThemeCard = memo(function ThemeCard({
       type="button"
       onClick={() => onPick(summary.id, summary.name, "both")}
       className={cn(
-        "flex min-w-0 cursor-pointer flex-col gap-3 rounded-lg border bg-card px-3 pt-4 pb-2.5 text-left outline-none",
+        "group flex min-w-0 cursor-pointer flex-col gap-3 rounded-lg border bg-card px-3 pt-4 pb-2.5 text-left outline-none",
         "transition-colors duration-fast ease-out-strong focus-visible:ring-1 focus-visible:ring-ring",
         showing ? "border-primary" : "border-border hover:border-border-strong",
       )}
@@ -233,10 +257,61 @@ const ThemeCard = memo(function ThemeCard({
             </span>
           </Hint>
         )}
+        <span className="ml-auto flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-fast group-focus-within:opacity-100 group-hover:opacity-100">
+          {/* A built-in is rebuilt with every release, so it is duplicated
+              rather than edited: the copy is the user's and stays put. */}
+          {!summary.builtIn && (
+            <CardAction
+              icon={Pencil}
+              label={`Edit ${summary.name}`}
+              onAct={() => onEdit(summary.id, "edit")}
+            />
+          )}
+          <CardAction
+            icon={Copy}
+            label={`Duplicate ${summary.name}`}
+            onAct={() => onEdit(summary.id, "duplicate")}
+          />
+        </span>
       </div>
     </button>
   );
 });
+
+/** A small action on a card; a `<span role="button">` for the reason `Orb` gives. */
+function CardAction({
+  icon,
+  label,
+  onAct,
+}: {
+  icon: typeof Copy;
+  label: string;
+  onAct: () => void;
+}) {
+  return (
+    <Hint label={label}>
+      <span
+        role="button"
+        tabIndex={0}
+        aria-label={label}
+        onClick={(event) => {
+          event.stopPropagation();
+          onAct();
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            event.stopPropagation();
+            onAct();
+          }
+        }}
+        className="flex size-5 items-center justify-center rounded text-muted-foreground outline-none hover:bg-element-hover hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring"
+      >
+        <Icon icon={icon} size="xs" />
+      </span>
+    </Hint>
+  );
+}
 
 /**
  * A theme's light or dark variant as an orb: its background, lit from below

@@ -253,14 +253,14 @@ export interface AppSettings {
   timeFormat: "system" | "12h" | "24h";
   /**
    * The font for Atlas's interface and chats, as a CSS font-family list such as "Inter,
-   * sans-serif". Empty uses the system font. A font that isn't installed falls through to the
-   * next one in the list.
+   * sans-serif". Empty uses the theme's font-sans if it sets one, else the system font. A font
+   * that isn't installed falls through to the next one in the list.
    */
   uiFontFamily: string;
   /**
    * The font for the editor, diffs and code in chats, as a CSS font-family list such as
-   * "JetBrains Mono, monospace". Empty uses Atlas's default monospace fonts. The terminal uses
-   * it too unless terminalFontFamily is set.
+   * "JetBrains Mono, monospace". Empty uses the theme's font-mono if it sets one, else the
+   * platform's monospace font. The terminal uses it too unless terminalFontFamily is set.
    */
   codeFontFamily: string;
   /** The font for the chat composer, as a CSS font-family list. Empty uses the interface font. */
@@ -958,7 +958,8 @@ export const SETTINGS_REGISTRY: readonly SettingMeta[] = [
     page: "appearance",
     section: "Typography",
     title: "Interface font",
-    summary: "The font for everything outside code and the terminal. Empty uses the system font.",
+    summary:
+      "The font for everything outside code and the terminal. Empty follows the theme, else the system font.",
   },
   {
     key: "codeFontFamily",
@@ -967,7 +968,8 @@ export const SETTINGS_REGISTRY: readonly SettingMeta[] = [
     page: "appearance",
     section: "Typography",
     title: "Code font",
-    summary: "The font for the editor, diffs and code in chats. Empty uses the default.",
+    summary:
+      "The font for the editor, diffs and code in chats. Empty follows the theme, else the default.",
   },
   {
     key: "composerFontFamily",

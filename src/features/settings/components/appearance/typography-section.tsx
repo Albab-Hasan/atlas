@@ -6,23 +6,64 @@
  * The samples read the same custom properties the app does
  * (`display-settings.ts`), so each one changes the moment its setting saves,
  * and is the font you will actually get — fallbacks included.
+ *
+ * A picker left on its default follows the active theme's font when the theme
+ * names one (a tweakcn import usually does), else Atlas's own; the default
+ * item says which, so "Default" never hides where a font came from.
  */
 
 import { isMac } from "@/lib/platform";
 import { Select } from "@/ui/select";
+import { appearanceForMode } from "@/features/theme/apply-theme";
+import { themeIdFor, useThemeStore } from "@/features/theme/stores/theme-store";
+import { useSettingsStore } from "../../stores/settings-store";
+import { parseFontValue } from "../../lib/fonts-api";
 import type { AppSettings } from "../../lib/app-settings";
 import { settingMeta } from "../../lib/settings-sections";
 import { useScopedSetting } from "../../lib/use-scoped-setting";
 import { SettingsGroup, SettingsRow, SettingsSection } from "../layout/settings-layout";
 import { FontPicker } from "./font-picker";
 
-/** What each default resolves to, written once for the picker and the sample. */
-const SYSTEM_SANS = 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-const UI_FONT = `var(--atlas-ui-font, ${SYSTEM_SANS})`;
+/** Atlas's own defaults, for when neither the setting nor the theme names a
+ *  font. Mirrors `tokens.css`. */
+const SYSTEM_SANS = '-apple-system, "SF Pro Text", system-ui, sans-serif';
+const SYSTEM_MONO = '"SF Mono", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace';
+// What the app renders with: setting, then theme, then default (`globals.css`).
+const UI_FONT = "var(--font-sans)";
 const COMPOSER_FONT = `var(--atlas-composer-font, ${UI_FONT})`;
-// `--font-mono` already follows `codeFontFamily` (`globals.css`).
 const CODE_FONT = "var(--font-mono)";
 const TERMINAL_FONT = `var(--atlas-terminal-font, ${CODE_FONT})`;
+
+type ThemeFontToken = "font-sans" | "font-mono";
+
+/** The active theme's own font stack for `token`, if it names one. */
+function useThemeFont(token: ThemeFontToken): string | undefined {
+  const themeMode = useSettingsStore((s) => s.settings.themeMode);
+  const light = useSettingsStore((s) => s.settings.themeLight);
+  const dark = useSettingsStore((s) => s.settings.themeDark);
+  const theme = useThemeStore((s) => s.loaded[themeIdFor({ light, dark }, themeMode)]);
+  if (!theme) return undefined;
+  // A one-variant theme answers both appearances, as `resolveTheme` does.
+  const variant =
+    appearanceForMode(themeMode) === "light"
+      ? (theme.light ?? theme.dark)
+      : (theme.dark ?? theme.light);
+  return variant?.base[token]?.trim() || undefined;
+}
+
+/** The default item for a font that can come from the theme. */
+function useDefaultFont(token: ThemeFontToken, ownLabel: string, ownFamily: string) {
+  const stack = useThemeFont(token);
+  if (!stack) return { label: ownLabel, family: ownFamily, themeFamily: undefined };
+  const parsed = parseFontValue(stack);
+  const first =
+    parsed.kind === "family" ? parsed.family : parsed.kind === "list" ? parsed.families[0] : "";
+  return {
+    label: `From theme: ${first || stack}`,
+    family: `${stack}, ${ownFamily}`,
+    themeFamily: first || undefined,
+  };
+}
 
 type FontKey = "uiFontFamily" | "composerFontFamily" | "codeFontFamily" | "terminalFontFamily";
 type SizeKey = "editorFontSize" | "terminalFontSize";
@@ -34,7 +75,12 @@ export function TypographySection() {
         <SettingsRow
           setting="uiFontFamily"
           control={
-            <FontControl setting="uiFontFamily" defaultLabel="System font" fallback={SYSTEM_SANS} />
+            <FontControl
+              setting="uiFontFamily"
+              themeToken="font-sans"
+              defaultLabel="System font"
+              fallback={SYSTEM_SANS}
+            />
           }
         >
           <Sample font={UI_FONT}>
@@ -69,8 +115,9 @@ export function TypographySection() {
             <FontControl
               setting="codeFontFamily"
               size="editorFontSize"
+              themeToken="font-mono"
               defaultLabel={isMac ? "SF Mono" : "Default monospace"}
-              fallback={CODE_FONT}
+              fallback={SYSTEM_MONO}
               monospace
             />
           }
@@ -100,24 +147,33 @@ export function TypographySection() {
 function FontControl({
   setting,
   size,
+  themeToken,
   defaultLabel,
   fallback,
   monospace,
 }: {
   setting: FontKey;
   size?: SizeKey;
+  /** The theme font this setting's default follows; none for the two that
+   *  follow another setting instead. */
+  themeToken?: ThemeFontToken;
   defaultLabel: string;
   fallback: string;
   monospace?: boolean;
 }) {
   const scoped = useScopedSetting(setting);
+  const fromTheme = useDefaultFont(themeToken ?? "font-sans", defaultLabel, fallback);
+  const shown = themeToken
+    ? fromTheme
+    : { label: defaultLabel, family: fallback, themeFamily: undefined };
   return (
     <>
       <FontPicker
         value={scoped.value as string}
         onChange={(next) => scoped.set(next as AppSettings[FontKey])}
-        defaultLabel={defaultLabel}
-        defaultFamily={fallback}
+        defaultLabel={shown.label}
+        defaultFamily={shown.family}
+        themeFamily={shown.themeFamily}
         monospace={monospace}
         label={settingMeta(setting).title}
       />

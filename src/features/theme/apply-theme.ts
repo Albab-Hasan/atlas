@@ -166,6 +166,9 @@ export function applyTheme(
   theme: Theme,
   mode: ThemeMode,
   themeOverride: ThemeOverride = {},
+  /** A preview (the theme editor's draft) paints the app but is not cached
+   *  for the next launch, so quitting mid-edit never boots into a draft. */
+  { preview = false }: { preview?: boolean } = {},
 ): ResolvedTheme {
   const resolved = resolveTheme(theme, appearanceForMode(mode), themeOverride, interfaceContrast);
   activeTheme = resolved;
@@ -192,7 +195,7 @@ export function applyTheme(
   style.textContent = resolvedThemeCss(resolved.cssVars) + invertedThemeCss(inverted.cssVars);
   const cache = launchCache(resolved);
   applyBootVars(root, cache);
-  cacheLaunchTheme(cache);
+  if (!preview) cacheLaunchTheme(cache);
   window.dispatchEvent(new CustomEvent("atlas:theme-applied"));
   return resolved;
 }

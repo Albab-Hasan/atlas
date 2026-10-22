@@ -226,6 +226,7 @@ fn finish_theme(
             .license_hint
             .clone()
             .unwrap_or_else(|| "Unknown".to_string()),
+        base: Default::default(),
         dark: None,
         light: None,
         warnings: Vec::new(),
@@ -244,6 +245,7 @@ fn finish_theme(
     report.variants.sort();
     report.variants.dedup();
     report.finish();
+    hoist_shared_fonts(&mut theme);
 
     let toml = theme_to_toml(&theme);
     let theme = parse_theme(&toml, &options.origin)?;
@@ -474,6 +476,24 @@ fn strip_jsonc(source: &str) -> String {
         }
     }
     out
+}
+
+/// A font stack every variant agrees on is written once, in the shared
+/// `[base]`, the way shadcn keeps it in `cssVars.theme` — so the file reads
+/// as "this theme uses Montserrat", not as two copies that could drift.
+fn hoist_shared_fonts(theme: &mut Theme) {
+    let variants = [theme.dark.as_ref(), theme.light.as_ref()]
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+    for token in crate::FONT_TOKENS {
+        let mut values = variants.iter().map(|variant| variant.base.get(*token));
+        if let Some(Some(first)) = values.next() {
+            if values.all(|value| value == Some(first)) {
+                theme.base.insert((*token).to_string(), first.clone());
+            }
+        }
+    }
 }
 
 #[cfg(test)]

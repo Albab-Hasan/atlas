@@ -40,6 +40,7 @@ export function FontPicker({
   onChange,
   defaultLabel,
   defaultFamily,
+  themeFamily,
   monospace = false,
   label,
 }: {
@@ -50,6 +51,9 @@ export function FontPicker({
   defaultLabel: string;
   /** The CSS family the default item is drawn in. */
   defaultFamily: string;
+  /** The first family of the theme's font, when the default comes from the
+   *  theme: checked like a chosen font, so an uninstalled one is flagged. */
+  themeFamily?: string;
   /** Refuse a font that is not fixed-width. */
   monospace?: boolean;
   /** The accessible name. */
@@ -71,8 +75,11 @@ export function FontPicker({
   const byName = useMemo(() => new Map(families.map((f) => [f.name, f])), [families]);
   const items = useMemo(() => [DEFAULT_ITEM, ...families.map((f) => f.name)], [families]);
   const selected = parsed.kind === "family" ? parsed.family : DEFAULT_ITEM;
-  // Only worth saying once there is a list to have looked in.
-  const missing = parsed.kind === "family" && families.length > 0 && !byName.has(parsed.family);
+  // Only worth saying once there is a list to have looked in. A theme's font
+  // is the usual case: tweakcn themes name Google Fonts nobody has installed.
+  const wanted =
+    parsed.kind === "family" ? parsed.family : parsed.kind === "default" ? themeFamily : undefined;
+  const missing = wanted !== undefined && families.length > 0 && !byName.has(wanted);
 
   const pick = (item: string | null) => {
     if (item === null) return;
@@ -131,7 +138,13 @@ export function FontPicker({
         )}
       >
         {missing && (
-          <Hint label={`${parsed.family} isn't installed, so the default is showing.`}>
+          <Hint
+            label={
+              parsed.kind === "default"
+                ? `Your theme uses ${wanted}, which isn't installed. Get it from Google Fonts, or pick another.`
+                : `${wanted} isn't installed, so the default is showing.`
+            }
+          >
             <span className="flex text-warning">
               <Icon icon={AlertTriangle} size="sm" />
             </span>

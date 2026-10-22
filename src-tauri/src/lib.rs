@@ -799,6 +799,7 @@ pub fn run() {
             commands::atlas_config::open_atlas_config,
             commands::themes::list_themes,
             commands::themes::get_theme,
+            commands::themes::save_theme,
             commands::theme_import::preview_theme_import,
             commands::theme_import::commit_theme_import,
             commands::theme_import::export_theme_shadcn,

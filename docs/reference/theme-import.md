@@ -44,12 +44,17 @@ colour is taken from the first of:
 | `orange` | `syntax.number` → `terminal.ansi.bright_red` |
 | `pink` | `syntax.escape` → `terminal.ansi.bright_magenta` → `syntax.regexp` |
 
-**Required base tokens.** All 45 are mandatory, so anything the source did not
-supply is filled from a chain of tokens already set (`popover` → `card` →
-`background`, `input` → `border`, `ring` → `primary`, the chart ramp from the
-palette), then from Atlas's default for the appearance. Two are a contrast
-question rather than a chain: `primary-foreground` and `destructive-foreground`
-pick whichever of a light or dark default reads against their surface.
+**Base tokens the source lacks.** No base token is required (ADR-0022), but an
+import fills every one the source did not supply and **pins** it in the file, so
+the theme you previewed is the theme you keep even if a rule changes later.
+The filling is not importer-specific: it is the same `[[base]]` rules in
+`crates/atlas-theme/keys.toml` that any theme leaving a token out resolves
+through — `card` and `border` mixed from `background` toward `foreground` in
+OKLab, `input` ← `border`, `ring` ← `primary`, the chart ramp from the palette,
+and `primary-foreground` / `destructive-foreground` as whichever of the theme's
+own foreground and background reads better on the fill. The report names the
+rule each value came from. The table is in
+[theme keys](theme-keys.md#how-a-missing-base-token-is-derived).
 
 Light variants get a **light shadow ramp**, not the dark one.
 
@@ -65,10 +70,11 @@ Two source shapes, one mapping:
 **Maps.** Every shadcn token name straight onto the Atlas base token of the same
 name, per variant, with `cssVars.theme` / `@theme` behind both. Colour values
 keep the author's notation: an oklch theme stays oklch. tweakcn's extras land
-where Atlas has a home — `radius`, `tracking-normal` (also read from tweakcn's
-`--letter-spacing`) and the composed `shadow-2xs`…`shadow-2xl` ramp. Its font
-stacks do not: an Atlas theme never sets fonts (they are settings, so a colour
-theme cannot change them), and they are reported under "fonts".
+where Atlas has a home — `font-sans` / `font-serif` / `font-mono`, `radius`,
+`tracking-normal` (also read from tweakcn's `--letter-spacing`) and the composed
+`shadow-2xs`…`shadow-2xl` ramp. The font stacks are the one optional set of base
+tokens; a stack both variants share is written once, in the theme's top-level
+`[base]` table (shadcn's `cssVars.theme`), and a user's font setting outranks it.
 
 **Derives.** Nothing beyond the shared machinery, plus `destructive-foreground`,
 which current shadcn registries no longer emit.
@@ -116,7 +122,7 @@ key is a colour, and the loader rejects a `font_style` by name rather than
 accept one nothing reads, so an italic scope imports upright and the drop is
 listed under "font styles".
 
-**Derives.** All 45 base tokens, since Zed has no shadcn layer. Every source
+**Derives.** The base tokens, since Zed has no shadcn layer. Every source
 below is a ZED style key, not an Atlas one. The judgements worth knowing:
 `primary` ← Zed's `text.accent`, `accent` ← Zed's `element.hover` (shadcn's
 `accent` is a hover *surface*, which is the audit's "accent collision"), `card`
@@ -233,7 +239,7 @@ applied unconditionally, so it is reported rather than used.
 ## Export
 
 `export_theme_shadcn` turns any Atlas theme into a `registry:style` item:
-base tokens verbatim per appearance, with `radius`,
+base tokens verbatim per appearance, with `radius`, the three font stacks,
 `tracking-normal` and `spacing` hoisted into `cssVars.theme`. Lossy in the
 mirror image of the shadcn importer — the palette and every theme key the
 source set describe surfaces shadcn has no vocabulary for and are dropped, with

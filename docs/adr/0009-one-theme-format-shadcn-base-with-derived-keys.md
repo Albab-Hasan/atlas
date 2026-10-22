@@ -1,6 +1,6 @@
 # ADR-0009: One theme format — shadcn base tokens, optional palette and keys, everything else derived
 
-**Status:** Accepted (2026-09-17). Plan and audit: `docs-atlas/content/private/theme-system.mdx`.
+**Status:** Accepted (2026-09-17). Amended by ADR-0022: no base token is required any more. Plan and audit: `docs-atlas/content/private/theme-system.mdx`.
 
 ## Context
 
