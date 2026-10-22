@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 pub mod color;
+pub mod derive;
 pub mod export;
 pub mod import;
 pub mod toml_writer;
@@ -43,8 +44,10 @@ pub fn theme_keys() -> impl Iterator<Item = &'static str> {
 }
 
 /// The shadcn base tokens, in the order `docs/reference/theme-keys.md` and the
-/// built-in TOMLs list them. Public because the importers fill this exact set
-/// and the TOML writer emits it in this exact order.
+/// built-in TOMLs list them. None is required: [`derive`] fills one a theme
+/// leaves out, by the `[[base]]` rule of the same name in `keys.toml`, which
+/// must list exactly these in exactly this order. Public because the TOML
+/// writer emits them in this order.
 pub const BASE_TOKENS: &[&str] = &[
     "background",
     "foreground",
@@ -90,11 +93,11 @@ pub const BASE_TOKENS: &[&str] = &[
     "shadow-2xl",
 ];
 
-/// shadcn's three font stacks: base tokens a theme MAY set, unlike every other
-/// one, which it must. A built-in theme leaves them out so Atlas's own
-/// defaults apply; a tweakcn import keeps them. Either way a user's font
-/// setting outranks them, so they only decide the fonts of someone who left
-/// that setting on "follow the theme".
+/// shadcn's three font stacks. Like every base token they are optional, but
+/// unlike the rest they have no `[[base]]` rule: one a theme leaves out is
+/// Atlas's own default from `tokens.css`. A tweakcn import keeps them. Either
+/// way a user's font setting outranks them, so they only decide the fonts of
+/// someone who left that setting on "follow the theme".
 pub const FONT_TOKENS: &[&str] = &["font-sans", "font-serif", "font-mono"];
 
 /// Base tokens whose value is free text (a length, a font stack, a composed
@@ -149,6 +152,9 @@ pub struct Theme {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ThemeVariant {
+    /// The shadcn base tokens this variant sets. Any may be left out: Atlas
+    /// derives it from `background`, `foreground` and `primary`.
+    #[serde(default)]
     pub base: BTreeMap<String, String>,
     #[serde(default)]
     pub palette: BTreeMap<String, String>,
@@ -708,12 +714,9 @@ fn parse_variant(
             format!("unknown {appearance} field(s): {}", unknown.join(", ")),
         ));
     }
-    // The shared `[base]` first, then the variant's own on top of it. With a
-    // shared table, a variant may leave `[<variant>.base]` out entirely.
-    let own = match table.get("base") {
-        None if !shared.is_empty() => BTreeMap::new(),
-        own => flatten_string_table(own, origin, &format!("{appearance}.base"))?,
-    };
+    // The shared `[base]` first, then the variant's own on top of it. Every
+    // token is optional (ADR-0022), so `[<variant>.base]` may be absent.
+    let own = flatten_string_table(table.get("base"), origin, &format!("{appearance}.base"))?;
     let mut base = shared.clone();
     base.extend(own);
     let palette = flatten_string_table(
@@ -736,11 +739,7 @@ fn flatten_string_table(
     field: &str,
 ) -> Result<BTreeMap<String, String>, ThemeError> {
     let Some(value) = value else {
-        return if field.ends_with(".base") {
-            Err(validation(origin, format!("[{field}] is required")))
-        } else {
-            Ok(BTreeMap::new())
-        };
+        return Ok(BTreeMap::new());
     };
     let mut out = BTreeMap::new();
     flatten_strings(value, "", &mut out, origin, field)?;
@@ -914,20 +913,6 @@ fn validate_variant(
         return Err(validation(
             origin,
             format!("unknown base token '{key}' in {appearance}"),
-        ));
-    }
-    let missing = BASE_TOKENS
-        .iter()
-        .filter(|key| !base.contains_key(**key))
-        .copied()
-        .collect::<Vec<_>>();
-    if !missing.is_empty() {
-        return Err(validation(
-            origin,
-            format!(
-                "missing base token(s) in {appearance}: {}",
-                missing.join(", ")
-            ),
         ));
     }
     let palette_keys = PALETTE_KEYS.iter().copied().collect::<BTreeSet<_>>();
@@ -1312,16 +1297,28 @@ mod tests {
     }
 
     #[test]
+    fn every_base_token_is_optional() {
+        let seeds = "schema = 1\nid = \"seeds\"\nname = \"Seeds\"\nauthor = \"A\"\nlicense = \"MIT\"\n[dark.base]\nbackground = \"#101418\"\nprimary = \"#7aa2f7\"\n";
+        let theme = parse_theme(seeds, "test").unwrap();
+        assert_eq!(
+            theme.dark.unwrap().base.len(),
+            2,
+            "parsed as written, not filled"
+        );
+        let bare = "schema = 1\nid = \"bare\"\nname = \"Bare\"\nauthor = \"A\"\nlicense = \"MIT\"\n[light]\n";
+        assert!(parse_theme(bare, "test").is_ok(), "no [light.base] at all");
+        let typo = "schema = 1\nid = \"t\"\nname = \"T\"\nauthor = \"A\"\nlicense = \"MIT\"\n[dark.base]\nbackgound = \"#000\"\n";
+        assert!(
+            parse_theme(typo, "test").is_err(),
+            "an unknown token is still an error"
+        );
+    }
+
+    #[test]
     fn the_shared_base_reaches_both_variants_and_a_variant_wins() {
         let source = minimal_theme("[light.base]\n\"font-sans\" = \"Inter\"\n").replacen(
             "[dark.base]",
             "[base]\n\"font-sans\" = \"Montserrat\"\n\"font-mono\" = \"Fira Code\"\n[dark.base]",
-            1,
-        );
-        // Give the light variant the full required set beside its own font.
-        let source = source.replacen(
-            "[light.base]\n",
-            &format!("[light.base]\n{}\n", minimal_base()),
             1,
         );
         let theme = parse_theme(&source, "test").unwrap();

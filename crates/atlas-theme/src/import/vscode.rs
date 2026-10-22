@@ -587,7 +587,7 @@ pub(crate) fn import(
             }
         }
     }
-    draft.fill_required_base();
+    draft.fill_base();
 
     record_ignored(&colors, &used, &mut report);
     if !semantic.is_empty() {

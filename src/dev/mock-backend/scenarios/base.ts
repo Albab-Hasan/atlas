@@ -9,7 +9,7 @@ import type { FileEntry } from "@/features/explorer/stores/explorer-store";
 import type { Theme, ThemeCatalogSummary } from "@/features/theme/lib/theme-api";
 import type { MockHandlers } from "../types";
 import { DEFAULT_APP_PROFILE, type AppProfile } from "@/lib/app-profile";
-import builtinThemesJson from "../fixtures/builtin-themes.json";
+import { BUILTIN_THEMES } from "../fixtures/builtin-themes";
 import { agentHandlers } from "../fake-agent";
 import { artifactsHandlers } from "../fixtures/artifacts";
 import { captureHandlers } from "../fixtures/capture";
@@ -34,7 +34,7 @@ const nothing = () => null;
 
 // Generated from the TOML themes by the atlas-theme crate; `cargo test -p
 // atlas-theme` fails when this snapshot is stale.
-const builtinThemes = builtinThemesJson as Theme[];
+const builtinThemes = BUILTIN_THEMES;
 
 /**
  * Every fixture map spread into `baseHandlers`, by name. Exported so

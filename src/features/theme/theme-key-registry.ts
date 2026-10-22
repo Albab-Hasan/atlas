@@ -1,7 +1,7 @@
 // Generated from crates/atlas-theme/keys.toml — do not edit.
 // Run `bun run theme:keys` after editing that file.
 
-import { withAlpha, lighten, mix } from "./color";
+import { withAlpha, lighten, mix, readable } from "./color";
 
 export const PALETTE_KEYS = [
   "red",
@@ -57,6 +57,234 @@ const towardForeground =
   (amount: number): ColorTransform =>
   (color, { base }) =>
     mix(color, base.foreground ?? "#ffffff", amount);
+const readableOn =
+  (): ColorTransform =>
+  (color, { base }) =>
+    readable(color, base.foreground ?? "#ffffff", base.background ?? "#000000");
+
+export interface BaseRule {
+  token: string;
+  palette?: PaletteKey;
+  /** An earlier base token this one follows. */
+  base?: string;
+  /** Per-appearance default, for when neither source answers. */
+  atlasDefault?: Record<Appearance, string>;
+  transform?: ColorTransform;
+  description: string;
+}
+
+function rule(
+  token: string,
+  definition: Omit<BaseRule, "token" | "atlasDefault"> & { dark?: string; light?: string },
+): BaseRule {
+  const { dark, light = dark, ...rest } = definition;
+  return { token, ...rest, ...(dark ? { atlasDefault: { dark, light: light! } } : {}) };
+}
+
+/**
+ * How each shadcn base token a theme leaves out is derived (ADR-0022), in
+ * `BASE_TOKENS` order: a rule's `base` is always an earlier rule, so one
+ * pass resolves the set.
+ */
+export const BASE_RULE_REGISTRY: readonly BaseRule[] = [
+  rule("background", {
+    dark: "#000000",
+    light: "#ffffff",
+    description: "The app's ground. A seed.",
+  }),
+  rule("foreground", {
+    dark: "#ffffff",
+    light: "#000000",
+    description: "Body text. A seed.",
+  }),
+  rule("card", {
+    base: "background",
+    transform: towardForeground(0.05),
+    description: "Raised surfaces: cards, composer, tiles.",
+  }),
+  rule("card-foreground", {
+    base: "foreground",
+    description: "Text on a card.",
+  }),
+  rule("popover", {
+    base: "background",
+    transform: towardForeground(0.12),
+    description: "Menus, popovers, tooltips.",
+  }),
+  rule("popover-foreground", {
+    base: "foreground",
+    description: "Text in a popover.",
+  }),
+  rule("primary", {
+    base: "foreground",
+    description: "Brand colour for buttons, focus and selection. A seed; monochrome if unset.",
+  }),
+  rule("primary-foreground", {
+    base: "primary",
+    transform: readableOn(),
+    description: "Text on a primary fill.",
+  }),
+  rule("secondary", {
+    base: "background",
+    transform: towardForeground(0.05),
+    description: "Secondary button fill.",
+  }),
+  rule("secondary-foreground", {
+    base: "foreground",
+    transform: towardBackground(0.28),
+    description: "Secondary text and secondary button labels.",
+  }),
+  rule("muted", {
+    base: "background",
+    transform: towardForeground(0.05),
+    description: "Quiet fills: wells, inactive tracks.",
+  }),
+  rule("muted-foreground", {
+    base: "foreground",
+    transform: towardBackground(0.32),
+    description: "Hints, captions, placeholders.",
+  }),
+  rule("accent", {
+    base: "muted",
+    description: "Hover and selected rows (shadcn's meaning, not the brand colour).",
+  }),
+  rule("accent-foreground", {
+    base: "foreground",
+    description: "Text on an accent row.",
+  }),
+  rule("destructive", {
+    palette: "red",
+    dark: "#f44747",
+    light: "#c62828",
+    description: "Destructive actions and errors.",
+  }),
+  rule("destructive-foreground", {
+    base: "destructive",
+    transform: readableOn(),
+    description: "Text on a destructive fill.",
+  }),
+  rule("border", {
+    base: "background",
+    transform: towardForeground(0.16),
+    description: "Separators and outlines.",
+  }),
+  rule("input", {
+    base: "border",
+    description: "Input outlines.",
+  }),
+  rule("ring", {
+    base: "primary",
+    description: "Focus rings.",
+  }),
+  rule("chart-1", {
+    base: "primary",
+    description: "The first chart series: the theme's ink.",
+  }),
+  rule("chart-2", {
+    palette: "green",
+    dark: "#9ecf8a",
+    light: "#3f7f2f",
+    description: "Chart series 2.",
+  }),
+  rule("chart-3", {
+    palette: "yellow",
+    dark: "#e0b070",
+    light: "#b06000",
+    description: "Chart series 3.",
+  }),
+  rule("chart-4", {
+    palette: "purple",
+    dark: "#c9a2f5",
+    light: "#7b3fb5",
+    description: "Chart series 4.",
+  }),
+  rule("chart-5", {
+    palette: "cyan",
+    dark: "#7fd1e8",
+    light: "#1f7f99",
+    description: "Chart series 5.",
+  }),
+  rule("sidebar", {
+    base: "background",
+    description: "The sidebars' ground.",
+  }),
+  rule("sidebar-foreground", {
+    base: "foreground",
+    description: "Sidebar text.",
+  }),
+  rule("sidebar-primary", {
+    base: "primary",
+    description: "Primary fills in a sidebar.",
+  }),
+  rule("sidebar-primary-foreground", {
+    base: "primary-foreground",
+    description: "Text on a sidebar primary fill.",
+  }),
+  rule("sidebar-accent", {
+    base: "accent",
+    description: "Hover and selected rows in a sidebar.",
+  }),
+  rule("sidebar-accent-foreground", {
+    base: "accent-foreground",
+    description: "Text on a sidebar accent row.",
+  }),
+  rule("sidebar-border", {
+    base: "background",
+    transform: towardForeground(0.08),
+    description: "Sidebar separators, quieter than `border`.",
+  }),
+  rule("sidebar-ring", {
+    base: "ring",
+    description: "Focus rings in a sidebar.",
+  }),
+  rule("radius", {
+    dark: "8px",
+    description: "Corner radius.",
+  }),
+  rule("tracking-normal", {
+    dark: "0em",
+    description: "Letter spacing.",
+  }),
+  rule("spacing", {
+    dark: "0.25rem",
+    description: "The spacing unit.",
+  }),
+  rule("shadow-2xs", {
+    dark: "0 1px 2px rgba(0, 0, 0, 0.35)",
+    light: "0 1px 2px rgba(0, 0, 0, 0.04)",
+    description: "Shadow ramp.",
+  }),
+  rule("shadow-xs", {
+    dark: "0 1px 2px rgba(0, 0, 0, 0.45)",
+    light: "0 1px 2px rgba(0, 0, 0, 0.06)",
+    description: "Shadow ramp.",
+  }),
+  rule("shadow-sm", {
+    dark: "0 1px 3px rgba(0, 0, 0, 0.55)",
+    light: "0 1px 3px rgba(0, 0, 0, 0.08)",
+    description: "Shadow ramp.",
+  }),
+  rule("shadow-md", {
+    dark: "0 4px 12px rgba(0, 0, 0, 0.65)",
+    light: "0 4px 12px rgba(0, 0, 0, 0.11)",
+    description: "Shadow ramp.",
+  }),
+  rule("shadow-lg", {
+    dark: "0 8px 24px rgba(0, 0, 0, 0.75)",
+    light: "0 8px 24px rgba(0, 0, 0, 0.14)",
+    description: "Shadow ramp.",
+  }),
+  rule("shadow-xl", {
+    dark: "0 12px 36px rgba(0, 0, 0, 0.82)",
+    light: "0 12px 36px rgba(0, 0, 0, 0.18)",
+    description: "Shadow ramp.",
+  }),
+  rule("shadow-2xl", {
+    dark: "0 16px 48px rgba(0, 0, 0, 0.9)",
+    light: "0 16px 48px rgba(0, 0, 0, 0.22)",
+    description: "Shadow ramp.",
+  }),
+];
 
 function define<const Key extends string>(
   key: Key,
@@ -151,9 +379,10 @@ export const THEME_KEY_REGISTRY = [
    * set this key explicitly to a SURFACE colour — the port mapped a background role
    * onto a text role — which rendered disabled text and comms timestamps at 1.06:1
    * to 1.66:1 against their own background, i.e. invisible. With the explicit values
-   * gone and a 0.2 mix, the sixteen shipped variants land between 1.98:1 and 4.22:1
-   * (median 2.42) where `muted-foreground` itself has a median of 3.03:1. A larger
-   * mix reaches 1.48:1 at the bottom of that range and is what the old 0.35 did.
+   * gone and a 0.2 mix (OKLab since ADR-0022), the 28 shipped variants land between
+   * 1.99:1 and 4.40:1 (median 3.10) where `muted-foreground` itself has a median of
+   * 4.37:1. A larger mix reaches 1.48:1 at the bottom of that range and is what the
+   * old 0.35 did.
    *
    * The fraction is deliberately ONE value for every theme. The ratio of this key's
    * contrast to `muted-foreground`'s is near-constant across the fleet (~0.82), so a

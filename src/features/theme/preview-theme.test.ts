@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import builtinThemes from "@/dev/mock-backend/fixtures/builtin-themes.json";
+import { BUILTIN_THEMES } from "@/dev/mock-backend/fixtures/builtin-themes";
 import { previewTheme } from "./preview-theme";
 import { resolveTheme } from "./resolve-theme";
 import type { Theme } from "./lib/theme-api";
 
-const themes = builtinThemes as Theme[];
+const themes = BUILTIN_THEMES;
 const withBoth = themes.find((theme) => theme.dark && theme.light)!;
 
 /** A theme that sets almost nothing — an import, or a half-written file. */

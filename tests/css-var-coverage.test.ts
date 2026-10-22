@@ -2,9 +2,8 @@ import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import builtinThemes from "@/dev/mock-backend/fixtures/builtin-themes.json";
+import { BUILTIN_THEMES } from "@/dev/mock-backend/fixtures/builtin-themes";
 import { resolveTheme } from "@/features/theme/resolve-theme";
-import type { Theme } from "@/features/theme/lib/theme-api";
 
 /**
  * Every CSS custom property `src/` reads must be one something defines.
@@ -20,7 +19,7 @@ import type { Theme } from "@/features/theme/lib/theme-api";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SRC = path.join(REPO_ROOT, "src");
-const themes = builtinThemes as Theme[];
+const themes = BUILTIN_THEMES;
 
 function walk(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {

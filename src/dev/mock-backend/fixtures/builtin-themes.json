@@ -92,7 +92,8 @@
         "syntax.string": "#5ecc71",
         "syntax.tag": "#ff855e",
         "syntax.type": "#d568ea",
-        "syntax.variable": "#a3a3a3"
+        "syntax.variable": "#a3a3a3",
+        "terminal.ansi.black": "#1f1f1f"
       }
     },
     "light": {

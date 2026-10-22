@@ -221,7 +221,7 @@ fn build(
             }
         }
         draft.fill_palette();
-        draft.fill_required_base();
+        draft.fill_base();
         drafts.push(draft);
     }
     if drafts.is_empty() {

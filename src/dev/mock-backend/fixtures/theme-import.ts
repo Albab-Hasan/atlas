@@ -29,14 +29,14 @@ import {
 } from "@/features/theme/lib/theme-import-api";
 import type { TypedHandlers } from "../types";
 import importedThemesJson from "./imported-themes.json";
-import builtinThemesJson from "./builtin-themes.json";
+import { BUILTIN_THEMES } from "./builtin-themes";
 
 /** `[tweakcn Catppuccin, Rosé Pine, Rosé Pine Dawn, Nocturne Bright]`.
  *  Through `unknown`: TS widens a JSON array of themes where only some set a
  *  font to `"font-mono"?: undefined` on the rest, which `Record<string,
  *  string>` rejects. The shape is Rust's, pinned by its snapshot test. */
 const imported = importedThemesJson as unknown as Theme[];
-const builtins = builtinThemesJson as Theme[];
+const builtins = BUILTIN_THEMES;
 
 const byId = (id: string): Theme => {
   const theme = imported.find((candidate) => candidate.id === id);

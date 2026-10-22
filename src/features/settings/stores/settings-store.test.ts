@@ -1,8 +1,7 @@
 // @vitest-environment happy-dom
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import builtinThemes from "@/dev/mock-backend/fixtures/builtin-themes.json";
+import { BUILTIN_THEMES } from "@/dev/mock-backend/fixtures/builtin-themes";
 import { applyTheme } from "@/features/theme/apply-theme";
-import type { Theme } from "@/features/theme/lib/theme-api";
 import { DEFAULT_SETTINGS, type AppSettings } from "../lib/app-settings";
 
 const applyConfiguredTheme = vi.fn();
@@ -105,7 +104,7 @@ describe("icon appearance", () => {
    */
   it("follows the appearance the theme actually resolved to", () => {
     const [rosePine, monokai] = ["rose-pine", "monokai"].map((id) =>
-      (builtinThemes as Theme[]).find((theme) => theme.id === id)!,
+      BUILTIN_THEMES.find((theme) => theme.id === id)!,
     );
     // On a light theme under Light, icons are light.
     applyTheme(rosePine, "light");
@@ -128,7 +127,7 @@ describe("icon appearance", () => {
   });
 
   it("uses the resolved appearance for a new icon theme, too", () => {
-    const rosePine = (builtinThemes as Theme[]).find((theme) => theme.id === "rose-pine")!;
+    const rosePine = BUILTIN_THEMES.find((theme) => theme.id === "rose-pine")!;
     applyTheme(rosePine, "light");
     vi.clearAllMocks();
 

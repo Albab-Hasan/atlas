@@ -1,11 +1,13 @@
+import { readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
-import builtinThemes from "@/dev/mock-backend/fixtures/builtin-themes.json";
-import { parseColor } from "./color";
-import { resolveTheme } from "./resolve-theme";
+import { BUILTIN_THEMES } from "@/dev/mock-backend/fixtures/builtin-themes";
+import { contrastRatio, parseColor } from "./color";
+import { resolveBase, resolveTheme } from "./resolve-theme";
 import { THEME_KEY_REGISTRY } from "./theme-key-registry";
 import type { Theme } from "./lib/theme-api";
 
-const themes = builtinThemes as Theme[];
+const themes = BUILTIN_THEMES;
 
 describe("theme resolution", () => {
   it.each(
@@ -65,3 +67,85 @@ describe("interface contrast", () => {
     expect(high.cssVars["--border"]).toBe(high.base.border);
   });
 });
+
+describe("base derivation (ADR-0022)", () => {
+  it("fills every base token from two seeds", () => {
+    const seeds = { background: "#101418", primary: "#7aa2f7" };
+    const base = resolveBase(seeds, {}, "dark");
+    for (const token of BASE_TOKENS_OF_ATLAS) expect(base[token], token).toBeTruthy();
+    expect(base.ring).toBe("#7aa2f7");
+    expect(base["chart-1"]).toBe("#7aa2f7");
+    // Text on the primary fill is whichever of the theme's own two inks reads.
+    expect(contrastRatio(base.primary, base["primary-foreground"])).toBeGreaterThan(4.5);
+  });
+
+  it("never touches a written token and lets the palette feed the charts", () => {
+    const base = resolveBase({ card: "#222222" }, { green: "#00ff00" }, "dark");
+    expect(base.card).toBe("#222222");
+    expect(base["chart-2"]).toBe("#00ff00");
+  });
+
+  it("resolves a theme whose variant names only its seeds", () => {
+    const theme = {
+      id: "seeds",
+      name: "Seeds",
+      dark: { base: { background: "#101418", primary: "#7aa2f7" }, palette: {}, keys: {} },
+    } as unknown as Theme;
+    const resolved = resolveTheme(theme, "dark");
+    expect(resolved.cssVars["--border"]).toBe(resolved.base.border);
+    expect(resolved.keys["editor.background"]).toBe("#101418");
+  });
+
+  /**
+   * The fixture Rust's interpreter (`crates/atlas-theme/tests/base_derivation.rs`)
+   * also reproduces: two implementations of one engine, held to one answer.
+   * To change a rule on purpose, regenerate it here and commit the diff:
+   * `ATLAS_WRITE_DERIVATION=1 bunx vitest run src/features/theme/resolve-theme.test.ts`.
+   */
+  it("matches the golden fixture both interpreters share", () => {
+    const fixturePath = path.join(
+      __dirname,
+      "../../../crates/atlas-theme/tests/fixtures/base-derivation.json",
+    );
+    const cases = JSON.parse(readFileSync(fixturePath, "utf8")) as DerivationCase[];
+    const derived = cases.map((entry) => ({
+      ...entry,
+      base: resolveBase(entry.written, entry.palette, entry.appearance),
+    }));
+    if (process.env.ATLAS_WRITE_DERIVATION === "1") {
+      writeFileSync(fixturePath, `${JSON.stringify(derived, null, 2)}\n`);
+    }
+    for (const [index, entry] of derived.entries()) {
+      expect(entry.base, entry.name).toEqual(cases[index].base);
+    }
+  });
+});
+
+interface DerivationCase {
+  name: string;
+  appearance: "dark" | "light";
+  written: Record<string, string>;
+  palette: Record<string, string>;
+  base?: Record<string, string>;
+}
+
+const BASE_TOKENS_OF_ATLAS = [
+  "background",
+  "foreground",
+  "card",
+  "popover",
+  "primary",
+  "primary-foreground",
+  "secondary",
+  "muted-foreground",
+  "accent",
+  "destructive",
+  "border",
+  "input",
+  "ring",
+  "chart-5",
+  "sidebar",
+  "sidebar-border",
+  "radius",
+  "shadow-2xl",
+];

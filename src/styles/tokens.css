@@ -252,7 +252,7 @@
   --atlas-element-highlight: rgba(255, 255, 255, 0.06);
   --atlas-primary-hover: #ffffff;
   --atlas-primary-muted: rgba(255, 255, 255, 0.06);
-  --atlas-text-disabled: #464646;
+  --atlas-text-disabled: #3f3f3f;
   --atlas-status-success-foreground: #9ecf8a;
   --atlas-status-warning-foreground: #ffff00;
   --atlas-status-error-foreground: #f44747;
@@ -270,12 +270,12 @@
   --atlas-terminal-ansi-cyan: #7fd1e8;
   --atlas-terminal-ansi-white: #ffffff;
   --atlas-terminal-ansi-bright-black: #585858;
-  --atlas-terminal-ansi-bright-red: #f66363;
+  --atlas-terminal-ansi-bright-red: #fa6a63;
   --atlas-terminal-ansi-bright-green: #add69c;
-  --atlas-terminal-ansi-bright-yellow: #ffff26;
-  --atlas-terminal-ansi-bright-blue: #7ea6ea;
+  --atlas-terminal-ansi-bright-yellow: #feff5c;
+  --atlas-terminal-ansi-bright-blue: #7da6eb;
   --atlas-terminal-ansi-bright-magenta: #d1b0f7;
-  --atlas-terminal-ansi-bright-cyan: #92d8eb;
+  --atlas-terminal-ansi-bright-cyan: #94d8ec;
   --atlas-terminal-ansi-bright-white: #ffffff;
   --atlas-syntax-comment: #737373;
   --atlas-syntax-keyword: #ff678d;
