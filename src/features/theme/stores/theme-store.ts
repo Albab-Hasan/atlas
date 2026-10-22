@@ -238,3 +238,11 @@ export function applyConfiguredTheme(
   startThemeCatalogListener();
   void baseStore.getState().actions.apply(themeIdFor(pair, mode), mode, themeOverrides);
 }
+
+/** Paint the last applied theme again from the cache — for a setting that
+ *  changes how it resolves (contrast), not which file it is. */
+export function repaintTheme(): void {
+  if (!lastRequest) return;
+  const { id, mode, themeOverrides } = lastRequest;
+  void baseStore.getState().actions.apply(id, mode, themeOverrides);
+}

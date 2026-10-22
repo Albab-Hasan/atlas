@@ -523,6 +523,16 @@ pub struct AppSettings {
     /// Diff colours.
     #[serde(default)]
     pub diff_palette: DiffPalette,
+    /// Contrast of borders and secondary text, in percent of the theme's own.
+    #[serde(default = "default_interface_contrast")]
+    pub interface_contrast: u32,
+}
+
+pub const MIN_INTERFACE_CONTRAST: u32 = 50;
+pub const MAX_INTERFACE_CONTRAST: u32 = 200;
+
+fn default_interface_contrast() -> u32 {
+    100
 }
 
 fn default_true() -> bool {
@@ -626,6 +636,7 @@ impl Default for AppSettings {
             diff_ignore_whitespace: false,
             diff_files_collapsed: false,
             diff_palette: DiffPalette::default(),
+            interface_contrast: default_interface_contrast(),
         }
     }
 }
@@ -751,6 +762,15 @@ pub fn validate(settings: &AppSettings) -> Result<(), ValidationIssue> {
                 message: format!("must be between {MIN_FONT_SIZE} and {MAX_FONT_SIZE}, got {size}"),
             });
         }
+    }
+    if !(MIN_INTERFACE_CONTRAST..=MAX_INTERFACE_CONTRAST).contains(&settings.interface_contrast) {
+        return Err(ValidationIssue {
+            key: "interfaceContrast",
+            message: format!(
+                "must be between {MIN_INTERFACE_CONTRAST} and {MAX_INTERFACE_CONTRAST}, got {}",
+                settings.interface_contrast
+            ),
+        });
     }
     // A font family is written into a CSS custom property; a brace or a
     // semicolon is never part of one and would end the declaration.
@@ -1064,6 +1084,7 @@ pub struct SettingsPatch {
     pub diff_ignore_whitespace: Option<bool>,
     pub diff_files_collapsed: Option<bool>,
     pub diff_palette: Option<DiffPalette>,
+    pub interface_contrast: Option<u32>,
 }
 
 impl SettingsPatch {
@@ -1222,6 +1243,7 @@ impl SettingsPatch {
             diff_ignore_whitespace,
             diff_files_collapsed,
             diff_palette,
+            interface_contrast,
         );
     }
 
@@ -1299,6 +1321,9 @@ impl SettingsPatch {
         set_enum!(sidebar_sort, "sidebarSort");
         set_enum!(time_format, "timeFormat");
         set_enum!(diff_palette, "diffPalette");
+        if let Some(v) = self.interface_contrast {
+            table["interfaceContrast"] = toml_edit::value(i64::from(v));
+        }
         if let Some(v) = self.editor_font_size {
             table["editorFontSize"] = toml_edit::value(i64::from(v));
         }
@@ -2409,6 +2434,7 @@ someFutureKey = \"left alone\"
             diff_ignore_whitespace: Some(!defaults.diff_ignore_whitespace),
             diff_files_collapsed: Some(!defaults.diff_files_collapsed),
             diff_palette: Some(DiffPalette::BlueOrange),
+            interface_contrast: Some(150),
         };
         let mut expected = defaults.clone();
         patch.apply_to(&mut expected);

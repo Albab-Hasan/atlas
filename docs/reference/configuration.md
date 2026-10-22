@@ -210,6 +210,7 @@ bookkeeping).
 | `diffIgnoreWhitespace` | boolean | `false` | Source Control › Diffs › Hide whitespace changes | — |
 | `diffFilesCollapsed` | boolean | `false` | Source Control › Diffs › Start files collapsed | — |
 | `diffPalette` | `"theme"` \| `"blue-orange"` | `"theme"` | Appearance › Interface › Diff colours | exactly one of these two strings |
+| `interfaceContrast` | integer | `100` | Appearance › Interface › Contrast | 50 ≤ n ≤ 200 |
 
 <!-- /generated:settings -->
 

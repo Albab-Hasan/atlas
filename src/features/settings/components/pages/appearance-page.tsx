@@ -23,7 +23,14 @@ import {
   SettingsRow,
   SettingsSection,
 } from "../layout/settings-layout";
-import { SettingSelect, SettingStepper, SettingText } from "../layout/setting-controls";
+import {
+  SettingSelect,
+  SettingSlider,
+  SettingStepper,
+  SettingText,
+} from "../layout/setting-controls";
+import { setInterfaceContrast } from "@/features/theme/apply-theme";
+import { repaintTheme } from "@/features/theme/stores/theme-store";
 import { ColourSchemeSection } from "../appearance/colour-scheme-section";
 import { ThemesSection } from "../appearance/themes-section";
 import { IconThemesSection } from "../appearance/icon-themes-section";
@@ -59,6 +66,20 @@ export function AppearancePage() {
       <SettingsSection title="Interface">
         <SettingsGroup>
           <SettingsRow setting="uiScale" control={<ZoomControl />} />
+          <SettingsRow
+            setting="interfaceContrast"
+            control={
+              <SettingSlider
+                setting="interfaceContrast"
+                step={5}
+                unit="%"
+                onPreview={(value) => {
+                  setInterfaceContrast(value);
+                  repaintTheme();
+                }}
+              />
+            }
+          />
           <SettingsRow
             setting="chatWidth"
             control={<SettingSelect setting="chatWidth" options={CHAT_WIDTHS} />}

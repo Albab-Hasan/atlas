@@ -798,6 +798,20 @@
       "default": "\"theme\"",
       "doc": "The colours for added and removed lines: \"theme\" uses the theme's green and red, \"blue-orange\" uses its blue and orange, which stay distinct with red-green colour blindness.",
       "validation": "exactly one of these two strings"
+    },
+    {
+      "key": "interfaceContrast",
+      "type": "integer",
+      "status": "live",
+      "page": "appearance",
+      "section": "Interface",
+      "title": "Contrast",
+      "summary": "Strengthen or soften borders and secondary text across the interface.",
+      "min": 50,
+      "max": 200,
+      "default": "100",
+      "doc": "Contrast of borders and secondary text, in percent of what the theme draws. Above 100 moves them toward the text colour, below 100 toward the background. Applies to every theme, the terminal and charts included.",
+      "validation": "50 ≤ n ≤ 200"
     }
   ]
 }

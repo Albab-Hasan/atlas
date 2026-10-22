@@ -285,3 +285,9 @@ diffFilesCollapsed = false
 # red, "blue-orange" uses its blue and orange, which stay distinct with
 # red-green colour blindness. (default: "theme")
 diffPalette = "theme"
+
+# Contrast of borders and secondary text, in percent of what the theme draws.
+# Above 100 moves them toward the text colour, below 100 toward the
+# background. Applies to every theme, the terminal and charts included.
+# (default: 100)
+interfaceContrast = 100

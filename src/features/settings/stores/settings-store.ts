@@ -6,7 +6,11 @@ import {
   displaySettingsChanged,
 } from "@/features/settings/lib/display-settings";
 import { applyConfiguredTheme } from "@/features/theme/stores/theme-store";
-import { appearanceForMode, getActiveTheme } from "@/features/theme/apply-theme";
+import {
+  appearanceForMode,
+  getActiveTheme,
+  setInterfaceContrast,
+} from "@/features/theme/apply-theme";
 import { THEME_APPLIED_EVENT } from "@/features/theme/theme-values";
 import { applyConfiguredIconTheme } from "@/features/icon-theme/stores/icon-theme-store";
 import {
@@ -120,8 +124,10 @@ function applySettingsSideEffects(next: AppSettings, previous: AppSettings): voi
     next.themeLight !== previous.themeLight ||
     next.themeDark !== previous.themeDark ||
     next.themeMode !== previous.themeMode ||
+    next.interfaceContrast !== previous.interfaceContrast ||
     !sameValue(next.themeOverrides, previous.themeOverrides)
   ) {
+    setInterfaceContrast(next.interfaceContrast);
     applyConfiguredTheme(
       { light: next.themeLight, dark: next.themeDark },
       next.themeMode,
@@ -259,6 +265,7 @@ export const useSettingsStore = createSelectors(
         applyDisplaySettings(settings);
         // Resolve and apply the persisted theme for the current appearance
         // across chrome, editor, terminal, diffs and syntax variables.
+        setInterfaceContrast(settings.interfaceContrast);
         applyConfiguredTheme(
           { light: settings.themeLight, dark: settings.themeDark },
           settings.themeMode,

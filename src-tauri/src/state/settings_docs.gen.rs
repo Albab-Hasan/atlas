@@ -237,6 +237,10 @@ const SETTINGS_DOCS: &[(&str, &str)] = &[
         "diffPalette",
         "# The colours for added and removed lines: \"theme\" uses the theme's green and\n# red, \"blue-orange\" uses its blue and orange, which stay distinct with\n# red-green colour blindness. (default: \"theme\")",
     ),
+    (
+        "interfaceContrast",
+        "# Contrast of borders and secondary text, in percent of what the theme draws.\n# Above 100 moves them toward the text colour, below 100 toward the\n# background. Applies to every theme, the terminal and charts included.\n# (default: 100)",
+    ),
 ];
 
 /// The keys a project's `.atlas/config.toml` may override (`project` in the

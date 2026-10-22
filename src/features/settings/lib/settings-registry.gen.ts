@@ -289,6 +289,12 @@ export interface AppSettings {
    * blindness.
    */
   diffPalette: "theme" | "blue-orange";
+  /**
+   * Contrast of borders and secondary text, in percent of what the theme draws. Above 100 moves
+   * them toward the text colour, below 100 toward the background. Applies to every theme, the
+   * terminal and charts included.
+   */
+  interfaceContrast: number;
 }
 
 export type SettingKey = keyof AppSettings;
@@ -352,6 +358,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   diffIgnoreWhitespace: false,
   diffFilesCollapsed: false,
   diffPalette: "theme",
+  interfaceContrast: 100,
 };
 
 export type SettingType =
@@ -1001,5 +1008,16 @@ export const SETTINGS_REGISTRY: readonly SettingMeta[] = [
     title: "Diff colours",
     summary: "Use the theme's green and red for changes, or blue and orange.",
     values: ["theme", "blue-orange"],
+  },
+  {
+    key: "interfaceContrast",
+    type: "integer",
+    status: "live",
+    page: "appearance",
+    section: "Interface",
+    title: "Contrast",
+    summary: "Strengthen or soften borders and secondary text across the interface.",
+    min: 50,
+    max: 200,
   },
 ];

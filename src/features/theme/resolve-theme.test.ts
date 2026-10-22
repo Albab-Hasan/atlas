@@ -35,3 +35,33 @@ describe("theme resolution", () => {
     expect(resolved.keys["syntax.keyword"]).toBe("#abcdef");
   });
 });
+
+describe("interface contrast", () => {
+  const atlas = themes.find((theme) => theme.id === "atlas")!;
+  /** Distance between two colours, summed over channels. */
+  const distance = (a: string, b: string) => {
+    const [x, y] = [parseColor(a)!, parseColor(b)!];
+    return Math.abs(x.r - y.r) + Math.abs(x.g - y.g) + Math.abs(x.b - y.b);
+  };
+
+  it("leaves the theme as written at 100%", () => {
+    expect(resolveTheme(atlas, "dark", {}, 100)).toEqual(resolveTheme(atlas, "dark"));
+  });
+
+  it("moves borders toward the text above 100% and toward the background below", () => {
+    const plain = resolveTheme(atlas, "dark");
+    const high = resolveTheme(atlas, "dark", {}, 200);
+    const low = resolveTheme(atlas, "dark", {}, 50);
+    const { foreground, background } = plain.base;
+
+    expect(distance(high.keys["border.strong"], foreground)).toBeLessThan(
+      distance(plain.keys["border.strong"], foreground),
+    );
+    expect(distance(low.keys["border.strong"], background)).toBeLessThan(
+      distance(plain.keys["border.strong"], background),
+    );
+    // The CSS and the typed record agree, so xterm and the charts see it too.
+    expect(high.cssVars["--atlas-border-strong"]).toBe(high.keys["border.strong"]);
+    expect(high.cssVars["--border"]).toBe(high.base.border);
+  });
+});

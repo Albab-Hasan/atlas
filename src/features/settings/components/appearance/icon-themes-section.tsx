@@ -83,12 +83,12 @@ export function IconThemesSection() {
               <div className="flex w-full items-start gap-1.5">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
-                    <span className="truncate text-sm font-medium text-foreground">
+                    <span className="truncate text-xs font-medium text-foreground">
                       {theme.name}
                     </span>
                     {selected && <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />}
                   </div>
-                  <p className="mt-1 truncate text-xs text-muted-foreground">
+                  <p className="truncate text-2xs text-muted-foreground">
                     {theme.author} · {theme.license}
                   </p>
                 </div>
@@ -274,7 +274,7 @@ function OpenVsxSearch() {
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline gap-1.5">
-                    <span className="truncate text-sm font-medium text-foreground">
+                    <span className="truncate text-xs font-medium text-foreground">
                       {hit.displayName}
                     </span>
                     <span className="shrink-0 text-2xs text-muted-foreground">

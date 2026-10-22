@@ -154,12 +154,20 @@ export function appearanceForMode(mode: ThemeMode): "dark" | "light" {
   return matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
 }
 
+/** `interfaceContrast`, held here because every apply resolves through it;
+ *  the settings store sets it before re-applying. */
+let interfaceContrast = 100;
+
+export function setInterfaceContrast(contrast: number): void {
+  interfaceContrast = contrast;
+}
+
 export function applyTheme(
   theme: Theme,
   mode: ThemeMode,
   themeOverride: ThemeOverride = {},
 ): ResolvedTheme {
-  const resolved = resolveTheme(theme, appearanceForMode(mode), themeOverride);
+  const resolved = resolveTheme(theme, appearanceForMode(mode), themeOverride, interfaceContrast);
   activeTheme = resolved;
   if (typeof document === "undefined") return resolved;
 
@@ -179,6 +187,7 @@ export function applyTheme(
     theme,
     resolved.appearance === "dark" ? "light" : "dark",
     themeOverride,
+    interfaceContrast,
   );
   style.textContent = resolvedThemeCss(resolved.cssVars) + invertedThemeCss(inverted.cssVars);
   const cache = launchCache(resolved);

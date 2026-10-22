@@ -10,6 +10,7 @@ import { Switch } from "@/ui/switch";
 import { Select, type SelectOption } from "@/ui/select";
 import { IconButton } from "@/ui/icon-button";
 import { Input } from "@/ui/input";
+import { Slider } from "@/ui/slider";
 import type { AppSettings, BooleanSettingKey } from "../../lib/app-settings";
 import { settingMeta } from "../../lib/settings-sections";
 import { useScopedSetting } from "../../lib/use-scoped-setting";
@@ -166,5 +167,49 @@ export function SettingText({
         if (event.key === "Escape") setDraft(saved);
       }}
     />
+  );
+}
+
+/** A slider over an integer key, bounded by its registry `min`/`max`, with the
+ *  value beside it. Saves once, on release; `onPreview` runs on every step of
+ *  the drag, for a setting worth watching change (contrast). */
+export function SettingSlider({
+  setting,
+  step = 1,
+  unit = "",
+  onPreview,
+}: {
+  setting: NumberKey;
+  step?: number;
+  unit?: string;
+  onPreview?: (value: number) => void;
+}) {
+  const scoped = useScopedSetting(setting);
+  const { min = 0, max = 100 } = settingMeta(setting);
+  const saved = scoped.value as number;
+  const [draft, setDraft] = useState(saved);
+  useEffect(() => setDraft(saved), [saved]);
+  return (
+    <div className="flex w-full items-center gap-3 @min-[32rem]/settings-row:w-52">
+      <output className="min-w-12 rounded-md bg-element-selected px-1.5 py-0.5 text-center font-mono text-2xs text-foreground tabular-nums">
+        {draft}
+        {unit}
+      </output>
+      <Slider
+        value={draft}
+        min={min}
+        max={max}
+        step={step}
+        disabled={scoped.globalOnly}
+        aria-label={accessibleName(setting)}
+        onValueChange={(next) => {
+          setDraft(next);
+          onPreview?.(next);
+        }}
+        onValueCommitted={(next) => {
+          if (next !== saved) scoped.set(next);
+        }}
+      />
+    </div>
   );
 }

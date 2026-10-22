@@ -1,3 +1,4 @@
+import { mix } from "./color";
 import type { Theme, ThemeAppearance, ThemeKeyValue, ThemeVariant } from "./lib/theme-api";
 import {
   DERIVED_VAR_REGISTRY,
@@ -38,10 +39,21 @@ function chooseVariant(theme: Theme, requested: ThemeAppearance): [Appearance, T
   throw new Error(`Theme "${theme.id}" has no variant`);
 }
 
+/** What `interfaceContrast` moves: the borders and the secondary text. */
+const CONTRAST_BASE = ["border", "input", "sidebar-border", "muted-foreground"] as const;
+const CONTRAST_KEYS = ["border.subtle", "border.strong", "text.disabled"] as const;
+
+/** At 200%, how far toward the text colour; at 50%, how far toward the
+ *  background. Halfway at most either way, so a border never becomes text and
+ *  secondary text never disappears. */
+const CONTRAST_REACH = { up: 0.5, down: 0.5 };
+
 export function resolveTheme(
   theme: Theme,
   requested: ThemeAppearance,
   themeOverride: ThemeOverride = {},
+  /** `interfaceContrast`, in percent: 100 is the theme as written. */
+  contrast = 100,
 ): ResolvedTheme {
   const [appearance, variant] = chooseVariant(theme, requested);
   const base = { ...variant.base, ...themeOverride.base };
@@ -75,5 +87,31 @@ export function resolveTheme(
     cssVars[definition.cssVar] = color;
   }
 
+  // Last, so the change lands on the final colours — including ones a key
+  // derived from a base token — and on the typed records xterm and the charts
+  // read, not just on the CSS.
+  if (contrast !== 100) {
+    const up = contrast > 100;
+    const toward = up ? base.foreground : base.background;
+    const amount = up
+      ? ((contrast - 100) / 100) * CONTRAST_REACH.up
+      : ((100 - contrast) / 50) * CONTRAST_REACH.down;
+    if (toward) {
+      for (const name of CONTRAST_BASE) {
+        if (!base[name]) continue;
+        base[name] = mix(base[name], toward, amount);
+        cssVars[`--${name}`] = base[name];
+      }
+      for (const key of CONTRAST_KEYS) {
+        keys[key] = mix(keys[key], toward, amount);
+        cssVars[cssVarOf(key)] = keys[key];
+      }
+    }
+  }
+
   return { id: theme.id, appearance, base, palette, keys, derived, cssVars };
+}
+
+function cssVarOf(key: ThemeKey): `--${string}` {
+  return THEME_KEY_REGISTRY.find((definition) => definition.key === key)!.cssVar;
 }
