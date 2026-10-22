@@ -763,7 +763,7 @@
      `<ChatInput minHeight={80}>` type-checks and silently does nothing against
      the hardcoded 44px below. */
   font-family:
-    var(--atlas-composer-font, var(--atlas-ui-font, system-ui)),
+    var(--atlas-composer-font, var(--font-sans)),
     system-ui,
     -apple-system,
     BlinkMacSystemFont,
@@ -998,13 +998,9 @@
     height: 100%;
     width: 100%;
     overflow: hidden;
-    /* `uiFontFamily`, while set, leads; the system font stays behind it. */
-    font-family:
-      var(--atlas-ui-font, -apple-system),
-      "SF Pro Text",
-      -apple-system,
-      system-ui,
-      sans-serif;
+    /* `--font-sans`: the `uiFontFamily` setting, else the theme's font, else
+       the system font (the display-settings block at the end of this file). */
+    font-family: var(--font-sans);
     font-size: 13px;
     line-height: 1.45;
     color: var(--foreground);
@@ -2165,9 +2161,7 @@ html[data-chat-code-wrap="off"] .prose-chat pre {
   background: var(--card);
   color: var(--foreground);
   font-size: 12px;
-  font-family:
-    var(--atlas-code-font, ui-monospace), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    monospace;
+  font-family: var(--font-mono);
 }
 .prose-chat pre code {
   padding: 0;
@@ -2876,8 +2870,10 @@ html[data-chat-code-wrap="off"] .prose-chat pre {
 
 /* ── Display settings (`features/settings/lib/display-settings.ts`) ────────── */
 
-/* `uiFontFamily` / `codeFontFamily`, while set, over the defaults in
-   `tokens.css` (a theme never sets fonts). Every `font-sans` / `font-mono`
+/* Which font wins, for both families: the user's setting, then the active
+   theme's `font-sans` / `font-mono` (which `apply-theme.ts` writes in its own
+   `html:root` block), then Atlas's default in `tokens.css`. The attribute is
+   what lets a setting outrank the theme. Every `font-sans` / `font-mono`
    utility, and every rule that reads those two, follows. */
 html:root[data-ui-font] {
   --font-sans: var(--atlas-ui-font), system-ui, sans-serif;

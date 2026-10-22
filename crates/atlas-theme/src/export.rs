@@ -27,7 +27,14 @@ use crate::{Theme, ThemeVariant, NON_COLOR_BASE_TOKENS};
 
 /// The `@theme`-level tokens: appearance-independent, so shadcn puts them in
 /// `cssVars.theme` rather than repeating them under light and dark.
-const THEME_LEVEL: &[&str] = &["radius", "tracking-normal", "spacing"];
+const THEME_LEVEL: &[&str] = &[
+    "radius",
+    "font-sans",
+    "font-serif",
+    "font-mono",
+    "tracking-normal",
+    "spacing",
+];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]

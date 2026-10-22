@@ -115,6 +115,7 @@ mod tests {
             name: "Test".into(),
             author: "Atlas".into(),
             license: "MIT".into(),
+            base: Default::default(),
             dark: dark.map(variant),
             light: light.map(variant),
             warnings: Vec::new(),

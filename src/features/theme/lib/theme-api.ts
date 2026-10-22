@@ -21,6 +21,9 @@ export interface Theme {
   name: string;
   author: string;
   license: string;
+  /** Base tokens both variants share (shadcn's `cssVars.theme`). Already
+   *  merged into each variant's `base` by Rust; omitted when empty. */
+  base?: Record<string, string>;
   dark?: ThemeVariant;
   light?: ThemeVariant;
   /** Omitted by Rust when there are no forward-compatibility warnings. */

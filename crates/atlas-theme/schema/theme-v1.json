@@ -643,6 +643,13 @@
     "author": {
       "type": "string"
     },
+    "base": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Base tokens shared by both variants — shadcn's `cssVars.theme`, where the radius, the fonts, tracking and spacing usually live. A variant's own `base` wins over this, and after parsing each variant's `base` already holds the merge, so readers need not look here; it is kept so a theme writes back the way it was written.",
+      "type": "object"
+    },
     "dark": {
       "anyOf": [
         {

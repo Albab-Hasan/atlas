@@ -65,10 +65,11 @@ Two source shapes, one mapping:
 **Maps.** Every shadcn token name straight onto the Atlas base token of the same
 name, per variant, with `cssVars.theme` / `@theme` behind both. Colour values
 keep the author's notation: an oklch theme stays oklch. tweakcn's extras land
-where Atlas has a home — `radius`, `tracking-normal` (also read from tweakcn's
-`--letter-spacing`) and the composed `shadow-2xs`…`shadow-2xl` ramp. Its font
-stacks do not: an Atlas theme never sets fonts (they are settings, so a colour
-theme cannot change them), and they are reported under "fonts".
+where Atlas has a home — `font-sans` / `font-serif` / `font-mono`, `radius`,
+`tracking-normal` (also read from tweakcn's `--letter-spacing`) and the composed
+`shadow-2xs`…`shadow-2xl` ramp. The font stacks are the one optional set of base
+tokens; a stack both variants share is written once, in the theme's top-level
+`[base]` table (shadcn's `cssVars.theme`), and a user's font setting outranks it.
 
 **Derives.** Nothing beyond the shared machinery, plus `destructive-foreground`,
 which current shadcn registries no longer emit.
@@ -233,7 +234,7 @@ applied unconditionally, so it is reported rather than used.
 ## Export
 
 `export_theme_shadcn` turns any Atlas theme into a `registry:style` item:
-base tokens verbatim per appearance, with `radius`,
+base tokens verbatim per appearance, with `radius`, the three font stacks,
 `tracking-normal` and `spacing` hoisted into `cssVars.theme`. Lossy in the
 mirror image of the shadcn importer — the palette and every theme key the
 source set describe surfaces shadcn has no vocabulary for and are dropped, with
