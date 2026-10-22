@@ -418,6 +418,15 @@ fn config_root_from(xdg: Option<&Path>, home: Option<&Path>) -> Option<PathBuf> 
     home.map(|home| home.join(".config").join(atlas_profile::config_dir_name()))
 }
 
+/// An id a theme file can be written under: letters, digits, `-` and `_`,
+/// so it is one path segment and nothing else.
+pub fn is_writable_id(id: &str) -> bool {
+    !id.is_empty()
+        && id
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_')
+}
+
 /// Write a theme into `dir` as `<id>.toml`, returning the path.
 ///
 /// The TOML is parsed first, and the id it declares is what names the file —
@@ -428,11 +437,7 @@ fn config_root_from(xdg: Option<&Path>, home: Option<&Path>) -> Option<PathBuf> 
 pub fn write_theme_to(dir: &Path, source: &str) -> Result<PathBuf, ThemeError> {
     let theme = parse_theme(source, "import")?;
     let id = theme.id.trim();
-    if id.is_empty()
-        || !id
-            .chars()
-            .all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_')
-    {
+    if !is_writable_id(id) {
         return Err(validation(
             "import",
             format!("theme id '{id}' must be letters, digits, '-' or '_'"),
@@ -1083,6 +1088,17 @@ pub(crate) fn validation(origin: &str, message: impl Into<String>) -> ThemeError
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// What the theme editor keeps rather than slugging: an edit of a
+    /// hand-written `my_theme` must not save as a new `my-theme`.
+    #[test]
+    fn a_writable_id_is_one_safe_path_segment() {
+        assert!(is_writable_id("my_theme"));
+        assert!(is_writable_id("MyTheme-2"));
+        assert!(!is_writable_id(""));
+        assert!(!is_writable_id("../x"));
+        assert!(!is_writable_id("my theme"));
+    }
 
     fn minimal_theme(extra: &str) -> String {
         let base = minimal_base();

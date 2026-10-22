@@ -103,7 +103,9 @@ export const baseHandlers: MockHandlers = {
   // built-in's (which a user theme would shadow).
   save_theme: (a): SavedTheme => {
     const theme = a.theme as Theme;
-    const id = themeIdSlug(theme.id);
+    // As Rust does: an id the writer accepts is kept, so an edit of
+    // `my_theme` saves over `my_theme` rather than beside it as `my-theme`.
+    const id = /^[A-Za-z0-9_-]+$/.test(theme.id) ? theme.id : themeIdSlug(theme.id);
     if (!id) throw new Error("a theme name needs at least one letter or digit");
     if (builtinThemes.some((builtIn) => builtIn.id === id)) {
       throw new Error(`"${id}" is a built-in theme; pick another name`);

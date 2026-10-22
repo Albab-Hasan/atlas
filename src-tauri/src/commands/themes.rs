@@ -65,7 +65,12 @@ pub struct SavedTheme {
 pub async fn save_theme(theme: Theme) -> Result<SavedTheme, String> {
     tokio::task::spawn_blocking(move || {
         let mut theme = theme;
-        theme.id = atlas_theme::import::slug(&theme.id);
+        // An id the writer already accepts is kept as it is: editing a
+        // hand-written `my_theme` must save `my_theme.toml`, not a new
+        // `my-theme.toml` beside it. Only an id it would refuse is slugged.
+        if !atlas_theme::is_writable_id(&theme.id) {
+            theme.id = atlas_theme::import::slug(&theme.id);
+        }
         if theme.id.is_empty() {
             return Err("a theme name needs at least one letter or digit".to_string());
         }
