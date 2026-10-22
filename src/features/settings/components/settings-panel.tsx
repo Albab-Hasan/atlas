@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { RotateCcw } from "lucide-react";
 import { ScrollArea } from "@/ui/scroll-area";
 import { Button } from "@/ui/button";
+import { Icon } from "@/ui/icon";
 import {
   Dialog,
   DialogClose,
@@ -172,7 +173,7 @@ function RestoreDefaults({ section }: { section: SettingsSection }) {
   return (
     <>
       <Button variant="ghost" size="sm" onClick={() => setOpen(true)}>
-        <RotateCcw />
+        <Icon icon={RotateCcw} size="sm" />
         Restore defaults
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
