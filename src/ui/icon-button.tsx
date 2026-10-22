@@ -52,8 +52,14 @@ const iconButtonVariants = cva(
         md: "size-control-md",
         lg: "size-control-lg",
       },
+      // `round` is the stepper's shape (the −/+ either side of a value), where a
+      // pair of circles reads as one control rather than two square buttons.
+      shape: {
+        square: "",
+        round: "rounded-full",
+      },
     },
-    defaultVariants: { variant: "ghost", size: "md" },
+    defaultVariants: { variant: "ghost", size: "md", shape: "square" },
   },
 );
 
@@ -81,6 +87,7 @@ function IconButton({
   className,
   variant,
   size,
+  shape,
   icon,
   label,
   iconSize,
@@ -93,7 +100,7 @@ function IconButton({
       type={type}
       aria-label={label}
       className={(state) =>
-        cn(iconButtonVariants({ variant, size }), resolveClassName(className, state))
+        cn(iconButtonVariants({ variant, size, shape }), resolveClassName(className, state))
       }
       {...props}
     >

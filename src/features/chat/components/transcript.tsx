@@ -959,7 +959,7 @@ export const Transcript = forwardRef<TranscriptHandle, TranscriptProps>(function
       <div
         ref={scrollRef}
         onScroll={onScroll}
-        className="atlas-transcript h-full overflow-y-auto hide-scrollbar [overflow-anchor:none]"
+        className="h-full overflow-y-auto hide-scrollbar [overflow-anchor:none]"
       >
         {/* Pad past the ENTIRE blur band, not just the bar. Padding by the
               header height alone left the first message sitting inside the

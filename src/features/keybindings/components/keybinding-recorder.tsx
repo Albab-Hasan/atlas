@@ -111,7 +111,7 @@ export function KeybindingRecorder({
       <div
         className={cn(
           "w-[440px] rounded-lg border border-border bg-[var(--popover)]/95 backdrop-blur-xl",
-          "shadow-md p-3 animate-in fade-in-0 duration-150",
+          "shadow-md p-3 animate-fade-in",
         )}
       >
         {locked ? (

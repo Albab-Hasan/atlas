@@ -73,7 +73,7 @@ export const MarkdownFile = memo(function MarkdownFile({
   docPath,
 }: Props) {
   return (
-    <div className="atlas-markdown text-md leading-relaxed text-[var(--foreground)] break-words select-text">
+    <div className="text-md leading-relaxed text-[var(--foreground)] break-words select-text">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[...(trusted ? [rehypeRaw] : []), rehypeHighlight]}
