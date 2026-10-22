@@ -16,12 +16,25 @@ import {
   SettingsRow,
   SettingsSection,
 } from "../layout/settings-layout";
-import { SettingSwitch } from "../layout/setting-controls";
+import { SettingSelect, SettingSwitch } from "../layout/setting-controls";
+
+const DIFF_PALETTES = [
+  { value: "theme", label: "Green and red", description: "The theme's own colours." },
+  {
+    value: "blue-orange",
+    label: "Blue and orange",
+    description: "Stays distinct with red-green colour blindness.",
+  },
+] as const;
 import { ConfigFileSection } from "./config-file";
 
 export function SourceControlPage() {
   return (
-    <SettingsPage title="Source Control" description="Git in the editor and in the background.">
+    <SettingsPage
+      title="Source Control"
+      description="Git in the editor, diffs, and in the background."
+      scopeable
+    >
       <SettingsSection title="Editor">
         <SettingsGroup>
           <SettingsRow
@@ -37,6 +50,23 @@ export function SourceControlPage() {
             setting="gitAutoFetch"
             description="Fetch the open project when it opens, when Atlas regains focus, and every few minutes, so the Pull badge shows what the remote has. It never pulls, merges or touches your files."
             control={<SettingSwitch setting="gitAutoFetch" />}
+          />
+        </SettingsGroup>
+      </SettingsSection>
+      <SettingsSection title="Diffs">
+        <SettingsGroup>
+          <SettingsRow
+            setting="diffIgnoreWhitespace"
+            description="In a file's diff, a commit and a chat's changes. Your changes list keeps every change, so what you stage still applies."
+            control={<SettingSwitch setting="diffIgnoreWhitespace" />}
+          />
+          <SettingsRow
+            setting="diffFilesCollapsed"
+            control={<SettingSwitch setting="diffFilesCollapsed" />}
+          />
+          <SettingsRow
+            setting="diffPalette"
+            control={<SettingSelect setting="diffPalette" options={DIFF_PALETTES} />}
           />
         </SettingsGroup>
       </SettingsSection>

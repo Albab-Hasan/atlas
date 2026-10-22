@@ -67,11 +67,11 @@ const SETTINGS_DOCS: &[(&str, &str)] = &[
     ),
     (
         "gitBlameInline",
-        "# Inline git blame — a dim author/age/summary annotation trailing the active\n# line in the editor. (default: true)",
+        "# Inline git blame — a dim author/age/summary annotation trailing the active\n# line in the editor. (default: true) A project can override it in its own\n# .atlas/config.toml.",
     ),
     (
         "gitAutoFetch",
-        "# Quietly `git fetch` the open project when it opens, when Atlas regains\n# focus, and every few minutes, so the Pull badge shows what the remote has.\n# Never pulls or touches your files. (default: true)",
+        "# Quietly `git fetch` the open project when it opens, when Atlas regains\n# focus, and every few minutes, so the Pull badge shows what the remote has.\n# Never pulls or touches your files. (default: true) A project can turn it\n# off, never on, in its own .atlas/config.toml.",
     ),
     (
         "keepAwakeWhileRunning",
@@ -99,51 +99,31 @@ const SETTINGS_DOCS: &[(&str, &str)] = &[
     ),
     (
         "agentUiNavigation",
-        "# Let Atlas Agent act on the window: open files at a line, switch tabs and\n# panels, fill in a chat message, type a command for you to run. It never\n# switches projects, sends for you or presses Enter. Off: its UI tools are\n# withdrawn and every call is refused. (default: true)",
+        "# Let Atlas Agent act on the window: open files at a line, switch tabs and\n# panels, fill in a chat message, type a command for you to run. It never\n# switches projects, sends for you or presses Enter. Off: its UI tools are\n# withdrawn and every call is refused. (default: true) A project can turn it\n# off, never on, in its own .atlas/config.toml.",
     ),
     (
         "agentOrgAccess",
-        "# Let Atlas Agent act in your organization, as you: read the recorded\n# sessions, comments, members and conversations of the organization a\n# cloud-bound Project belongs to. Anything that reaches another person asks\n# you first. Off: its organization tools are withdrawn and every call is\n# refused. (default: true)",
+        "# Let Atlas Agent act in your organization, as you: read the recorded\n# sessions, comments, members and conversations of the organization a\n# cloud-bound Project belongs to. Anything that reaches another person asks\n# you first. Off: its organization tools are withdrawn and every call is\n# refused. (default: true) A project can turn it off, never on, in its own\n# .atlas/config.toml.",
     ),
     (
         "agentCodeTools",
-        "# Let agents search this project's code through Atlas: grep for text and find\n# files by name, in-process, respecting .gitignore and never reading secret\n# files such as .env. Off: the code tools are withdrawn and every call is\n# refused; agents use their own shell instead. (default: true)",
+        "# Let agents search this project's code through Atlas: grep for text and find\n# files by name, in-process, respecting .gitignore and never reading secret\n# files such as .env. Off: the code tools are withdrawn and every call is\n# refused; agents use their own shell instead. (default: true) A project can\n# turn it off, never on, in its own .atlas/config.toml.",
     ),
     (
         "memoryDreams",
-        "# Once a day, when there are new sessions, ask the memory model to propose\n# changes to shared memory (add, merge, archive, rewrite, link). Proposals\n# wait in Memory > Review; nothing is applied without you. Uses the same model\n# and consent as extraction. (default: false)",
+        "# Once a day, when there are new sessions, ask the memory model to propose\n# changes to shared memory (add, merge, archive, rewrite, link). Proposals\n# wait in Memory > Review; nothing is applied without you. Uses the same model\n# and consent as extraction. (default: false) A project can turn it off, never\n# on, in its own .atlas/config.toml.",
     ),
     (
         "memoryRepoMirror",
-        "# Keep a read-only Agent Memory Repo mirror of each project's active memory,\n# as a local git repository outside the project. No remote, nothing is pushed.\n# (default: false)",
+        "# Keep a read-only Agent Memory Repo mirror of each project's active memory,\n# as a local git repository outside the project. No remote, nothing is pushed.\n# (default: false) A project can turn it off, never on, in its own\n# .atlas/config.toml.",
     ),
     (
         "atlasOnlyMemory",
         "# Atlas's shared memory is the only memory in Atlas sessions: agents that keep\n# their own memory, such as Claude Code's auto memory, start with it turned\n# off. Off: each agent also keeps its own memory files. (default: true)",
     ),
     (
-        "terminalNotifications",
-        "# Legacy: superseded by notifyDisabledKinds. Read once by the notification\n# migration and ignored after; safe to delete once notificationsMigrated is\n# true. (default: true)",
-    ),
-    (
         "terminalNotifyMinDurationMs",
         "# A successful command shorter than this many milliseconds never notifies.\n# Must be between 0 and 3600000. (default: 10000)",
-    ),
-    (
-        "terminalNotifyOnFailure",
-        "# Legacy: superseded by notifyDisabledKinds. Read once by the notification\n# migration and ignored after; safe to delete once notificationsMigrated is\n# true. (default: true)",
-    ),
-    (
-        "terminalNotifyOnAttention",
-        "# Legacy: superseded by notifyDisabledKinds. Read once by the notification\n# migration and ignored after; safe to delete once notificationsMigrated is\n# true. (default: true)",
-    ),
-    (
-        "terminalNotifyNative",
-        "# Legacy: superseded by the notify*Native keys. Read once by the notification\n# migration and ignored after; safe to delete once notificationsMigrated is\n# true. (default: true)",
-    ),
-    (
-        "terminalNotifySound",
-        "# Legacy: superseded by the notify*Sound keys. Read once by the notification\n# migration and ignored after; safe to delete once notificationsMigrated is\n# true. (default: false)",
     ),
     (
         "notificationsEnabled",
@@ -186,16 +166,8 @@ const SETTINGS_DOCS: &[(&str, &str)] = &[
         "# Show Allow once / Deny buttons on permission banners. Off: the banner only\n# opens the session. (default: true)",
     ),
     (
-        "notificationsMigrated",
-        "# Set once Atlas has folded your earlier terminal and agent notification\n# choices into the keys above. Leave it alone. (default: false)",
-    ),
-    (
         "notifyDisabledKinds",
         "# Notification kinds you switched off in Settings > Notifications, by id, e.g.\n# [\"terminal-done\", \"git-behind\"]. Unknown ids are ignored; a kind that must\n# always show (sign-in lost) cannot be silenced. (default: [])",
-    ),
-    (
-        "notifyKindsMigrated",
-        "# Set once Atlas has folded your earlier per-kind notification switches into\n# notifyDisabledKinds. Leave it alone. (default: false)",
     ),
     (
         "notifyAgentMinDurationMs",
@@ -205,4 +177,85 @@ const SETTINGS_DOCS: &[(&str, &str)] = &[
         "favoriteModels",
         "# Models you starred in the composer's model picker, as \"agentType:modelId\",\n# e.g. [\"claude-code:opus\"]. Starred models open the picker on Favorites.\n# Unknown entries are ignored. (default: [])",
     ),
+    (
+        "confirmDeleteChat",
+        "# Ask before deleting a chat from the sidebar or the history. A deleted chat's\n# transcript stays with its agent, but Atlas forgets the chat. Archiving never\n# asks, because it can be undone. (default: true)",
+    ),
+    (
+        "confirmQuitWhileRunning",
+        "# Ask before quitting while an agent is in the middle of a turn, since\n# quitting stops it. Quitting again while the question is open quits anyway.\n# (default: true)",
+    ),
+    (
+        "defaultAgent",
+        "# The agent a new chat starts with: \"atlas-agent\" for Atlas Agent, or the id\n# of an installed ACP agent, such as \"claude-code\". An agent that isn't\n# installed falls back to Atlas Agent. (default: \"atlas-agent\") A project can\n# override it in its own .atlas/config.toml.",
+    ),
+    (
+        "chatWidth",
+        "# How wide the conversation and the composer may grow: \"normal\" (760 pixels),\n# \"wide\" (1080 pixels) or \"full\" (the whole panel). (default: \"normal\")",
+    ),
+    (
+        "chatCodeWrap",
+        "# Wrap long lines in a chat's code blocks. Off: they keep their lines and\n# scroll sideways. (default: true)",
+    ),
+    (
+        "sidebarSort",
+        "# The order of chats in the sidebar: \"recent\" puts the chat with the latest\n# activity first, \"created\" the one started most recently. (default: \"recent\")",
+    ),
+    (
+        "timeFormat",
+        "# The clock for every time of day Atlas shows: \"12h\", \"24h\", or \"system\" to\n# follow your system's region settings. (default: \"system\")",
+    ),
+    (
+        "uiFontFamily",
+        "# The font for Atlas's interface and chats, as a CSS font-family list such as\n# \"Inter, sans-serif\". Empty uses the system font. A font that isn't installed\n# falls through to the next one in the list. (default: \"\")",
+    ),
+    (
+        "codeFontFamily",
+        "# The font for the editor, the terminal and code in chats, as a CSS\n# font-family list such as \"JetBrains Mono, monospace\". Empty uses Atlas's\n# default monospace fonts. (default: \"\")",
+    ),
+    (
+        "editorFontSize",
+        "# The code editor's font size, in pixels. The interface zoom scales it along\n# with everything else. (default: 13)",
+    ),
+    (
+        "terminalFontSize",
+        "# The terminal's font size, in pixels. The interface zoom scales it along with\n# everything else. (default: 13)",
+    ),
+    (
+        "diffIgnoreWhitespace",
+        "# Leave out changes that are only whitespace in diffs you read: a file's diff,\n# a commit, and a chat's changes. Diffs you stage from always show every\n# change, since a patch without the whitespace no longer applies. (default:\n# false)",
+    ),
+    (
+        "diffFilesCollapsed",
+        "# Open a diff of several files, such as a commit or your changes, with each\n# file collapsed to its header. Off: every file starts expanded. (default:\n# false)",
+    ),
+    (
+        "diffPalette",
+        "# The colours for added and removed lines: \"theme\" uses the theme's green and\n# red, \"blue-orange\" uses its blue and orange, which stay distinct with\n# red-green colour blindness. (default: \"theme\")",
+    ),
+];
+
+/// The keys a project's `.atlas/config.toml` may override (`project` in the
+/// registry). Any other key there is ignored and reported.
+pub const PROJECT_SETTING_KEYS: &[&str] = &[
+    "gitBlameInline",
+    "gitAutoFetch",
+    "agentUiNavigation",
+    "agentOrgAccess",
+    "agentCodeTools",
+    "memoryDreams",
+    "memoryRepoMirror",
+    "defaultAgent",
+];
+
+/// Of those, the booleans a project may only turn off (`project = "tighten"`):
+/// a repository can commit that file, so it never switches on what the user
+/// switched off.
+pub const PROJECT_TIGHTEN_ONLY_KEYS: &[&str] = &[
+    "gitAutoFetch",
+    "agentUiNavigation",
+    "agentOrgAccess",
+    "agentCodeTools",
+    "memoryDreams",
+    "memoryRepoMirror",
 ];

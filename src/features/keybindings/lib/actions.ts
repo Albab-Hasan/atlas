@@ -11,9 +11,13 @@
  *
  * NOT in the registry (fixed, not user-rebindable): the CodeMirror keymap
  * (`editor-panel.tsx`), Tiptap's editing shortcuts, xterm's copy/paste handler,
- * the terminal readline keys (`terminal-keymap.ts`), the native menu bar
- * (`src-tauri/src/menu.rs`), arrow-key navigation inside palettes/lists, and
- * the Escape-to-close handlers.
+ * the terminal readline keys (`terminal-keymap.ts`), the native menu bar's
+ * AppKit items (Copy, Paste, Hide, Quit…), arrow-key navigation inside
+ * palettes/lists, and the Escape-to-close handlers.
+ *
+ * The menu bar's other items ARE these actions (`src-tauri/menu.json`): they
+ * run through `runAction` and show the chord bound here, so renaming an id
+ * used there fails `tests/menu-model.test.ts`.
  */
 
 export type When =

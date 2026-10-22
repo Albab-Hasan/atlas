@@ -47,6 +47,7 @@ import { useActiveOrgProjects } from "@/features/projects/lib/org-scope";
 import { useFullscreen } from "@/hooks/use-fullscreen";
 import { isDev } from "@/lib/env";
 import { isLinux, isMac, isWindows } from "@/lib/platform";
+import { MenuBar } from "@/features/menu/components/menu-bar";
 
 /**
  * A handle on the native window, for dragging and zooming.
@@ -162,6 +163,8 @@ export function Titlebar() {
       )}
     >
       <div className="flex h-titlebar min-w-0 flex-1 items-center gap-1.5">
+        {/* Windows and Linux: the menus macOS shows in the system menu bar. */}
+        {!isMac && <MenuBar className="mr-1" />}
         <HintGroup>
           <ProjectToggle />
           {currentProject && <LeftPanelToggle />}

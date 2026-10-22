@@ -8,15 +8,19 @@ use atlas_gitdiff::{build_file_diff, line_status, FileDiff, LineStatus};
 /// selects the index-vs-HEAD diff; otherwise it's worktree-vs-HEAD. `context`
 /// is the `-U` value (large → whole-file side-by-side). Falls back to
 /// `--no-index` against /dev/null so brand-new / untracked files render as
-/// all-added instead of an empty diff.
+/// all-added instead of an empty diff. `ignore_ws` adds `-w`
+/// (`diffIgnoreWhitespace`): a change that is only whitespace then reads as
+/// no change, the same as a clean file.
 fn run_git_diff(
     path: &str,
     file: &str,
     staged: bool,
     context: u32,
     commit: Option<&str>,
+    ignore_ws: bool,
 ) -> Result<String, String> {
     let ctx = format!("-U{context}");
+    let ws: &[&str] = if ignore_ws { &["-w"] } else { &[] };
     // Commit mode: the diff INTRODUCED by `commit` for this file. `git show`
     // diffs the commit against its parent (and against the empty tree for the
     // root commit), so it works uniformly. `-m --first-parent` makes a merge
@@ -24,23 +28,16 @@ fn run_git_diff(
     // merge prints a combined diff, empty for a clean merge.
     if let Some(sha) = commit {
         let output = atlas_process::command("git")
-            .args([
-                "show",
-                "--no-color",
-                &ctx,
-                "--format=",
-                "-m",
-                "--first-parent",
-                sha,
-                "--",
-                file,
-            ])
+            .args(["show", "--no-color", &ctx])
+            .args(ws)
+            .args(["--format=", "-m", "--first-parent", sha, "--", file])
             .current_dir(path)
             .output()
             .map_err(|e| e.to_string())?;
         return Ok(String::from_utf8_lossy(&output.stdout).to_string());
     }
     let mut args: Vec<&str> = vec!["diff", "--no-color", &ctx];
+    args.extend_from_slice(ws);
     if staged {
         args.push("--cached");
     }
@@ -75,7 +72,9 @@ fn run_git_diff(
         // editor gutter mark lines the user already staged and moved on from.
         if !staged && !exists_in_head(path, file) {
             let cached = atlas_process::command("git")
-                .args(["diff", "--no-color", &ctx, "--cached", "--", file])
+                .args(["diff", "--no-color", &ctx])
+                .args(ws)
+                .args(["--cached", "--", file])
                 .current_dir(path)
                 .output()
                 .map_err(|e| e.to_string())?;
@@ -144,9 +143,11 @@ pub async fn git_diff_structured(
     file: String,
     staged: bool,
     commit: Option<String>,
+    ignore_whitespace: Option<bool>,
 ) -> Result<FileDiff, String> {
     tokio::task::spawn_blocking(move || {
-        let diff = run_git_diff(&path, &file, staged, 100_000, commit.as_deref())?;
+        let ignore_ws = ignore_whitespace.unwrap_or(false);
+        let diff = run_git_diff(&path, &file, staged, 100_000, commit.as_deref(), ignore_ws)?;
         Ok(build_file_diff(&diff, &file, &language_of(&file)))
     })
     .await
@@ -173,9 +174,11 @@ pub async fn diff_structured_text(
     old_text: String,
     new_text: String,
     file: String,
+    ignore_whitespace: Option<bool>,
 ) -> Result<FileDiff, String> {
     tokio::task::spawn_blocking(move || {
-        let diff = run_text_diff(&old_text, &new_text, &file)?;
+        let ignore_ws = ignore_whitespace.unwrap_or(false);
+        let diff = run_text_diff(&old_text, &new_text, &file, ignore_ws)?;
         Ok(build_file_diff(&diff, &file, &language_of(&file)))
     })
     .await
@@ -186,7 +189,12 @@ pub async fn diff_structured_text(
 ///
 /// The temp files keep the original file's NAME under two parent dirs, so the
 /// diff header carries a usable path.
-fn run_text_diff(old_text: &str, new_text: &str, file: &str) -> Result<String, String> {
+fn run_text_diff(
+    old_text: &str,
+    new_text: &str,
+    file: &str,
+    ignore_ws: bool,
+) -> Result<String, String> {
     use std::fs;
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -213,15 +221,9 @@ fn run_text_diff(old_text: &str, new_text: &str, file: &str) -> Result<String, S
     // `--no-index` exits 1 when the files differ, which is the normal case here,
     // so the status is ignored and stdout taken as-is.
     let output = atlas_process::command("git")
-        .args([
-            "diff",
-            "--no-color",
-            "--no-index",
-            "-U100000",
-            "--",
-            &a.to_string_lossy(),
-            &b.to_string_lossy(),
-        ])
+        .args(["diff", "--no-color", "--no-index", "-U100000"])
+        .args(if ignore_ws { &["-w"][..] } else { &[] })
+        .args(["--", &a.to_string_lossy(), &b.to_string_lossy()])
         .output();
 
     // Best-effort cleanup — a leftover temp dir is harmless, a failed diff is not.
@@ -288,7 +290,8 @@ pub async fn git_diff_line_status(
     staged: bool,
 ) -> Result<LineStatus, String> {
     tokio::task::spawn_blocking(move || {
-        let diff = run_git_diff(&path, &file, staged, 0, None)?;
+        // The gutter marks every changed line, whitespace included.
+        let diff = run_git_diff(&path, &file, staged, 0, None, false)?;
         let fd = build_file_diff(&diff, &file, "");
         Ok(line_status(&fd))
     })

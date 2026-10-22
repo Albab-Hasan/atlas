@@ -80,12 +80,14 @@ agentSwitchBehavior = "reset"
 rememberBeforeSwitch = false
 
 # Inline git blame — a dim author/age/summary annotation trailing the active
-# line in the editor. (default: true)
+# line in the editor. (default: true) A project can override it in its own
+# .atlas/config.toml.
 gitBlameInline = true
 
 # Quietly `git fetch` the open project when it opens, when Atlas regains
 # focus, and every few minutes, so the Pull badge shows what the remote has.
-# Never pulls or touches your files. (default: true)
+# Never pulls or touches your files. (default: true) A project can turn it
+# off, never on, in its own .atlas/config.toml.
 gitAutoFetch = true
 
 # Keep the computer awake while an Atlas agent is actively running. Prevents
@@ -119,31 +121,36 @@ enterToSend = true
 # Let Atlas Agent act on the window: open files at a line, switch tabs and
 # panels, fill in a chat message, type a command for you to run. It never
 # switches projects, sends for you or presses Enter. Off: its UI tools are
-# withdrawn and every call is refused. (default: true)
+# withdrawn and every call is refused. (default: true) A project can turn it
+# off, never on, in its own .atlas/config.toml.
 agentUiNavigation = true
 
 # Let Atlas Agent act in your organization, as you: read the recorded
 # sessions, comments, members and conversations of the organization a
 # cloud-bound Project belongs to. Anything that reaches another person asks
 # you first. Off: its organization tools are withdrawn and every call is
-# refused. (default: true)
+# refused. (default: true) A project can turn it off, never on, in its own
+# .atlas/config.toml.
 agentOrgAccess = true
 
 # Let agents search this project's code through Atlas: grep for text and find
 # files by name, in-process, respecting .gitignore and never reading secret
 # files such as .env. Off: the code tools are withdrawn and every call is
-# refused; agents use their own shell instead. (default: true)
+# refused; agents use their own shell instead. (default: true) A project can
+# turn it off, never on, in its own .atlas/config.toml.
 agentCodeTools = true
 
 # Once a day, when there are new sessions, ask the memory model to propose
 # changes to shared memory (add, merge, archive, rewrite, link). Proposals
 # wait in Memory > Review; nothing is applied without you. Uses the same model
-# and consent as extraction. (default: false)
+# and consent as extraction. (default: false) A project can turn it off, never
+# on, in its own .atlas/config.toml.
 memoryDreams = false
 
 # Keep a read-only Agent Memory Repo mirror of each project's active memory,
 # as a local git repository outside the project. No remote, nothing is pushed.
-# (default: false)
+# (default: false) A project can turn it off, never on, in its own
+# .atlas/config.toml.
 memoryRepoMirror = false
 
 # Atlas's shared memory is the only memory in Atlas sessions: agents that keep
@@ -151,34 +158,9 @@ memoryRepoMirror = false
 # off. Off: each agent also keeps its own memory files. (default: true)
 atlasOnlyMemory = true
 
-# Legacy: superseded by notifyDisabledKinds. Read once by the notification
-# migration and ignored after; safe to delete once notificationsMigrated is
-# true. (default: true)
-terminalNotifications = true
-
 # A successful command shorter than this many milliseconds never notifies.
 # Must be between 0 and 3600000. (default: 10000)
 terminalNotifyMinDurationMs = 10000
-
-# Legacy: superseded by notifyDisabledKinds. Read once by the notification
-# migration and ignored after; safe to delete once notificationsMigrated is
-# true. (default: true)
-terminalNotifyOnFailure = true
-
-# Legacy: superseded by notifyDisabledKinds. Read once by the notification
-# migration and ignored after; safe to delete once notificationsMigrated is
-# true. (default: true)
-terminalNotifyOnAttention = true
-
-# Legacy: superseded by the notify*Native keys. Read once by the notification
-# migration and ignored after; safe to delete once notificationsMigrated is
-# true. (default: true)
-terminalNotifyNative = true
-
-# Legacy: superseded by the notify*Sound keys. Read once by the notification
-# migration and ignored after; safe to delete once notificationsMigrated is
-# true. (default: false)
-terminalNotifySound = false
 
 # Notifications master switch. Off silences every notification except sign-in
 # problems, which always show. (default: true)
@@ -217,18 +199,10 @@ notifyTeamSound = true
 # opens the session. (default: true)
 notifyPermissionActions = true
 
-# Set once Atlas has folded your earlier terminal and agent notification
-# choices into the keys above. Leave it alone. (default: false)
-notificationsMigrated = false
-
 # Notification kinds you switched off in Settings > Notifications, by id, e.g.
 # ["terminal-done", "git-behind"]. Unknown ids are ignored; a kind that must
 # always show (sign-in lost) cannot be silenced. (default: [])
 notifyDisabledKinds = []
-
-# Set once Atlas has folded your earlier per-kind notification switches into
-# notifyDisabledKinds. Leave it alone. (default: false)
-notifyKindsMigrated = false
 
 # An agent turn that finished faster than this many milliseconds stays quiet;
 # failures and requests for you are never held back. 0 turns it off. Must be
@@ -239,3 +213,69 @@ notifyAgentMinDurationMs = 0
 # e.g. ["claude-code:opus"]. Starred models open the picker on Favorites.
 # Unknown entries are ignored. (default: [])
 favoriteModels = []
+
+# Ask before deleting a chat from the sidebar or the history. A deleted chat's
+# transcript stays with its agent, but Atlas forgets the chat. Archiving never
+# asks, because it can be undone. (default: true)
+confirmDeleteChat = true
+
+# Ask before quitting while an agent is in the middle of a turn, since
+# quitting stops it. Quitting again while the question is open quits anyway.
+# (default: true)
+confirmQuitWhileRunning = true
+
+# The agent a new chat starts with: "atlas-agent" for Atlas Agent, or the id
+# of an installed ACP agent, such as "claude-code". An agent that isn't
+# installed falls back to Atlas Agent. (default: "atlas-agent") A project can
+# override it in its own .atlas/config.toml.
+defaultAgent = "atlas-agent"
+
+# How wide the conversation and the composer may grow: "normal" (760 pixels),
+# "wide" (1080 pixels) or "full" (the whole panel). (default: "normal")
+chatWidth = "normal"
+
+# Wrap long lines in a chat's code blocks. Off: they keep their lines and
+# scroll sideways. (default: true)
+chatCodeWrap = true
+
+# The order of chats in the sidebar: "recent" puts the chat with the latest
+# activity first, "created" the one started most recently. (default: "recent")
+sidebarSort = "recent"
+
+# The clock for every time of day Atlas shows: "12h", "24h", or "system" to
+# follow your system's region settings. (default: "system")
+timeFormat = "system"
+
+# The font for Atlas's interface and chats, as a CSS font-family list such as
+# "Inter, sans-serif". Empty uses the system font. A font that isn't installed
+# falls through to the next one in the list. (default: "")
+uiFontFamily = ""
+
+# The font for the editor, the terminal and code in chats, as a CSS
+# font-family list such as "JetBrains Mono, monospace". Empty uses Atlas's
+# default monospace fonts. (default: "")
+codeFontFamily = ""
+
+# The code editor's font size, in pixels. The interface zoom scales it along
+# with everything else. (default: 13)
+editorFontSize = 13
+
+# The terminal's font size, in pixels. The interface zoom scales it along with
+# everything else. (default: 13)
+terminalFontSize = 13
+
+# Leave out changes that are only whitespace in diffs you read: a file's diff,
+# a commit, and a chat's changes. Diffs you stage from always show every
+# change, since a patch without the whitespace no longer applies. (default:
+# false)
+diffIgnoreWhitespace = false
+
+# Open a diff of several files, such as a commit or your changes, with each
+# file collapsed to its header. Off: every file starts expanded. (default:
+# false)
+diffFilesCollapsed = false
+
+# The colours for added and removed lines: "theme" uses the theme's green and
+# red, "blue-orange" uses its blue and orange, which stay distinct with
+# red-green colour blindness. (default: "theme")
+diffPalette = "theme"

@@ -498,13 +498,25 @@ pub async fn git_diff_all(path: String) -> Result<String, String> {
 /// has staged — are invisible to `git diff HEAD`, so each gets a `--no-index`
 /// diff against `/dev/null` (which exits 1 on a difference, by design).
 #[tauri::command]
-pub async fn git_diff_paths(path: String, files: Vec<String>) -> Result<String, String> {
+pub async fn git_diff_paths(
+    path: String,
+    files: Vec<String>,
+    ignore_whitespace: Option<bool>,
+) -> Result<String, String> {
     if files.is_empty() {
         return Ok(String::new());
     }
     tokio::task::spawn_blocking(move || {
+        // `-w`: `diffIgnoreWhitespace`; this diff is only read, never staged.
+        let ws: &[&str] = if ignore_whitespace.unwrap_or(false) {
+            &["-w"]
+        } else {
+            &[]
+        };
         let tracked = git_read()
-            .args(["diff", "HEAD", "--relative", "--"])
+            .args(["diff", "HEAD", "--relative"])
+            .args(ws)
+            .arg("--")
             .args(&files)
             .current_dir(&path)
             .output()

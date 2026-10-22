@@ -45,6 +45,7 @@ import type {
 } from "../lib/turn-rows";
 import { userRowMessageId } from "../lib/turn-rows";
 import { CONTENT_COLUMN, M } from "../lib/row-metrics";
+import { formatTime } from "@/lib/format-time";
 
 /** Shared by every row: the centred content column. */
 function Column({ children, className }: { children: React.ReactNode; className?: string }) {
@@ -319,10 +320,7 @@ export const ProseRowView = memo(function ProseRowView({
             ·
           </span>
           <span className="shrink-0 font-mono text-2xs text-[var(--muted-foreground)]">
-            {new Date(row.timestamp).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
+            {formatTime(row.timestamp, { hour: "2-digit", minute: "2-digit" })}
           </span>
         </div>
       )}

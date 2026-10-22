@@ -30,3 +30,26 @@ export function placeProjectNames(rows: readonly GroupableRow[], grouped: boolea
     showProject: !grouped && row.elsewhere,
   }));
 }
+
+export interface SortableThread {
+  threadId: string;
+  updatedAt: string;
+  createdAt: string | null;
+}
+
+/**
+ * One project's threads in the `sidebarSort` order. Rust hands them over by
+ * latest activity already, so `recent` keeps that order untouched; `created`
+ * puts the most recently started first, with a thread whose start Atlas never
+ * saw counted from its last activity, as the history view does.
+ */
+export function sortThreads<T extends SortableThread>(
+  threads: readonly T[],
+  sort: "recent" | "created",
+): readonly T[] {
+  if (sort === "recent") return threads;
+  const started = (thread: T) => thread.createdAt ?? thread.updatedAt;
+  return [...threads].sort(
+    (a, b) => started(b).localeCompare(started(a)) || a.threadId.localeCompare(b.threadId),
+  );
+}

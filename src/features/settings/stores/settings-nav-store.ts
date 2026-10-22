@@ -44,6 +44,10 @@ interface SettingsNavState {
   /** The section the mounted panel is showing right now (null: no panel) —
    *  what lets a notification know the user is already looking at its subject. */
   shown: string | null;
+  /** Which settings the pages edit: `null` for every project (the global
+   *  `config.toml`), or one project's path (its `.atlas/config.toml`). */
+  scope: string | null;
+  setScope: (scope: string | null) => void;
   goTo: (section: SettingsSection, anchor?: string) => void;
   clear: () => void;
   clearAnchor: () => void;
@@ -54,6 +58,8 @@ export const useSettingsNav = create<SettingsNavState>((set) => ({
   section: null,
   anchor: null,
   shown: null,
+  scope: null,
+  setScope: (scope) => set({ scope }),
   goTo: (section, anchor) => set({ section, anchor: anchor ?? null }),
   clear: () => set({ section: null }),
   clearAnchor: () => set({ anchor: null }),

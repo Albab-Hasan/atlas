@@ -715,9 +715,8 @@ async fn health_one(app: &AppHandle, registry: &MemoryRegistry, cwd: &str) -> Re
     queue_catch_up(app, registry, cwd, now).await;
     // The Agent Memory Repo mirror, when the user turned it on: rewritten
     // and committed only when memory changed.
-    let mirror = app
-        .try_state::<crate::state::AtlasConfigHandle>()
-        .is_some_and(|config| config.lock().effective().memory_repo_mirror);
+    let mirror = super::project_settings::effective_settings_for(app, std::path::Path::new(cwd))
+        .is_some_and(|settings| settings.memory_repo_mirror);
     if let (true, Some(home)) = (mirror, dirs::home_dir()) {
         let owned = cwd.to_string();
         let refreshed = tokio::task::spawn_blocking(move || {
@@ -733,9 +732,8 @@ async fn health_one(app: &AppHandle, registry: &MemoryRegistry, cwd: &str) -> Re
     }
     // The daily dream, when the user turned it on; it decides itself
     // whether it is due.
-    let dreams = app
-        .try_state::<crate::state::AtlasConfigHandle>()
-        .is_some_and(|config| config.lock().effective().memory_dreams);
+    let dreams = super::project_settings::effective_settings_for(app, std::path::Path::new(cwd))
+        .is_some_and(|settings| settings.memory_dreams);
     if dreams {
         registry.send_or_remember(Job::Dream {
             cwd: cwd.to_string(),

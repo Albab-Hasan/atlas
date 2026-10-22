@@ -31,6 +31,7 @@ import type { PlanRecord } from "@/features/chat/lib/plans";
 import type { AppSettings } from "@/features/settings/lib/app-settings";
 import { DEFAULT_SETTINGS } from "@/features/settings/lib/app-settings";
 import type { UpdateOutcome } from "@/features/settings/lib/atlas-config-api";
+import type { ProjectSettingsInfo } from "@/features/settings/lib/project-settings-api";
 import type { ModelStatus, SelectResult } from "@/features/settings/lib/models-api";
 import type { UpdateStatus } from "@/features/updater/lib/updater-api";
 import type { NativeModelsRefresh } from "@/types/agents";
@@ -287,6 +288,15 @@ let plans: PlanRecord[] = [
 // with the unchanged defaults would silently revert itself on the next event.
 let settings: AppSettings = { ...DEFAULT_SETTINGS };
 let generation = 1;
+const projectSettings = new Map<string, ProjectSettingsInfo>();
+const projectSettingsFor = (projectPath: string): ProjectSettingsInfo =>
+  projectSettings.get(projectPath) ?? {
+    path: `${projectPath}/.atlas/config.toml`,
+    values: {},
+    ignoredKeys: [],
+    refusedKeys: [],
+    error: null,
+  };
 
 // ── local model manager (memory's embedding models) ────────────────────────
 
@@ -457,6 +467,21 @@ export const miscHandlers: MockHandlers = {
     return { settings, generation };
   },
   open_atlas_config: nothing,
+  // `.atlas/config.toml` per project, kept in memory: enough to exercise the
+  // scope picker and the inherited / overridden rows in the browser.
+  get_project_settings: ({ projectPath }): ProjectSettingsInfo =>
+    projectSettingsFor(String(projectPath)),
+  update_project_settings: ({ projectPath, patch }): ProjectSettingsInfo => {
+    const info = projectSettingsFor(String(projectPath));
+    const values: Record<string, unknown> = { ...info.values };
+    for (const [key, value] of Object.entries(patch as Record<string, unknown>)) {
+      if (value === null) delete values[key];
+      else values[key] = value;
+    }
+    const next = { ...info, values: values as Partial<AppSettings> };
+    projectSettings.set(String(projectPath), next);
+    return next;
+  },
   // No `config.toml` on a browser's disk: the settings shown come from the
   // boot snapshot, and `null` is the "no file read" answer the API allows.
   get_atlas_config_info: nothing,

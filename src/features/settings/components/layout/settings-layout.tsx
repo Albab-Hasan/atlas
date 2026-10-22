@@ -20,32 +20,47 @@
  */
 
 import { useEffect, useRef, type ReactNode } from "react";
-import { Undo2 } from "lucide-react";
+import { Layers, Undo2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Icon } from "@/ui/icon";
 import { IconButton } from "@/ui/icon-button";
 import { Hint } from "@/ui/tooltip";
-import { useSettingsStore } from "../../stores/settings-store";
-import { DEFAULT_SETTINGS, type AppSettings, type SettingKey } from "../../lib/app-settings";
-import { settingMeta, isDefaultValue } from "../../lib/settings-sections";
+import type { SettingKey } from "../../lib/app-settings";
+import { settingMeta } from "../../lib/settings-sections";
 import { useSettingsNav } from "../../stores/settings-nav-store";
+import {
+  PageScopeContext,
+  usePageScope,
+  useScopedSetting,
+  type ScopedSetting,
+} from "../../lib/use-scoped-setting";
+import { ScopeSentence } from "./scope-sentence";
 
 export function SettingsPage({
   title,
   description,
+  scopeable = false,
   children,
 }: {
   title: string;
   description?: string;
+  /** The page has settings a project can override: show the scope picker,
+   *  and let its rows edit the picked project. */
+  scopeable?: boolean;
   children: ReactNode;
 }) {
+  const scope = useSettingsNav((s) => s.scope);
   return (
-    <div className="@container mx-auto flex w-full max-w-180 flex-col gap-8 px-5 pt-8 pb-24">
-      <header className="flex flex-col gap-1">
-        <h1 className="text-xl font-medium tracking-tight text-foreground">{title}</h1>
-        {description && <p className="caption">{description}</p>}
-      </header>
-      {children}
-    </div>
+    <PageScopeContext.Provider value={scopeable ? scope : null}>
+      <div className="@container mx-auto flex w-full max-w-180 flex-col gap-8 px-5 pt-8 pb-24">
+        <header className="flex flex-col gap-1">
+          <h1 className="text-xl font-medium tracking-tight text-foreground">{title}</h1>
+          {description && <p className="caption">{description}</p>}
+          {scopeable && <ScopeSentence />}
+        </header>
+        {children}
+      </div>
+    </PageScopeContext.Provider>
   );
 }
 
@@ -120,6 +135,52 @@ interface SettingsRowProps {
   noReset?: boolean;
 }
 
+const GLOBAL_ONLY_REASON = "Applies to all projects. Pick All projects above to change it.";
+
+const describe = (value: unknown): string =>
+  typeof value === "boolean" ? (value ? "on" : "off") : JSON.stringify(value);
+
+/** Under a project scope: where this row's value comes from. */
+function InheritanceHint({ scoped }: { scoped: ScopedSetting<SettingKey> }) {
+  const label = scoped.overridden
+    ? `Set for this project. All projects: ${describe(scoped.globalValue)}.`
+    : "Inherited from all projects.";
+  return (
+    <Hint label={label}>
+      <span
+        tabIndex={0}
+        aria-label={label}
+        className={cn(
+          "inline-flex rounded-sm",
+          scoped.overridden ? "text-primary" : "text-disabled",
+        )}
+      >
+        <Icon icon={Layers} size="xs" />
+      </span>
+    </Hint>
+  );
+}
+
+/** A row with no registry key behind it: global by nature. */
+const NO_SETTING = {
+  value: undefined,
+  globalOnly: false,
+  lockedReason: null,
+  resettable: false,
+  resetLabel: "",
+  overridden: false,
+  globalValue: undefined,
+  set: () => {},
+  reset: () => {},
+} as unknown as ScopedSetting<SettingKey>;
+
+function useRowSetting(setting: SettingKey | undefined): ScopedSetting<SettingKey> {
+  // Hooks run unconditionally; a row without a key reads `enterToSend` and
+  // ignores it rather than calling the hook conditionally.
+  const scoped = useScopedSetting(setting ?? "enterToSend");
+  return setting ? scoped : NO_SETTING;
+}
+
 export function SettingsRow({
   setting,
   title,
@@ -127,17 +188,30 @@ export function SettingsRow({
   status,
   control,
   children,
-  disabled = false,
-  disabledReason,
+  disabled: disabledProp = false,
+  disabledReason: disabledReasonProp,
   anchor,
   noReset = false,
 }: SettingsRowProps) {
   const meta = setting ? settingMeta(setting) : undefined;
-  const value = useSettingsStore((s) => (setting ? s.settings[setting] : undefined));
-  const { updateSettings } = useSettingsStore.use.actions();
+  const scope = usePageScope();
+  const scoped = useRowSetting(setting);
+  // Under a project scope, anything the project cannot override is shown but
+  // not editable: a key it cannot set, or a row with no key at all.
+  const globalOnly = scope !== null && (setting ? scoped.globalOnly : true);
+  const disabled = disabledProp || globalOnly;
+  const disabledReason = globalOnly
+    ? (scoped.lockedReason ?? GLOBAL_ONLY_REASON)
+    : disabledReasonProp;
   const rowTitle = title ?? meta?.title;
+  // A tighten-locked row keeps its reset: the override it can drop is
+  // redundant, and dropping it is the one change still allowed.
   const showReset =
-    setting !== undefined && !noReset && !disabled && !isDefaultValue(setting, value);
+    setting !== undefined &&
+    !noReset &&
+    scoped.resettable &&
+    !disabledProp &&
+    (!globalOnly || scoped.lockedReason !== null);
   const ref = useSearchTarget(anchor ?? setting);
 
   // `inert`, not just `pointer-events-none`: a disabled row's switch or select
@@ -176,17 +250,14 @@ export function SettingsRow({
         <div className={cn("flex min-w-0 flex-col gap-0.5", disabled && "opacity-50")}>
           <div className="flex min-h-5 items-center gap-1">
             <h3 className="label">{rowTitle}</h3>
+            {scope !== null && setting && meta?.project && <InheritanceHint scoped={scoped} />}
             {showReset && (
-              <Hint label="Reset to default">
+              <Hint label={scoped.resetLabel}>
                 <IconButton
                   icon={Undo2}
                   size="xs"
-                  label={`Reset ${typeof rowTitle === "string" ? rowTitle : setting} to default`}
-                  onClick={() =>
-                    void updateSettings({
-                      [setting]: DEFAULT_SETTINGS[setting],
-                    } as Partial<AppSettings>)
-                  }
+                  label={`${typeof rowTitle === "string" ? rowTitle : setting}: ${scoped.resetLabel}`}
+                  onClick={scoped.reset}
                 />
               </Hint>
             )}

@@ -17,10 +17,10 @@ describe("settings search", () => {
     expect(searchSettings("shortcuts").map((item) => item.section)).toContain("keybindings");
   });
 
-  it("never offers internal or legacy keys", () => {
+  it("never offers internal keys", () => {
     const ids = new Set(searchItems().map((item) => item.id));
     for (const meta of SETTINGS_REGISTRY) {
-      if (meta.status === "internal" || meta.status === "legacy") {
+      if (meta.status === "internal") {
         expect(ids.has(meta.key), meta.key).toBe(false);
       }
     }
@@ -37,13 +37,13 @@ describe("restore defaults", () => {
       ...DEFAULT_SETTINGS,
       gitAutoFetch: false,
       enterToSend: false,
-      // Internal bookkeeping on Notifications must never be offered for reset.
-      notificationsMigrated: true,
+      // Internal bookkeeping on Updates must never be offered for reset.
+      updaterIgnoredVersion: "9.9.9",
     };
     expect(changedOnPage("source-control", settings).map((meta) => meta.key)).toEqual([
       "gitAutoFetch",
     ]);
-    expect(changedOnPage("notifications", settings)).toEqual([]);
+    expect(changedOnPage("updates", settings)).toEqual([]);
   });
 
   it("compares lists by value", () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { placeProjectNames } from "./sidebar-grouping";
+import { placeProjectNames, sortThreads } from "./sidebar-grouping";
 
 const row = (projectName: string, elsewhere = false) => ({ projectName, elsewhere });
 
@@ -37,5 +37,21 @@ describe("placeProjectNames", () => {
       "atlas",
       "docs",
     ]);
+  });
+});
+
+describe("sortThreads", () => {
+  const rows = [
+    { threadId: "a", updatedAt: "2026-10-03T00:00:00Z", createdAt: "2026-10-01T00:00:00Z" },
+    { threadId: "b", updatedAt: "2026-10-02T00:00:00Z", createdAt: "2026-10-02T00:00:00Z" },
+    { threadId: "c", updatedAt: "2026-09-30T00:00:00Z", createdAt: null },
+  ];
+
+  it("keeps Rust's latest-activity order for recent", () => {
+    expect(sortThreads(rows, "recent")).toBe(rows);
+  });
+
+  it("puts the most recently started first for created, counting an unknown start from its activity", () => {
+    expect(sortThreads(rows, "created").map((r) => r.threadId)).toEqual(["b", "a", "c"]);
   });
 });

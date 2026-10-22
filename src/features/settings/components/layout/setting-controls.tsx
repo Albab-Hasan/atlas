@@ -4,11 +4,15 @@
  * `updateSettings` by hand for every switch.
  */
 
+import { useEffect, useState } from "react";
+import { Minus, Plus } from "lucide-react";
 import { Switch } from "@/ui/switch";
 import { Select, type SelectOption } from "@/ui/select";
-import { useSettingsStore } from "../../stores/settings-store";
+import { IconButton } from "@/ui/icon-button";
+import { Input } from "@/ui/input";
 import type { AppSettings, BooleanSettingKey } from "../../lib/app-settings";
 import { settingMeta } from "../../lib/settings-sections";
+import { useScopedSetting } from "../../lib/use-scoped-setting";
 
 /** "Needs you: System notification", not just "System notification": one page
  *  can hold several rows with the same title, one per section, and a screen
@@ -28,15 +32,14 @@ export function SettingSwitch({
   /** Runs after the value is saved — for a side effect the store can't own. */
   onChange?: (next: boolean) => void;
 }) {
-  const checked = useSettingsStore((s) => s.settings[setting]);
-  const { updateSettings } = useSettingsStore.use.actions();
+  const scoped = useScopedSetting(setting);
   return (
     <Switch
-      checked={checked}
-      disabled={disabled}
+      checked={scoped.value}
+      disabled={disabled || scoped.globalOnly}
       aria-label={accessibleName(setting)}
       onCheckedChange={(next) => {
-        void updateSettings({ [setting]: next } as Partial<AppSettings>);
+        scoped.set(next);
         onChange?.(next);
       }}
     />
@@ -61,15 +64,107 @@ export function SettingSelect<K extends EnumKey>({
   options: readonly SelectOption<AppSettings[K] & string>[];
   disabled?: boolean;
 }) {
-  const value = useSettingsStore((s) => s.settings[setting]) as AppSettings[K] & string;
-  const { updateSettings } = useSettingsStore.use.actions();
+  const scoped = useScopedSetting(setting);
   return (
     <Select
-      value={value}
+      value={scoped.value as AppSettings[K] & string}
       options={options}
-      disabled={disabled}
+      disabled={disabled || scoped.globalOnly}
       aria-label={accessibleName(setting)}
-      onValueChange={(next) => void updateSettings({ [setting]: next } as Partial<AppSettings>)}
+      onValueChange={(next) => scoped.set(next as AppSettings[K])}
+    />
+  );
+}
+
+type NumberKey = {
+  [K in keyof AppSettings]: AppSettings[K] extends number ? K : never;
+}[keyof AppSettings];
+
+type TextKey = {
+  [K in keyof AppSettings]: AppSettings[K] extends string
+    ? string extends AppSettings[K]
+      ? K
+      : never
+    : never;
+}[keyof AppSettings];
+
+/** A − n + stepper over an integer key, bounded by its registry `min`/`max`. */
+export function SettingStepper({
+  setting,
+  unit = "",
+  disabled,
+}: {
+  setting: NumberKey;
+  unit?: string;
+  disabled?: boolean;
+}) {
+  const scoped = useScopedSetting(setting);
+  const { min = -Infinity, max = Infinity } = settingMeta(setting);
+  const value = scoped.value as number;
+  const off = disabled || scoped.globalOnly;
+  const name = accessibleName(setting);
+  const step = (by: number) => scoped.set(Math.min(max, Math.max(min, value + by)));
+  return (
+    <div className="flex items-center gap-1">
+      <IconButton
+        icon={Minus}
+        size="sm"
+        variant="outline"
+        label={`${name}: smaller`}
+        className="rounded-full"
+        disabled={off || value <= min}
+        onClick={() => step(-1)}
+      />
+      <span className="min-w-12 text-center text-xs tabular-nums" aria-live="polite">
+        {value}
+        {unit}
+      </span>
+      <IconButton
+        icon={Plus}
+        size="sm"
+        variant="outline"
+        label={`${name}: larger`}
+        className="rounded-full"
+        disabled={off || value >= max}
+        onClick={() => step(1)}
+      />
+    </div>
+  );
+}
+
+/** A text field over a string key. Saves on Enter or when it loses focus,
+ *  not per keystroke: every save rewrites `config.toml`. Escape reverts. */
+export function SettingText({
+  setting,
+  placeholder,
+  disabled,
+}: {
+  setting: TextKey;
+  placeholder?: string;
+  disabled?: boolean;
+}) {
+  const scoped = useScopedSetting(setting);
+  const saved = scoped.value as string;
+  const [draft, setDraft] = useState(saved);
+  useEffect(() => setDraft(saved), [saved]);
+  const commit = () => {
+    if (draft.trim() !== saved) scoped.set(draft.trim());
+  };
+  return (
+    <Input
+      size="sm"
+      className="w-56"
+      value={draft}
+      placeholder={placeholder}
+      spellCheck={false}
+      disabled={disabled || scoped.globalOnly}
+      aria-label={accessibleName(setting)}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={commit}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") event.currentTarget.blur();
+        if (event.key === "Escape") setDraft(saved);
+      }}
     />
   );
 }

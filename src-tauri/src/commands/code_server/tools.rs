@@ -287,7 +287,7 @@ impl CodeTools {
         request: CallToolRequestParams,
         cancelled: impl Future<Output = ()> + Send,
     ) -> CallToolResult {
-        if !(self.gate)() {
+        if !(self.gate)(&grant.cwd) {
             return tool_error(OFF_NOTE);
         }
         let name = request.name.to_string();

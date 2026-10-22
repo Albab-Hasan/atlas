@@ -29,6 +29,7 @@ import { MarkdownFile } from "@/lib/markdown-fileviewer";
 import { openFileAs } from "@/lib/open-file";
 import { cn } from "@/lib/utils";
 import { useSettingsStore } from "@/features/settings/stores/settings-store";
+import { projectSettingNow, useProjectSetting } from "@/features/settings/lib/use-scoped-setting";
 
 const TOOLBAR_HEIGHT = 32;
 const DIRTY_CHECK_DEBOUNCE = 300; // ms — only check dirty state, not sync content
@@ -205,7 +206,7 @@ export function EditorPanel({ tabId, filePath, containerHeight }: EditorPanelPro
   const refreshBlame = useCallback(() => {
     const view = viewRef.current;
     if (!view || isUntitled || !projectPath) return;
-    if (!useSettingsStore.getState().settings.gitBlameInline) return;
+    if (!projectSettingNow(projectPath, "gitBlameInline")) return;
     if (!path.startsWith(projectPath + "/")) return;
     if (useEditorStore.getState().buffers[path]?.dirty) return;
     const rel = path.slice(projectPath.length + 1);
@@ -358,7 +359,7 @@ export function EditorPanel({ tabId, filePath, containerHeight }: EditorPanelPro
           lineNumbers(),
           diffGutter(),
           blameCompartment.of(
-            useSettingsStore.getState().settings.gitBlameInline ? blameInline() : [],
+            projectSettingNow(projectPath, "gitBlameInline") ? blameInline() : [],
           ),
           highlightActiveLine(),
           drawSelection(),
@@ -455,7 +456,8 @@ export function EditorPanel({ tabId, filePath, containerHeight }: EditorPanelPro
 
   // Live-toggle inline blame: reconfigure the compartment in place; turning it
   // on also fetches a fresh snapshot (the extension starts empty).
-  const gitBlameInline = useSettingsStore.use.settings().gitBlameInline;
+  // Per project: a project's `.atlas/config.toml` can turn it off for itself.
+  const gitBlameInline = useProjectSetting(projectPath, "gitBlameInline");
   useEffect(() => {
     const view = viewRef.current;
     if (!view) return;

@@ -38,7 +38,11 @@
 #               elsewhere set from somewhere else in the app (`set_in` says where)
 #               file-only no UI; edit config.toml by hand
 #               internal  Atlas's own bookkeeping; never edit
-#               legacy    no longer read except by a migration; safe to delete
+#   project     true when a project's `.atlas/config.toml` may override it;
+#               "tighten" when it may only turn it off (a boolean that grants
+#               access or sends data — a repository can commit that file, so
+#               it must never switch on what the user switched off).
+#               Only for a live key whose every reader knows its project.
 #   page        Settings page id (a `[[page]]` id, also a Settings section):
 #               general, appearance, icons, chat, memory, notifications, source-control, privacy, updates
 #   section     heading inside that page.
@@ -63,7 +67,7 @@
 [[page]]
 id = "general"
 title = "General"
-description = "Interface, the app icon, and how Atlas treats your project's files."
+description = "Interface, fonts, confirmations, and how Atlas treats your project's files."
 
 [[page]]
 id = "appearance"
@@ -78,7 +82,7 @@ description = "File and folder icons, chosen separately from the theme."
 [[page]]
 id = "chat"
 title = "Chat"
-description = "The composer, switching agents, and what Atlas Agent may do."
+description = "New chats, the composer, layout, switching agents, and what Atlas Agent may do."
 
 [[page]]
 id = "memory"
@@ -93,7 +97,7 @@ description = "What notifies you, how, and after how long."
 [[page]]
 id = "source-control"
 title = "Source Control"
-description = "Git in the editor and in the background."
+description = "Git in the editor, diffs, and in the background."
 
 [[page]]
 id = "privacy"
@@ -347,6 +351,7 @@ key = "gitBlameInline"
 type = "boolean"
 default = true
 status = "live"
+project = true
 page = "source-control"
 section = "Editor"
 title = "Inline Git blame"
@@ -362,6 +367,7 @@ key = "gitAutoFetch"
 type = "boolean"
 default = true
 status = "live"
+project = "tighten"
 page = "source-control"
 section = "Repositories"
 title = "Auto-fetch from remote"
@@ -472,6 +478,7 @@ key = "agentUiNavigation"
 type = "boolean"
 default = true
 status = "live"
+project = "tighten"
 page = "chat"
 section = "Atlas Agent permissions"
 title = "Let Atlas Agent navigate the app"
@@ -489,6 +496,7 @@ key = "agentOrgAccess"
 type = "boolean"
 default = true
 status = "live"
+project = "tighten"
 page = "chat"
 section = "Atlas Agent permissions"
 title = "Let Atlas Agent act in your organization"
@@ -506,6 +514,7 @@ key = "agentCodeTools"
 type = "boolean"
 default = true
 status = "live"
+project = "tighten"
 page = "chat"
 section = "Atlas Agent permissions"
 title = "Let agents search code with Atlas"
@@ -523,6 +532,7 @@ key = "memoryDreams"
 type = "boolean"
 default = false
 status = "live"
+project = "tighten"
 page = "memory"
 section = "Shared memory"
 title = "Nightly memory review"
@@ -540,6 +550,7 @@ key = "memoryRepoMirror"
 type = "boolean"
 default = false
 status = "live"
+project = "tighten"
 page = "memory"
 section = "Shared memory"
 title = "Mirror memory as an Agent Memory Repo"
@@ -567,21 +578,6 @@ Off: each agent also keeps its own memory files.
 validation = "—"
 
 [[setting]]
-key = "terminalNotifications"
-type = "boolean"
-default = true
-status = "legacy"
-page = "notifications"
-section = "Legacy"
-title = "Terminal notifications (legacy)"
-summary = "Superseded by the per-kind switches in Notifications."
-doc = """
-Legacy: superseded by notifyDisabledKinds. Read once by the notification
-migration and ignored after; safe to delete once notificationsMigrated is true.
-"""
-validation = "—"
-
-[[setting]]
 key = "terminalNotifyMinDurationMs"
 type = "integer"
 min = 0
@@ -597,66 +593,6 @@ A successful command shorter than this many milliseconds never notifies. Must
 be between 0 and 3600000.
 """
 validation = "0 ≤ n ≤ 3600000"
-
-[[setting]]
-key = "terminalNotifyOnFailure"
-type = "boolean"
-default = true
-status = "legacy"
-page = "notifications"
-section = "Legacy"
-title = "Notify on command failure (legacy)"
-summary = "Superseded by the per-kind switches in Notifications."
-doc = """
-Legacy: superseded by notifyDisabledKinds. Read once by the notification
-migration and ignored after; safe to delete once notificationsMigrated is true.
-"""
-validation = "—"
-
-[[setting]]
-key = "terminalNotifyOnAttention"
-type = "boolean"
-default = true
-status = "legacy"
-page = "notifications"
-section = "Legacy"
-title = "Notify when a command wants input (legacy)"
-summary = "Superseded by the per-kind switches in Notifications."
-doc = """
-Legacy: superseded by notifyDisabledKinds. Read once by the notification
-migration and ignored after; safe to delete once notificationsMigrated is true.
-"""
-validation = "—"
-
-[[setting]]
-key = "terminalNotifyNative"
-type = "boolean"
-default = true
-status = "legacy"
-page = "notifications"
-section = "Legacy"
-title = "Terminal system notifications (legacy)"
-summary = "Superseded by the per-tier System notification switches."
-doc = """
-Legacy: superseded by the notify*Native keys. Read once by the notification
-migration and ignored after; safe to delete once notificationsMigrated is true.
-"""
-validation = "—"
-
-[[setting]]
-key = "terminalNotifySound"
-type = "boolean"
-default = false
-status = "legacy"
-page = "notifications"
-section = "Legacy"
-title = "Terminal notification sound (legacy)"
-summary = "Superseded by the per-tier Sound switches."
-doc = """
-Legacy: superseded by the notify*Sound keys. Read once by the notification
-migration and ignored after; safe to delete once notificationsMigrated is true.
-"""
-validation = "—"
 
 [[setting]]
 key = "notificationsEnabled"
@@ -796,21 +732,6 @@ opens the session.
 validation = "—"
 
 [[setting]]
-key = "notificationsMigrated"
-type = "boolean"
-default = false
-status = "internal"
-page = "notifications"
-section = "Legacy"
-title = "Notification choices migrated"
-summary = "Set once Atlas has folded earlier notification choices into the current keys."
-doc = """
-Set once Atlas has folded your earlier terminal and agent notification choices
-into the keys above. Leave it alone.
-"""
-validation = "—"
-
-[[setting]]
 key = "notifyDisabledKinds"
 type = "string-list"
 default = []
@@ -825,21 +746,6 @@ Notification kinds you switched off in Settings > Notifications, by id, e.g.
 always show (sign-in lost) cannot be silenced.
 """
 validation = "unknown ids are ignored"
-
-[[setting]]
-key = "notifyKindsMigrated"
-type = "boolean"
-default = false
-status = "internal"
-page = "notifications"
-section = "Legacy"
-title = "Notification kinds migrated"
-summary = "Set once Atlas has folded earlier per-kind switches into notifyDisabledKinds."
-doc = """
-Set once Atlas has folded your earlier per-kind notification switches into
-notifyDisabledKinds. Leave it alone.
-"""
-validation = "—"
 
 [[setting]]
 key = "notifyAgentMinDurationMs"
@@ -875,3 +781,228 @@ Models you starred in the composer's model picker, as "agentType:modelId", e.g.
 entries are ignored.
 """
 validation = "entries are `agentType:modelId`; unknown entries are ignored"
+
+[[setting]]
+key = "confirmDeleteChat"
+type = "boolean"
+default = true
+status = "live"
+page = "general"
+section = "Confirmations"
+title = "Confirm before deleting a chat"
+summary = "Ask first when you delete a chat from the sidebar or history."
+doc = """
+Ask before deleting a chat from the sidebar or the history. A deleted chat's
+transcript stays with its agent, but Atlas forgets the chat. Archiving never
+asks, because it can be undone.
+"""
+validation = "—"
+
+[[setting]]
+key = "confirmQuitWhileRunning"
+type = "boolean"
+default = true
+status = "live"
+page = "general"
+section = "Confirmations"
+title = "Confirm before quitting while an agent is running"
+summary = "Ask first when you quit Atlas with an agent in the middle of a turn."
+doc = """
+Ask before quitting while an agent is in the middle of a turn, since quitting
+stops it. Quitting again while the question is open quits anyway.
+"""
+validation = "—"
+
+[[setting]]
+key = "defaultAgent"
+type = "string"
+default = "atlas-agent"
+status = "live"
+project = true
+page = "chat"
+section = "New chats"
+title = "Default agent"
+summary = "The agent a new chat starts with."
+doc = """
+The agent a new chat starts with: "atlas-agent" for Atlas Agent, or the id of
+an installed ACP agent, such as "claude-code". An agent that isn't installed
+falls back to Atlas Agent.
+"""
+validation = "a non-empty agent id; one that isn't installed falls back to Atlas Agent"
+
+[[setting]]
+key = "chatWidth"
+type = "enum"
+values = ["normal", "wide", "full"]
+default = "normal"
+status = "live"
+page = "chat"
+section = "Layout"
+title = "Chat width"
+summary = "How wide the conversation and the composer may grow."
+doc = """
+How wide the conversation and the composer may grow: "normal" (760 pixels),
+"wide" (1080 pixels) or "full" (the whole panel).
+"""
+validation = "exactly one of these three strings"
+
+[[setting]]
+key = "chatCodeWrap"
+type = "boolean"
+default = true
+status = "live"
+page = "chat"
+section = "Layout"
+title = "Wrap code in chat"
+summary = "Wrap long lines in a chat's code blocks instead of scrolling sideways."
+doc = """
+Wrap long lines in a chat's code blocks. Off: they keep their lines and scroll
+sideways.
+"""
+validation = "—"
+
+[[setting]]
+key = "sidebarSort"
+type = "enum"
+values = ["recent", "created"]
+default = "recent"
+status = "live"
+page = "chat"
+section = "Layout"
+title = "Sort chats by"
+summary = "Order the sidebar's chats by their latest activity or by when they started."
+doc = """
+The order of chats in the sidebar: "recent" puts the chat with the latest
+activity first, "created" the one started most recently.
+"""
+validation = "exactly one of these two strings"
+
+[[setting]]
+key = "timeFormat"
+type = "enum"
+values = ["system", "12h", "24h"]
+default = "system"
+status = "live"
+page = "general"
+section = "Interface"
+title = "Time format"
+summary = "Show times on a 12-hour or 24-hour clock, or as your system does."
+doc = """
+The clock for every time of day Atlas shows: "12h", "24h", or "system" to
+follow your system's region settings.
+"""
+validation = "exactly one of these three strings"
+
+[[setting]]
+key = "uiFontFamily"
+type = "string"
+default = ""
+status = "live"
+page = "general"
+section = "Fonts"
+title = "Interface font"
+summary = "The font for Atlas's interface and chats. Empty uses the system font."
+doc = """
+The font for Atlas's interface and chats, as a CSS font-family list such as
+"Inter, sans-serif". Empty uses the system font. A font that isn't installed
+falls through to the next one in the list.
+"""
+validation = "a CSS font-family list, at most 200 characters, with no `{`, `}`, `;`, `<` or `>`; empty uses the system font"
+
+[[setting]]
+key = "codeFontFamily"
+type = "string"
+default = ""
+status = "live"
+page = "general"
+section = "Fonts"
+title = "Code font"
+summary = "The font for the editor, the terminal and code in chats. Empty uses the default."
+doc = """
+The font for the editor, the terminal and code in chats, as a CSS font-family
+list such as "JetBrains Mono, monospace". Empty uses Atlas's default monospace
+fonts.
+"""
+validation = "a CSS font-family list, at most 200 characters, with no `{`, `}`, `;`, `<` or `>`; empty uses the default"
+
+[[setting]]
+key = "editorFontSize"
+type = "integer"
+min = 8
+max = 32
+default = 13
+status = "live"
+page = "general"
+section = "Fonts"
+title = "Editor font size"
+summary = "The code editor's font size, in pixels."
+doc = """
+The code editor's font size, in pixels. The interface zoom scales it along
+with everything else.
+"""
+validation = "8 ≤ n ≤ 32"
+
+[[setting]]
+key = "terminalFontSize"
+type = "integer"
+min = 8
+max = 32
+default = 13
+status = "live"
+page = "general"
+section = "Fonts"
+title = "Terminal font size"
+summary = "The terminal's font size, in pixels."
+doc = """
+The terminal's font size, in pixels. The interface zoom scales it along with
+everything else.
+"""
+validation = "8 ≤ n ≤ 32"
+
+[[setting]]
+key = "diffIgnoreWhitespace"
+type = "boolean"
+default = false
+status = "live"
+page = "source-control"
+section = "Diffs"
+title = "Hide whitespace changes"
+summary = "Leave out lines that only changed whitespace when you review a diff."
+doc = """
+Leave out changes that are only whitespace in diffs you read: a file's diff,
+a commit, and a chat's changes. Diffs you stage from always show every change,
+since a patch without the whitespace no longer applies.
+"""
+validation = "—"
+
+[[setting]]
+key = "diffFilesCollapsed"
+type = "boolean"
+default = false
+status = "live"
+page = "source-control"
+section = "Diffs"
+title = "Start files collapsed"
+summary = "Open a diff of several files with each one collapsed to its header."
+doc = """
+Open a diff of several files, such as a commit or your changes, with each file
+collapsed to its header. Off: every file starts expanded.
+"""
+validation = "—"
+
+[[setting]]
+key = "diffPalette"
+type = "enum"
+values = ["theme", "blue-orange"]
+default = "theme"
+status = "live"
+page = "source-control"
+section = "Diffs"
+title = "Diff colours"
+summary = "Use the theme's green and red for changes, or blue and orange."
+doc = """
+The colours for added and removed lines: "theme" uses the theme's green and
+red, "blue-orange" uses its blue and orange, which stay distinct with red-green
+colour blindness.
+"""
+validation = "exactly one of these two strings"

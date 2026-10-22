@@ -24,11 +24,8 @@ use tauri::{AppHandle, Manager};
 /// projects in a default local "Personal" org.
 ///
 /// v4 removed `AppSettings` from this struct entirely (issue #64) — user
-/// preferences now live in their own validated `config.toml`
-/// (`crate::state::atlas_config`). `settings_config_migrated` records whether
-/// that one-time export already happened, so a user who deletes `config.toml`
-/// afterward gets fresh defaults rather than a silent re-import of whatever
-/// was last in `state.json`.
+/// preferences live in their own validated `config.toml`
+/// (`crate::state::atlas_config`).
 pub const SCHEMA_VERSION: u32 = 4;
 
 /// Just enough to name a project: the {name, path} pair the legacy v1
@@ -176,11 +173,6 @@ pub struct AppState {
     /// `None` on old `state.json` files — backfilled + persisted at startup.
     #[serde(default)]
     pub telemetry_anon_id: Option<String>,
-    /// Whether the one-time `state.json.settings` → `config.toml` export
-    /// (issue #64) has already run. See the `SCHEMA_VERSION` doc for why this
-    /// can't just be "does config.toml exist".
-    #[serde(default)]
-    pub settings_config_migrated: bool,
     #[serde(default = "default_version")]
     pub version: u32,
 }
@@ -232,7 +224,6 @@ impl Default for AppState {
             organisations: Vec::new(),
             active_organisation_id: None,
             telemetry_anon_id: None,
-            settings_config_migrated: false,
             version: SCHEMA_VERSION,
         }
     }
@@ -419,7 +410,7 @@ impl AppState {
     /// (issue #64) so `serde_json` would otherwise silently drop it on the
     /// floor as an unrecognized key. The caller feeds this to
     /// `atlas_config::bootstrap` for the one-time `config.toml` export.
-    pub fn load(app: &AppHandle) -> (Self, Option<serde_json::Value>) {
+    pub fn load(app: &AppHandle) -> Self {
         let raw = Self::path(app).and_then(|path| std::fs::read_to_string(&path).ok());
         Self::from_raw(raw.as_deref())
     }
@@ -437,32 +428,22 @@ impl AppState {
     /// doing nothing at all until the second launch, by which point the
     /// boot-time save in `setup()` had written a `state.json` for this path
     /// to parse and migrate.
-    fn from_raw(raw: Option<&str>) -> (Self, Option<serde_json::Value>) {
-        let legacy_settings = raw
-            .and_then(|raw| serde_json::from_str::<serde_json::Value>(raw).ok())
-            .and_then(|v| v.get("settings").cloned());
+    fn from_raw(raw: Option<&str>) -> Self {
         let mut state: AppState = raw
             .map(|raw| serde_json::from_str(raw).unwrap_or_default())
             .unwrap_or_default();
         state.migrate();
-        (state, legacy_settings)
+        state
     }
 
     /// Merge `state` over whatever `state.json` already holds, rather than
     /// replacing the file wholesale.
     ///
-    /// The typed `AppState` deliberately has no `settings` field any more
-    /// (issue #64), so `to_string_pretty(state)` DROPS the legacy `settings`
-    /// object — the very thing `atlas_config::bootstrap` still needs whenever
-    /// migration hasn't succeeded yet. A save triggered for some unrelated
-    /// reason (a rotated telemetry id, say) would then destroy the user's only
-    /// surviving copy of their preferences. Merging preserves it, and any
-    /// other key an older or newer build writes, for exactly the reason
-    /// `config.toml` patches preserve unknown TOML keys.
-    ///
-    /// Once migration IS recorded as done the legacy copy has served its
-    /// purpose and is dropped, so `state.json` doesn't carry a stale shadow of
-    /// `config.toml` forever.
+    /// Merging keeps any key another build of Atlas writes, for exactly the
+    /// reason `config.toml` patches preserve unknown TOML keys. The two keys
+    /// Atlas itself retired (`settings`, now `config.toml`, and its
+    /// `settingsConfigMigrated` marker) are dropped, so `state.json` carries
+    /// no stale shadow of the settings.
     fn merged_for_save(path: &Path, state: &AppState) -> serde_json::Result<serde_json::Value> {
         let mut merged = std::fs::read_to_string(path)
             .ok()
@@ -475,9 +456,8 @@ impl AppState {
             for (k, v) in src {
                 dst.insert(k.clone(), v.clone());
             }
-            if state.settings_config_migrated {
-                dst.remove("settings");
-            }
+            dst.remove("settings");
+            dst.remove("settingsConfigMigrated");
         }
         Ok(merged)
     }
@@ -487,12 +467,12 @@ impl AppState {
     ///
     /// The temp name carries a UUID rather than being the fixed
     /// `state.json.tmp`: saves overlap in practice (the boot-time telemetry-id
-    /// / migration-marker write against the frontend's debounced flush), and
+    /// write against the frontend's debounced flush), and
     /// two of them sharing one temp path can interleave into exactly the torn
     /// file the rename is supposed to prevent. That matters more since
-    /// [`Self::merged_for_save`] made this a read-modify-write, and because
-    /// this file holds the only copy of the legacy settings until migration
-    /// succeeds. `sync_all` before the rename is what makes the atomicity
+    /// [`Self::merged_for_save`] made this a read-modify-write, and a torn
+    /// `state.json` loses every project. `sync_all` before the rename is what
+    /// makes the atomicity
     /// real — otherwise the rename can reach disk ahead of its bytes.
     pub fn save(app: &AppHandle, state: &AppState) -> std::io::Result<()> {
         use std::io::Write;
@@ -553,49 +533,17 @@ mod tests {
         .unwrap();
     }
 
-    /// The typed `AppState` has no `settings` field any more (issue #64), so
-    /// serializing it over `state.json` wholesale silently DELETES the legacy
-    /// settings object. While `settings_config_migrated` is still false that
-    /// object is the only surviving copy of the user's preferences —
-    /// `config.toml` either doesn't exist yet or couldn't be read — and a save
-    /// fired for an entirely unrelated reason (a rotated telemetry id) must
-    /// not destroy it.
+    /// Settings live in `config.toml`; a save drops the copy an older build
+    /// left in `state.json` rather than carrying a stale shadow forever.
     #[test]
-    fn a_save_before_migration_preserves_the_legacy_settings() {
+    fn a_save_drops_the_retired_settings_object() {
         let (_dir, path) = tmp_state_path();
         state_file_with_legacy_settings(&path);
 
-        let state = AppState {
-            settings_config_migrated: false,
-            ..AppState::default()
-        };
-        let merged = AppState::merged_for_save(&path, &state).unwrap();
+        let merged = AppState::merged_for_save(&path, &AppState::default()).unwrap();
 
-        assert_eq!(
-            merged.get("settings").and_then(|s| s.get("enterToSend")),
-            Some(&serde_json::json!(false)),
-            "the legacy settings must survive a save made for an unrelated reason"
-        );
-    }
-
-    /// ...and once migration IS recorded, the legacy copy has served its
-    /// purpose: drop it rather than carrying a stale shadow of `config.toml`
-    /// in `state.json` forever.
-    #[test]
-    fn a_save_after_migration_drops_the_legacy_settings() {
-        let (_dir, path) = tmp_state_path();
-        state_file_with_legacy_settings(&path);
-
-        let state = AppState {
-            settings_config_migrated: true,
-            ..AppState::default()
-        };
-        let merged = AppState::merged_for_save(&path, &state).unwrap();
-
-        assert!(
-            merged.get("settings").is_none(),
-            "a migrated state.json keeps no settings shadow"
-        );
+        assert!(merged.get("settings").is_none());
+        assert!(merged.get("settingsConfigMigrated").is_none());
     }
 
     /// Merging must not resurrect stale values for keys the struct owns — the
@@ -605,20 +553,15 @@ mod tests {
         let (_dir, path) = tmp_state_path();
         std::fs::write(
             &path,
-            serde_json::json!({ "version": 1, "settingsConfigMigrated": false, "recentProjects": [
+            serde_json::json!({ "version": 1, "recentProjects": [
                 { "name": "old", "path": "/old", "lastOpened": "then" }
             ]})
             .to_string(),
         )
         .unwrap();
 
-        let state = AppState {
-            settings_config_migrated: true,
-            ..AppState::default()
-        };
-        let merged = AppState::merged_for_save(&path, &state).unwrap();
+        let merged = AppState::merged_for_save(&path, &AppState::default()).unwrap();
 
-        assert_eq!(merged["settingsConfigMigrated"], serde_json::json!(true));
         assert_eq!(merged["recentProjects"], serde_json::json!([]));
     }
 
@@ -722,7 +665,7 @@ mod tests {
     /// directory and silently does nothing until the app is relaunched.
     #[test]
     fn a_first_run_still_gets_the_default_organisation() {
-        let (state, legacy) = AppState::from_raw(None);
+        let state = AppState::from_raw(None);
 
         assert_eq!(
             state.organisations.len(),
@@ -736,19 +679,17 @@ mod tests {
             "default org exists but nothing is active"
         );
         assert_eq!(state.version, SCHEMA_VERSION);
-        assert!(legacy.is_none());
     }
 
     /// A present-but-unreadable `state.json` takes the same fallback and is
     /// migrated the same way: the two inputs must never diverge again.
     #[test]
     fn a_corrupt_state_file_still_gets_the_default_organisation() {
-        let (state, legacy) = AppState::from_raw(Some("{ not json"));
+        let state = AppState::from_raw(Some("{ not json"));
 
         assert_eq!(state.organisations.len(), 1);
         assert_eq!(state.organisations[0].name, "Personal");
         assert!(state.active_organisation_id.is_some());
-        assert!(legacy.is_none());
     }
 
     /// A patch with unknown/extra keys (an older or newer frontend) still parses,
@@ -772,11 +713,7 @@ mod tests {
     /// older Atlas build still carries a `settings` object; `serde_json`
     /// silently drops unrecognized keys for structs without
     /// `deny_unknown_fields`, so this must parse cleanly and leave every other
-    /// field intact rather than erroring or resetting anything. What happens
-    /// to that dropped value is `AppState::load`'s job (it re-parses the raw
-    /// JSON separately to recover it for migration) and
-    /// `atlas_config::settings_from_legacy_json`'s job (extracting it into
-    /// `AppSettings`) — both tested on their own.
+    /// field intact rather than erroring or resetting anything.
     #[test]
     fn a_legacy_settings_key_in_state_json_does_not_break_parsing() {
         let state: AppState = serde_json::from_value(serde_json::json!({
