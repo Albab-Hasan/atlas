@@ -50,8 +50,11 @@ export const SECTION_TITLE: Record<OverviewSection, string> = {
 // empty for every chat, which is worse than not offering it.
 
 interface ThreadOverviewState {
-  /** Open, keyed by chat tab id — each tab owns its own rail, like the detail
-   *  panel. Absent means closed. */
+  /** Open, keyed by THREAD (`overviewScope`), not by tab. "New agent" and
+   *  opening a thread from history both reuse the tab, so a tab-keyed flag
+   *  followed the user into every thread that tab ever showed. Keyed by the
+   *  thread, each one remembers its own rail across tab switches, and a fresh
+   *  thread starts without one. Absent means closed. */
   open: Record<string, true>;
   /** Shared across tabs: a column width is a property of the window, and a
    *  rail that changed width per tab would jump on every tab switch. */
@@ -60,19 +63,32 @@ interface ThreadOverviewState {
    *  reader cares about is a preference, not a per-chat fact. */
   collapsed: Partial<Record<OverviewSection, true>>;
   actions: {
-    toggle: (tabId: string) => void;
-    open_: (tabId: string) => void;
-    close: (tabId: string) => void;
+    toggle: (scope: string) => void;
+    open_: (scope: string) => void;
+    close: (scope: string) => void;
+    /** Carry a rail opened before the thread bound (scope `t:<tab>`) over to
+     *  the session it bound to, and clear the tab scope so the tab's NEXT
+     *  thread does not inherit it. */
+    adopt: (from: string, to: string) => void;
     setWidth: (w: number) => void;
     toggleSection: (section: OverviewSection) => void;
-    /** Drop a tab's rail state when its chat tab closes. */
-    forget: (tabId: string) => void;
+    /** Drop a scope's rail state. */
+    forget: (scope: string) => void;
   };
 }
 
 export const OVERVIEW_MIN_WIDTH = 240;
 export const OVERVIEW_MAX_WIDTH = 480;
 const DEFAULT_WIDTH = 300;
+
+/**
+ * The key a chat's rail is stored under: its ACP session once bound, its tab
+ * until then — the same scheme as `pinScope`. Resolved by the panel, which
+ * calls `adopt` when the one becomes the other.
+ */
+export function overviewScope(tabId: string, acpSessionId: string | undefined): string {
+  return acpSessionId ? `s:${acpSessionId}` : `t:${tabId}`;
+}
 
 const clampWidth = (w: number) =>
   Math.min(OVERVIEW_MAX_WIDTH, Math.max(OVERVIEW_MIN_WIDTH, Math.round(w)));
@@ -85,18 +101,25 @@ export const useThreadOverviewStore = createSelectors(
         width: DEFAULT_WIDTH,
         collapsed: {},
         actions: {
-          toggle: (tabId) =>
+          toggle: (scope) =>
             set((s) => {
               const open = { ...s.open };
-              if (open[tabId]) delete open[tabId];
-              else open[tabId] = true;
+              if (open[scope]) delete open[scope];
+              else open[scope] = true;
               return { open };
             }),
-          open_: (tabId) => set((s) => ({ open: { ...s.open, [tabId]: true } })),
-          close: (tabId) =>
+          open_: (scope) => set((s) => ({ open: { ...s.open, [scope]: true } })),
+          close: (scope) =>
             set((s) => {
               const open = { ...s.open };
-              delete open[tabId];
+              delete open[scope];
+              return { open };
+            }),
+          adopt: (from, to) =>
+            set((s) => {
+              if (from === to || !s.open[from]) return s;
+              const open = { ...s.open, [to]: true as const };
+              delete open[from];
               return { open };
             }),
           setWidth: (w) => set({ width: clampWidth(w) }),
@@ -107,21 +130,20 @@ export const useThreadOverviewStore = createSelectors(
               else collapsed[section] = true;
               return { collapsed };
             }),
-          forget: (tabId) =>
+          forget: (scope) =>
             set((s) => {
-              if (!s.open[tabId]) return s;
+              if (!s.open[scope]) return s;
               const open = { ...s.open };
-              delete open[tabId];
+              delete open[scope];
               return { open };
             }),
         },
       }),
       {
         name: "atlas.chat.thread-overview",
-        // `open` is deliberately NOT persisted: tab ids are per-run, so a
-        // restored map would be a set of keys no tab answers to, and a rail
-        // that reopens itself on launch is a surface the user did not ask for
-        // in this session. Width and collapse state are preferences and do
+        // `open` is deliberately NOT persisted: it is per-thread layout for
+        // this run only, and a rail that reopens itself on launch is a
+        // surface the user did not ask for in this session. Width and collapse state are preferences and do
         // survive.
         partialize: (s) => ({ width: s.width, collapsed: s.collapsed }),
       },

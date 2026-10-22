@@ -32,10 +32,10 @@ vi.mock("./session-elicitation", () => ({ SessionElicitation: Null }));
 vi.mock("./transcript", () => ({ Transcript: Null }));
 vi.mock("./thread-overview-panel", () => ({ ThreadOverviewPanel: Null }));
 
-import { cleanup, render } from "@testing-library/react";
+import { act, cleanup, render } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useChatStore } from "../stores/chat-store";
-import { useThreadOverviewStore } from "../stores/thread-overview-store";
+import { overviewScope, useThreadOverviewStore } from "../stores/thread-overview-store";
 import { ChatPanel } from "./chat-panel";
 
 const TAB = "tab-1";
@@ -50,7 +50,7 @@ beforeEach(() => {
     activeSessionId: null,
   });
   useChatStore.getState().actions.createSession(TAB, "claude-code");
-  useThreadOverviewStore.setState({ open: { [TAB]: true }, width: 300 });
+  useThreadOverviewStore.setState({ open: { [overviewScope(TAB, undefined)]: true }, width: 300 });
 });
 afterEach(cleanup);
 
@@ -94,5 +94,27 @@ describe("composer margin for the overview rail", () => {
     const { container } = mount();
 
     expect(reserved(container)).toBeUndefined();
+  });
+
+  it("is per thread: a new thread in the same tab starts without the rail", () => {
+    const withThread = (acpSessionId: string) =>
+      useChatStore.setState((s) => {
+        s.sessions[TAB].acpSessionId = acpSessionId;
+        s.sessions[TAB].messages = [
+          { id: "m1", role: "user", content: "hi", timestamp: 0 },
+        ] as unknown as (typeof s.sessions)[typeof TAB]["messages"];
+      });
+    withThread("acp-a");
+    const { container } = mount();
+    // The tab-scoped flag from before the bind moved onto thread A.
+    expect(useThreadOverviewStore.getState().open).toEqual({ "s:acp-a": true });
+    expect(reserved(container)).toBe("min(300px, 50%)");
+
+    act(() => withThread("acp-b"));
+    expect(reserved(container)).toBeUndefined();
+
+    // Back to thread A, in the same run: its rail is still open.
+    act(() => withThread("acp-a"));
+    expect(reserved(container)).toBe("min(300px, 50%)");
   });
 });

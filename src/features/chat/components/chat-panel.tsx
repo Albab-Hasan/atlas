@@ -8,7 +8,7 @@ import { matchesAction } from "@/features/keybindings/lib/use-scoped-hotkeys";
 import { useChatStore } from "../stores/chat-store";
 import { pinScope, resolvePinIndex, type ChatPin } from "../stores/chat-pins-store";
 import { useDetailPanelStore } from "../stores/detail-panel-store";
-import { useThreadOverviewStore } from "../stores/thread-overview-store";
+import { overviewScope, useThreadOverviewStore } from "../stores/thread-overview-store";
 import { useLayoutStore } from "@/features/layout/stores/layout-store";
 import { appendNextStepsDirective } from "../lib/next-steps";
 import { stripInjectedContext } from "../lib/atlas-context";
@@ -319,17 +319,29 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
   // Narrow boolean — changes only when the detail panel opens or closes.
   const detailOpen = useDetailPanelStore((s) => !!s.targets[tabId]);
   // Same bargain for the overview rail: one boolean, so a section collapsing
-  // or a child updating inside it re-renders nothing out here.
-  const overviewOpen = useThreadOverviewStore((s) => !!s.open[tabId]);
+  // or a child updating inside it re-renders nothing out here. Keyed by the
+  // THREAD, not the tab: "new agent" and history both reuse this tab, and a
+  // tab-keyed rail followed the user into every thread it showed.
+  const overviewKey = overviewScope(tabId, session?.acpSessionId);
+  const overviewOpen = useThreadOverviewStore((s) => !!s.open[overviewKey]);
   // Only read while the rail is open, so a resize drag re-renders this panel
   // only when there is something to re-align.
-  const overviewWidth = useThreadOverviewStore((s) => (s.open[tabId] ? s.width : 0));
+  const overviewWidth = useThreadOverviewStore((s) => (s.open[overviewKey] ? s.width : 0));
   // The history rail is layout state, shared by every chat tab — the header
   // button is one more way in, beside the command palette and the chord.
   const chatSidebarVisible = useLayoutStore((s) => s.chatSidebar.visible);
   const { toggleChatSidebar } = useLayoutStore.use.actions();
-  const toggleOverview = useThreadOverviewStore.use.actions().toggle;
-  const onToggleOverviewStable = useCallback(() => toggleOverview(tabId), [toggleOverview, tabId]);
+  const { toggle: toggleOverview, adopt: adoptOverview } = useThreadOverviewStore.use.actions();
+  const onToggleOverviewStable = useCallback(
+    () => toggleOverview(overviewKey),
+    [toggleOverview, overviewKey],
+  );
+  // A rail opened on a queued first send, before the thread bound, belongs
+  // to the session that bind produced — and must not be left on the tab
+  // scope, where the tab's next thread would inherit it.
+  useEffect(() => {
+    if (session?.acpSessionId) adoptOverview(overviewScope(tabId, undefined), overviewKey);
+  }, [adoptOverview, tabId, session?.acpSessionId, overviewKey]);
 
   // Full-screen diff. Driven by a window event rather than a prop chain so a row
   // opening it re-renders nothing in the transcript.
@@ -1683,10 +1695,10 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
             // full width and centred half a rail right of the composer. A
             // margin shrinks the box itself, which every child honours.
             //
-            // Only while the rail is DRAWN, which needs a thread: "new agent"
-            // reuses the tab, keeping its open flag over an empty welcome
-            // screen, and the reserve then pushed that composer half a rail
-            // left of everything centred above it.
+            // Only while the rail is DRAWN, which needs a thread. The rail is
+            // keyed per thread, but an unbound thread is keyed by its tab, so
+            // an empty welcome screen can still read an open flag; reserving
+            // then pushed that composer half a rail left of everything else.
             style={
               overviewWidth > 0 && session.messages.length > 0
                 ? { marginRight: `min(${overviewWidth}px, 50%)` }
