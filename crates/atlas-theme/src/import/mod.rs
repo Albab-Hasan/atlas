@@ -17,6 +17,7 @@
 
 pub mod css;
 mod draft;
+pub mod extension;
 pub mod report;
 mod shadcn;
 mod vscode;
@@ -108,6 +109,11 @@ pub struct ImportOptions {
     pub name_hint: Option<String>,
     pub author_hint: Option<String>,
     pub license_hint: Option<String>,
+    /// A directory a VS Code `include` may not leave: an unpacked extension's
+    /// root, so a theme file cannot pull some other file off the disk into the
+    /// preview with `"include": "../../…"`. `None` for a file the user chose,
+    /// whose siblings are theirs to name.
+    pub include_root: Option<PathBuf>,
 }
 
 /// One converted theme: the file to write, and the story of how it was made.
@@ -335,6 +341,13 @@ fn resolve_includes(
         };
         let path = current_dir.join(&target);
         let canonical = path.canonicalize().unwrap_or_else(|_| path.clone());
+        if let Some(root) = &options.include_root {
+            let root = root.canonicalize().unwrap_or_else(|_| root.clone());
+            if !canonical.starts_with(&root) {
+                unresolved.push(format!("{target} (outside the extension)"));
+                break;
+            }
+        }
         if !seen.insert(canonical) {
             unresolved.push(format!("{target} (cycle)"));
             break;

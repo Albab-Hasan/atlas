@@ -28,8 +28,8 @@ import {
   removeIconTheme,
   searchIconThemes,
   MINIMAL_ICON_THEME_ID,
-  type OpenVsxIconTheme,
 } from "@/features/icon-theme/lib/icon-theme-api";
+import type { OpenVsxExtension } from "@/lib/open-vsx";
 import { useSettingsStore } from "../../stores/settings-store";
 import { SettingsSection } from "../layout/settings-layout";
 
@@ -176,7 +176,7 @@ function RemoveButton({ id, name }: { id: string; name: string }) {
 type SearchState =
   | { phase: "idle" }
   | { phase: "searching" }
-  | { phase: "done"; results: OpenVsxIconTheme[] }
+  | { phase: "done"; results: OpenVsxExtension[] }
   | { phase: "failed"; message: string };
 
 function OpenVsxSearch() {
@@ -198,7 +198,7 @@ function OpenVsxSearch() {
       .catch((reason: unknown) => setState({ phase: "failed", message: String(reason) }));
   };
 
-  const install = (hit: OpenVsxIconTheme) => {
+  const install = (hit: OpenVsxExtension) => {
     setInstalling(hit.id);
     void installIconTheme({ namespace: hit.namespace, name: hit.name })
       .then((summary) => toast.success(`Installed “${summary.name}”`))
