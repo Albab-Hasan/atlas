@@ -680,128 +680,128 @@ export function FileTree() {
       </div>
 
       <ContextMenu>
-        <ContextMenuTrigger
-          render={
-            <div
-              ref={scrollRef}
-              data-tree-root
-              className={cn(
-                "flex-1 overflow-auto hide-scrollbar px-1.5 pb-2 relative",
-                dropTargetPath === ROOT_DROP &&
-                  "bg-[var(--atlas-primary-muted)] ring-1 ring-inset ring-primary/40",
-              )}
-              onMouseDown={onContainerMouseDown}
-              // Esc clears the multi-selection (keydown bubbles up from the
-              // focused row). Only swallow it when there's something to clear.
-              onKeyDown={(e) => {
-                if (e.key === "Escape" && selectedPaths.length > 0) {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  clearSelection();
-                }
-              }}
-            >
-              {loading ? (
-                <PanelSkeleton rows={10} className="p-2 gap-1.5" />
-              ) : flat.length === 0 ? (
-                <div className="px-3 py-4 text-xs text-muted-foreground text-center">
-                  Empty folder
-                </div>
-              ) : (
-                <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
-                  {virtualizer.getVirtualItems().map((virtualRow) => {
-                    const row = flat[virtualRow.index];
-                    // Ghost row for pending new-file/new-folder input.
-                    if (row.ghost) {
-                      return (
-                        <TreeRow
-                          key={`ghost-${virtualRow.index}`}
-                          depth={row.ghost.depth}
-                          isDir={row.ghost.isDir}
-                          isExpanded={false}
-                          isActive
-                          name=""
-                          editingMode="new"
-                          initialValue=""
-                          onCommit={(name) => {
-                            if (row.ghost!.isDir) {
-                              void handleNewFolderCommit(row.ghost!.parentDir, name);
-                            } else {
-                              void handleNewFileCommit(row.ghost!.parentDir, name);
-                            }
-                          }}
-                          onCancel={endNewEntry}
-                          onClick={() => {}}
-                          style={{ transform: `translateY(${virtualRow.start}px)` }}
-                        />
-                      );
-                    }
-                    const node = row.node!;
-                    const isDir = node.entry.is_dir;
-                    // Files show their own status color; a collapsed dir shows a
-                    // marker when it contains a change (expanded dirs let their
-                    // children carry the signal instead, to avoid double-marking).
-                    const gitColor = isDir
-                      ? !node.expanded
-                        ? (dirtyDirs.get(node.entry.path)?.color ?? null)
-                        : null
-                      : (fileColors.get(node.entry.path) ?? null);
-                    const isSelected = selectedPaths.includes(node.entry.path);
-                    const isActive = !isDir && node.entry.path === activeFilePath;
-                    const isCut =
-                      clipboard?.isCut === true && clipboard.paths.includes(node.entry.path);
-                    const isRenaming = pendingRenamePath === node.entry.path;
+        {/* The trigger is a layout-only wrapper; the scroller inside it carries
+            the padding and the drop-target highlight. */}
+        <ContextMenuTrigger render={<div className="flex min-h-0 flex-1 flex-col" />}>
+          <div
+            ref={scrollRef}
+            data-tree-root
+            className={cn(
+              "flex-1 overflow-auto hide-scrollbar px-1.5 pb-2 relative",
+              dropTargetPath === ROOT_DROP &&
+                "bg-[var(--atlas-primary-muted)] ring-1 ring-inset ring-primary/40",
+            )}
+            onMouseDown={onContainerMouseDown}
+            // Esc clears the multi-selection (keydown bubbles up from the
+            // focused row). Only swallow it when there's something to clear.
+            onKeyDown={(e) => {
+              if (e.key === "Escape" && selectedPaths.length > 0) {
+                e.preventDefault();
+                e.stopPropagation();
+                clearSelection();
+              }
+            }}
+          >
+            {loading ? (
+              <PanelSkeleton rows={10} className="p-2 gap-1.5" />
+            ) : flat.length === 0 ? (
+              <div className="px-3 py-4 text-xs text-muted-foreground text-center">
+                Empty folder
+              </div>
+            ) : (
+              <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
+                {virtualizer.getVirtualItems().map((virtualRow) => {
+                  const row = flat[virtualRow.index];
+                  // Ghost row for pending new-file/new-folder input.
+                  if (row.ghost) {
                     return (
-                      <ContextMenu key={node.entry.path}>
-                        <ContextMenuTrigger
-                          render={
-                            <div
-                              // Right-clicking a row that isn't part of the
-                              // current multi-selection collapses the
-                              // selection to just that row (Finder behavior),
-                              // so the menu acts on what the user clicked.
-                              onContextMenu={() => {
-                                if (!selectedPaths.includes(node.entry.path)) {
-                                  setSelection([node.entry.path], node.entry.path);
-                                }
-                              }}
-                            >
-                              <TreeRow
-                                depth={node.depth}
-                                isDir={isDir}
-                                isExpanded={node.expanded}
-                                // Selection fill wins; keep them mutually
-                                // exclusive so a row never shows two bgs.
-                                isActive={isActive && !isSelected}
-                                isSelected={isSelected}
-                                name={node.entry.name}
-                                title={node.entry.path}
-                                editingMode={isRenaming ? "rename" : undefined}
-                                initialValue={isRenaming ? node.entry.name : undefined}
-                                onCommit={(name) => void handleRenameCommit(node.entry.path, name)}
-                                onCancel={endRename}
-                                isCut={isCut}
-                                dataPath={node.entry.path}
-                                isDropTarget={isDir && dropTargetPath === node.entry.path}
-                                isDragging={dragState.draggedItem?.path === node.entry.path}
-                                gitColor={gitColor}
-                                iconPath={node.entry.path}
-                                onClick={(e) => handleRowClick(node, e)}
-                                onRename={() => beginRename(node.entry.path)}
-                                style={{ transform: `translateY(${virtualRow.start}px)` }}
-                              />
-                            </div>
+                      <TreeRow
+                        key={`ghost-${virtualRow.index}`}
+                        depth={row.ghost.depth}
+                        isDir={row.ghost.isDir}
+                        isExpanded={false}
+                        isActive
+                        name=""
+                        editingMode="new"
+                        initialValue=""
+                        onCommit={(name) => {
+                          if (row.ghost!.isDir) {
+                            void handleNewFolderCommit(row.ghost!.parentDir, name);
+                          } else {
+                            void handleNewFileCommit(row.ghost!.parentDir, name);
                           }
-                        />
-                        <ContextMenuContent>{rowMenuItems(node.entry)}</ContextMenuContent>
-                      </ContextMenu>
+                        }}
+                        onCancel={endNewEntry}
+                        onClick={() => {}}
+                        style={{ transform: `translateY(${virtualRow.start}px)` }}
+                      />
                     );
-                  })}
-                </div>
-              )}
-            </div>
-          }
-        />
+                  }
+                  const node = row.node!;
+                  const isDir = node.entry.is_dir;
+                  // Files show their own status color; a collapsed dir shows a
+                  // marker when it contains a change (expanded dirs let their
+                  // children carry the signal instead, to avoid double-marking).
+                  const gitColor = isDir
+                    ? !node.expanded
+                      ? (dirtyDirs.get(node.entry.path)?.color ?? null)
+                      : null
+                    : (fileColors.get(node.entry.path) ?? null);
+                  const isSelected = selectedPaths.includes(node.entry.path);
+                  const isActive = !isDir && node.entry.path === activeFilePath;
+                  const isCut =
+                    clipboard?.isCut === true && clipboard.paths.includes(node.entry.path);
+                  const isRenaming = pendingRenamePath === node.entry.path;
+                  return (
+                    <ContextMenu key={node.entry.path}>
+                      <ContextMenuTrigger
+                        render={
+                          <div
+                            // Right-clicking a row that isn't part of the
+                            // current multi-selection collapses the
+                            // selection to just that row (Finder behavior),
+                            // so the menu acts on what the user clicked.
+                            onContextMenu={() => {
+                              if (!selectedPaths.includes(node.entry.path)) {
+                                setSelection([node.entry.path], node.entry.path);
+                              }
+                            }}
+                          >
+                            <TreeRow
+                              depth={node.depth}
+                              isDir={isDir}
+                              isExpanded={node.expanded}
+                              // Selection fill wins; keep them mutually
+                              // exclusive so a row never shows two bgs.
+                              isActive={isActive && !isSelected}
+                              isSelected={isSelected}
+                              name={node.entry.name}
+                              title={node.entry.path}
+                              editingMode={isRenaming ? "rename" : undefined}
+                              initialValue={isRenaming ? node.entry.name : undefined}
+                              onCommit={(name) => void handleRenameCommit(node.entry.path, name)}
+                              onCancel={endRename}
+                              isCut={isCut}
+                              dataPath={node.entry.path}
+                              isDropTarget={isDir && dropTargetPath === node.entry.path}
+                              isDragging={dragState.draggedItem?.path === node.entry.path}
+                              gitColor={gitColor}
+                              iconPath={node.entry.path}
+                              onClick={(e) => handleRowClick(node, e)}
+                              onRename={() => beginRename(node.entry.path)}
+                              style={{ transform: `translateY(${virtualRow.start}px)` }}
+                            />
+                          </div>
+                        }
+                      />
+                      <ContextMenuContent>{rowMenuItems(node.entry)}</ContextMenuContent>
+                    </ContextMenu>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </ContextMenuTrigger>
         {emptyAreaMenu}
       </ContextMenu>
 

@@ -45,6 +45,16 @@ const iconButtonVariants = cva(
         outline: "border-border bg-transparent text-foreground hover:bg-element-hover",
         secondary: "bg-card text-foreground hover:bg-element-hover",
         ghost: "bg-transparent text-muted-foreground hover:bg-element-hover hover:text-foreground",
+        // `hairline` is the rail footer's pair (help, interface scale): a
+        // quiet glyph inside a subtle ring, so the controls read as present
+        // but sit back from the card. Both open a popup, and stay lit while
+        // it is open (`aria-expanded`, which only popup triggers set — a
+        // tooltip's own open state must not light it).
+        hairline: [
+          "border-border-subtle bg-transparent text-muted-foreground",
+          "hover:bg-element-hover hover:text-foreground",
+          "aria-expanded:bg-element-hover aria-expanded:text-foreground",
+        ],
       },
       size: {
         xs: "size-control-xs",
@@ -58,8 +68,16 @@ const iconButtonVariants = cva(
         square: "",
         round: "rounded-full",
       },
+      // `active` is a control whose setting is on at rest — a filter that is
+      // narrowing the list — so the square keeps the active fill rather than
+      // only lighting on hover. It is a look, not a toggle: a menu trigger
+      // carrying it is still a menu trigger, so no `aria-pressed`.
+      active: {
+        true: "bg-element-active text-foreground",
+        false: "",
+      },
     },
-    defaultVariants: { variant: "ghost", size: "md", shape: "square" },
+    defaultVariants: { variant: "ghost", size: "md", shape: "square", active: false },
   },
 );
 
@@ -88,6 +106,7 @@ function IconButton({
   variant,
   size,
   shape,
+  active,
   icon,
   label,
   iconSize,
@@ -100,7 +119,7 @@ function IconButton({
       type={type}
       aria-label={label}
       className={(state) =>
-        cn(iconButtonVariants({ variant, size, shape }), resolveClassName(className, state))
+        cn(iconButtonVariants({ variant, size, shape, active }), resolveClassName(className, state))
       }
       {...props}
     >

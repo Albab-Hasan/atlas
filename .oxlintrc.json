@@ -103,10 +103,6 @@
           {
             "pattern": "^(Dialog|Popover)Content$",
             "allow": ["layout", "spacing", "font-mono", "tabular-nums", "capitalize"]
-          },
-          {
-            "pattern": "Trigger$",
-            "allow": ["layout", "color", "typography", "spacing", "shape", "effects", "motion", "*"]
           }
         ]
       }
@@ -115,6 +111,17 @@
   "overrides": [
     {
       "files": ["src/ui/**"],
+      "rules": {
+        "shadcn/no-restyle": "off"
+      }
+    },
+    {
+      "files": [
+        "src/features/menu/components/menu-bar.tsx",
+        "src/features/spaces/components/space-chrome.tsx",
+        "src/features/comms/components/call-menu.tsx",
+        "src/features/capture/components/capture-popover.tsx"
+      ],
       "rules": {
         "shadcn/no-restyle": "off"
       }
