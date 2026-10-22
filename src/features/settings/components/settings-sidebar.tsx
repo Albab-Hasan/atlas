@@ -111,7 +111,16 @@ export function SettingsSidebar({
           </Hint>
         ) : (
           <div className="relative w-full">
-            <div className="flex h-control-lg items-center gap-2 rounded-md border border-border bg-panel-input px-2 focus-within:border-border-strong">
+            {/* No border of its own: it sits in a bar that already has one. Shaped
+                like a nav row (height, inset, icon column), so the search icon
+                lines up with the section icons below it. */}
+            <div
+              className={cn(
+                "flex h-control-lg items-center gap-2 rounded-md px-2",
+                "transition-colors duration-fast ease-out-strong",
+                "hover:bg-element-hover focus-within:bg-element-hover",
+              )}
+            >
               <Icon icon={Search} size="sm" className="shrink-0 text-muted-foreground" />
               <input
                 ref={inputRef}
