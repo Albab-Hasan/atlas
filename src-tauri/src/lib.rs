@@ -766,6 +766,7 @@ pub fn run() {
             commands::knowledge::save_editor_state,
             commands::knowledge::load_editor_state,
             commands::knowledge::fetch_readable,
+            commands::markdown_preview::markdown_preview_image,
             commands::knowledge::knowledge_cover_upload,
             commands::knowledge::knowledge_cover_data_url,
             commands::knowledge_meta::knowledge_meta_load,

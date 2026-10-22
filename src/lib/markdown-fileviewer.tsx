@@ -1,9 +1,43 @@
-import { memo } from "react";
+import { memo, useEffect, useState, type ComponentPropsWithoutRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import rehypeRaw from "rehype-raw";
+import { cachedPreviewImage, previewImage } from "@/lib/markdown-preview-image";
 import "@/styles/hljs.css";
+
+const IMG_CLASS = "my-1 inline-block h-auto max-w-full rounded align-middle";
+
+/**
+ * An image whose bytes come from Rust (`previewImage`): remote ones because
+ * the CSP refuses them, relative ones because they resolve against the app,
+ * not the document. Keeps its `width`/`height` while loading so the layout
+ * does not jump, and falls back to its alt text if it cannot be had.
+ */
+function PreviewImage({
+  docPath,
+  src,
+  alt,
+  ...rest
+}: ComponentPropsWithoutRef<"img"> & { docPath: string; src: string }) {
+  const [url, setUrl] = useState(() => cachedPreviewImage(docPath, src));
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let live = true;
+    setFailed(false);
+    previewImage(docPath, src).then(
+      (u) => live && setUrl(u),
+      () => live && setFailed(true),
+    );
+    return () => {
+      live = false;
+    };
+  }, [docPath, src]);
+  if (failed && !url) {
+    return alt ? <span className="text-[var(--muted-foreground)]">{alt}</span> : null;
+  }
+  return <img {...rest} alt={alt} src={url} className={IMG_CLASS} />;
+}
 
 function handleWheel(e: React.WheelEvent<HTMLElement>) {
   const el = e.currentTarget;
@@ -25,9 +59,19 @@ interface Props {
    * Should only be enabled for trusted/local Markdown documents.
    */
   trusted?: boolean;
+  /**
+   * Absolute path of the document. With `trusted`, images are loaded through
+   * Rust against it — relative paths from its folder, remote URLs past the
+   * CSP — instead of by the webview, which can do neither.
+   */
+  docPath?: string;
   className?: string;
 }
-export const MarkdownFile = memo(function MarkdownFile({ children, trusted = false }: Props) {
+export const MarkdownFile = memo(function MarkdownFile({
+  children,
+  trusted = false,
+  docPath,
+}: Props) {
   return (
     <div className="atlas-markdown text-md leading-relaxed text-[var(--foreground)] break-words select-text">
       <ReactMarkdown
@@ -67,10 +111,13 @@ export const MarkdownFile = memo(function MarkdownFile({ children, trusted = fal
 
           li: (p) => <li className="leading-relaxed">{p.children}</li>,
 
-          img: (p) => (
-            // eslint-disable-next-line jsx-a11y/alt-text
-            <img {...p} className="my-1 inline-block h-auto max-w-full rounded align-middle" />
-          ),
+          img: ({ node: _node, ...p }) =>
+            trusted && docPath && typeof p.src === "string" ? (
+              <PreviewImage {...p} docPath={docPath} src={p.src} />
+            ) : (
+              // eslint-disable-next-line jsx-a11y/alt-text
+              <img {...p} className={IMG_CLASS} />
+            ),
 
           code(props) {
             const { className, children, ...rest } = props as {

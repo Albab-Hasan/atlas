@@ -550,7 +550,7 @@ export function EditorPanel({ tabId, filePath, containerHeight }: EditorPanelPro
         {effectiveMode === "preview" && (
           <div style={{ height: editorHeight }} className="overflow-auto bg-background px-4 py-3">
             {buffer && (
-              <MarkdownFile trusted={true} className="max-w-none">
+              <MarkdownFile trusted={true} docPath={path} className="max-w-none">
                 {buffer.originalContent}
               </MarkdownFile>
             )}

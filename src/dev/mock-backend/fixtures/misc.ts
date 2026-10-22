@@ -688,4 +688,11 @@ export const miscHandlers: MockHandlers = {
     url: String(url ?? "https://example.invalid"),
     html: "<h1>Readable</h1><p>The reader pane is ordinary HTML, so it themes and renders here even though the Browser tab itself cannot.</p>",
   }),
+  // A plain browser has no CSP refusing remote images, so the URL itself is
+  // the answer. Relative paths would need the real disk; they show alt text.
+  markdown_preview_image: ({ src }) => {
+    const s = String(src ?? "");
+    if (/^https?:\/\//i.test(s)) return s;
+    throw new Error("local images need the real backend");
+  },
 };
