@@ -320,8 +320,13 @@ export function finishTurn(sessionId?: string): Promise<void> {
 //
 // Rust's `sleep_watch.rs` notices the machine slept under a running turn and
 // sends `slept_mid_turn` before the turn's terminal. A browser cannot sleep on
-// cue, so these replay that sequence: half a reply, the notice, then the turn
-// ending — cleanly, or with the transport error a dropped stream reports.
+// cue, so these replay that sequence: half a reply, the notice, a few seconds
+// of the turn still going after the wake (the composer's "Woke after" pill is
+// only on screen then), then the turn ending — cleanly, or with the transport
+// error a dropped stream reports.
+
+/** How long the turn keeps going after the wake, so the pill can be seen. */
+const AFTER_WAKE_MS = 3_000;
 
 /** A reply cut off by sleep that the agent still finished
  *  (`__atlasMock.actions.sleepMidTurn`). */
@@ -329,8 +334,10 @@ export async function sleepMidTurn(): Promise<void> {
   const s = latest();
   if (!s) return;
   await setStatus("running");
-  await streamText("Here is the migration plan. First, add the new column with a default of");
+  await streamText("Here is the migration plan. First, add the new column with a default of ");
   await sendDelta({ kind: "slept_mid_turn", ...at(s), turn_seq: 0, slept_secs: 1260 });
+  await new Promise((r) => setTimeout(r, AFTER_WAKE_MS));
+  await streamText("null, then backfill it in batches.");
   await finishTurn();
   await setStatus("idle");
 }
@@ -342,6 +349,7 @@ export async function sleepMidTurnFailed(): Promise<void> {
   await setStatus("running");
   await streamText("Reading the test suite to see which fixtures depend on the old");
   await sendDelta({ kind: "slept_mid_turn", ...at(s), turn_seq: 0, slept_secs: 3400 });
+  await new Promise((r) => setTimeout(r, AFTER_WAKE_MS));
   // The projector's order: the error status, then the failure itself.
   await setStatus("error");
   await sendDelta({

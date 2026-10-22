@@ -163,6 +163,22 @@ export const CLAUDE_PERMISSION_MODE_LABEL: Record<ClaudePermissionMode, string> 
   auto: "Auto",
 };
 
+/**
+ * A turn that something other than the agent cut into. Sleep is the only cause
+ * today; a dropped network or a suspended app would be another `cause` with the
+ * same row, which is why this is not called `SleepNotice`.
+ */
+export interface TurnInterruption {
+  cause: "sleep";
+  /** How long the machine was asleep. */
+  sleptSecs: number;
+  /** How the turn ended after it: it carried on to the end, it failed (usually
+   *  the stream the sleep dropped), the user stopped it, or the agent exited. */
+  outcome: "finished" | "failed" | "stopped" | "disconnected";
+  /** The agent's own error, for `failed` — kept for diagnosis, shown folded. */
+  error?: string;
+}
+
 /** One file a turn read or modified, with edit line counts (0 for reads). */
 export interface TurnFile {
   path: string;
@@ -212,11 +228,12 @@ export interface ChatSession {
     /** ms epoch when this retry status arrived (for the countdown). */
     receivedAt: number;
   };
-  /** The computer slept while this turn was running (`slept_mid_turn`). Held
-   *  until the turn ends, then written into the transcript as a notice after
-   *  the reply it may have cut short — so it neither splits the reply nor
-   *  absorbs the text that follows it. `turnSeq` is the turn it belongs to. */
-  sleptMidTurn?: { turnSeq: number };
+  /** The computer slept while this turn was running (`slept_mid_turn`) and the
+   *  turn is still going. Drives the composer's live pill (`sleep-pill.tsx`);
+   *  when the turn ends it becomes the trailing message's `interruption`, so
+   *  the record sits after the reply it may have cut short rather than inside
+   *  it. `turnSeq` is the turn it belongs to; `wokeAt` is ms epoch. */
+  sleptMidTurn?: { turnSeq: number; sleptSecs: number; wokeAt: number };
   /** Ids of tool calls currently pending/running, maintained incrementally on
    *  tool_call_upserted and swept (to undefined) on every terminal — the O(1)
    *  source for `hasInFlightToolCalls`. */
@@ -476,6 +493,11 @@ export interface ChatMessage {
     status: "idle" | "loading" | "ready" | "error";
     chips: string[];
   };
+  /** Something outside the conversation cut into the turn this message ends.
+   *  A record on the turn, not text in it: the transcript draws it as its own
+   *  row (`InterruptionRowView`), so it is never copied, exported or quoted as
+   *  if the agent had said it. */
+  interruption?: TurnInterruption;
   /** Model that produced this assistant message, stamped when the message is
    *  created (and backstopped at turn end). The badge renders ONLY this —
    *  never live session state — so a later model or agent switch can't

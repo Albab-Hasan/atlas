@@ -42,7 +42,7 @@ import { toast } from "sonner";
 import { extractPlanMarkdown, type PlanRecord } from "../lib/plans";
 import { extractNextSteps } from "../lib/next-steps";
 import { turnFileOfToolCall } from "../lib/tool-files";
-import type { TurnFile } from "@/types/agent";
+import type { TurnFile, TurnInterruption } from "@/types/agent";
 
 /** `firstUserContent` is a preview field, never the full text — see the note
  *  at its appendMessage write. 200 chars covers every consumer (they slice to
@@ -789,26 +789,38 @@ export function stopReasonNotice(stopReason: string): string | null {
   }
 }
 
-/** What a turn the computer slept through ends with, in the same register as
- *  `stopReasonNotice`: a reply cut off by sleep reads exactly like a finished
- *  one, so it has to say so. Exported for tests. */
-export const SLEEP_NOTICE =
-  "(your computer went to sleep mid-response — the response above may be incomplete)";
-
-/** A failed turn the computer slept through. The failure on waking is almost
- *  always the sleep's doing — a dropped stream reports as "connection reset" or
- *  "error decoding response body", which names nothing the user did — so the
- *  sleep leads, and the agent's own words follow for anyone diagnosing it.
- *  Exported for tests. */
-export function sleepFailureText(error: string): string {
-  return `Error: Your computer went to sleep mid-response. The response above may be incomplete. (After waking: ${error})`;
-}
-
-/** Write a held sleep notice (`sleptMidTurn`) into the transcript, if any. */
-function flushSleepNotice(session: ChatSession): void {
-  if (!session.sleptMidTurn) return;
+/**
+ * Freeze a held sleep (`sleptMidTurn`) onto the turn's trailing assistant
+ * message as its `interruption` — the way `usage` and `turnSummary` are frozen
+ * at turn end, so the transcript draws it after the reply it may have cut
+ * short. A turn the sleep cut off before any output has no such message, so
+ * one is added with no content: it renders nothing but the record.
+ */
+function recordInterruption(
+  session: ChatSession,
+  outcome: TurnInterruption["outcome"],
+  error?: string,
+): void {
+  const slept = session.sleptMidTurn;
+  if (!slept) return;
   session.sleptMidTurn = undefined;
-  session.messages.push(makeAssistantTextMessage(SLEEP_NOTICE));
+  const interruption: TurnInterruption = {
+    cause: "sleep",
+    sleptSecs: slept.sleptSecs,
+    outcome,
+    ...(error ? { error } : {}),
+  };
+  for (let i = session.messages.length - 1; i >= 0; i--) {
+    const m = session.messages[i];
+    if (m.role === "user") break;
+    if (m.role === "assistant") {
+      m.interruption = interruption;
+      return;
+    }
+  }
+  const host = makeAssistantTextMessage("");
+  host.interruption = interruption;
+  session.messages.push(host);
 }
 
 export const useChatStore = createSelectors(
@@ -2224,9 +2236,7 @@ function applyDeltaToDraft(s: ChatDraft, env: AgentDelta): void {
         }
         break;
       }
-      // Last, so the reply keeps its footer, summary and chips and the notice
-      // closes the turn.
-      flushSleepNotice(session);
+      recordInterruption(session, env.stop_reason === "cancelled" ? "stopped" : "finished");
       return;
     }
     case "turn_failed": {
@@ -2245,9 +2255,12 @@ function applyDeltaToDraft(s: ChatDraft, env: AgentDelta): void {
       // in-process and shares this error delta, so its provider errors (e.g. a
       // Gemini HTTP 400) were being mislabeled as ACP failures. Use a neutral
       // prefix.
+      // After a sleep the failure is almost always the sleep's doing — a dropped
+      // stream reports "error decoding response body", which names nothing the
+      // user did — so the interruption row leads and carries the agent's words
+      // folded, instead of a bare "Error:" line.
       if (session.sleptMidTurn) {
-        session.sleptMidTurn = undefined;
-        session.messages.push(makeAssistantTextMessage(sleepFailureText(env.error)));
+        recordInterruption(session, "failed", env.error);
       } else {
         session.messages.push(makeAssistantTextMessage(`Error: ${env.error}`));
       }
@@ -2284,19 +2297,22 @@ function applyDeltaToDraft(s: ChatDraft, env: AgentDelta): void {
       session.disconnected = true;
       session.stopping = undefined;
       session.retryStatus = undefined;
-      flushSleepNotice(session);
+      recordInterruption(session, "disconnected");
       return;
     }
     case "slept_mid_turn": {
       if (isStaleTurn(session, env.turn_seq)) return;
-      // Held while the turn runs, written when it ends (see `sleptMidTurn`).
-      // Rust delivers it ahead of the turn's terminal, but the background tick
-      // can lose that race — then the turn is already over and the notice goes
-      // straight in.
-      if (isBusyAgentStatus(session.status)) {
-        session.sleptMidTurn = { turnSeq: env.turn_seq };
-      } else {
-        session.messages.push(makeAssistantTextMessage(SLEEP_NOTICE));
+      // Live while the turn runs (the composer pill), frozen onto the turn when
+      // it ends. Rust delivers it ahead of the turn's terminal, but the
+      // background tick can lose that race — then the turn is already over and
+      // the record goes straight on.
+      session.sleptMidTurn = {
+        turnSeq: env.turn_seq,
+        sleptSecs: env.slept_secs,
+        wokeAt: Date.now(),
+      };
+      if (!isBusyAgentStatus(session.status)) {
+        recordInterruption(session, session.status === "error" ? "failed" : "finished");
       }
       return;
     }
