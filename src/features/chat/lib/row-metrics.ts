@@ -27,7 +27,8 @@
 export const HEADER_INSET = 46;
 
 /**
- * The conversation's content frame: centred, 760px at most, padded the same on
+ * The conversation's content frame: centred, `chatWidth` at most (760px unless
+ * the user widened it, `--atlas-chat-column` in globals.css), padded the same on
  * both sides.
  *
  * Shared because the composer stack has to line up with the transcript text at
@@ -37,7 +38,7 @@ export const HEADER_INSET = 46;
  * left edge 7px outside the text above it. One string now frames the rows, the
  * composer, the cards tucked above it and the banners over it.
  */
-export const CONTENT_COLUMN = "mx-auto w-full max-w-[760px] px-6";
+export const CONTENT_COLUMN = "mx-auto w-full max-w-(--atlas-chat-column) px-6";
 
 export const M = {
   /** Lines a user prompt shows before clamping behind "Show more". */

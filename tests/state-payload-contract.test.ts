@@ -263,8 +263,6 @@ const PAIRS: Pair[] = [
     rustOnly: {
       telemetryAnonId:
         "Rust-owned. Minted and persisted by `lib.rs` setup; the frontend must never see or echo it (see the `AppStatePatch` doc).",
-      settingsConfigMigrated:
-        "Rust-owned. Records the one-time state.json→config.toml export (#64).",
     },
   },
   {

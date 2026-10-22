@@ -212,7 +212,7 @@ impl UiTools {
         if !grant.ui {
             return tool_error(NOT_OFFERED_NOTE);
         }
-        if !(self.gate)() {
+        if !(self.gate)(&grant.cwd) {
             return tool_error(OFF_NOTE);
         }
         if !tool_names().contains(&name) {

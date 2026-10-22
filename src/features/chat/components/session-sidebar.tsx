@@ -10,7 +10,9 @@ import { pluginIdForAgent } from "@/types/agent";
 import { repoPullRequestsKey } from "@/features/git/lib/git-pr-api";
 import { ThreadHistoryView } from "./thread-history-view";
 import { SessionCard } from "./session-card";
-import { placeProjectNames } from "../lib/sidebar-grouping";
+import { placeProjectNames, sortThreads } from "../lib/sidebar-grouping";
+import { useSettingsStore } from "@/features/settings/stores/settings-store";
+import { confirmDeleteChat } from "../lib/confirm-delete-chat";
 import { useAppStore } from "@/features/app/stores/app-store";
 import { useProjectStore } from "@/features/projects/stores/project-store";
 import { useActiveOrgProjects } from "@/features/projects/lib/org-scope";
@@ -357,16 +359,20 @@ export const SessionSidebar = memo(function SessionSidebar({
     return () => window.removeEventListener("focus", sync);
   }, [cwd]);
 
-  // The open project's threads, newest first. `threads_projects` is scoped to
-  // `cwd`, so this is normally a single group and needs no ordering of its own
-  // — Rust already sorted by recency. The flatMap still handles several groups
-  // because the unscoped case (no project open) returns them all.
+  // The open project's threads, in the `sidebarSort` order. `threads_projects`
+  // is scoped to `cwd`, so this is normally a single group; Rust already sorted
+  // each group by recency, and `sortThreads` only reorders for "created". The
+  // flatMap still handles several groups because the unscoped case (no
+  // project open) returns them all.
+  const sidebarSort = useSettingsStore((s) => s.settings.sidebarSort);
   const items = useMemo<SidebarItem[]>(
     () =>
       projects.flatMap((project) =>
-        project.threads.map((thread) => itemFromThread(thread, project.name, !project.isCurrent)),
+        sortThreads(project.threads, sidebarSort).map((thread) =>
+          itemFromThread(thread, project.name, !project.isCurrent),
+        ),
       ),
-    [projects],
+    [projects, sidebarSort],
   );
 
   // Self-heal the project panel's persisted "Chats" list for THIS project.
@@ -623,6 +629,7 @@ export const SessionSidebar = memo(function SessionSidebar({
   };
 
   const handleDeleteAgent = async (item: SidebarItem) => {
+    if (!(await confirmDeleteChat(item.title))) return;
     try {
       // One call for every agent. Atlas's own row goes first and always; the
       // agent is asked to forget its copy only if it advertised that it can

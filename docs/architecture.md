@@ -143,7 +143,8 @@ Streaming from Rust to the UI runs on Tauri events, `atlas:*` channels, most pay
 | `atlas:auth-changed` / `-signed-out` / `-error` | account/session state |
 | `atlas:byok-env-updated` | shell-profile API-key environment changed |
 | `atlas:recent-files-changed`, `atlas:models-changed`, `atlas:models-pricing-updated` | cache-invalidation broadcasts |
-| `atlas:cli-open-project`, `atlas:close-active-tab` | native menu / single-instance-relaunch plumbing |
+| `atlas:menu-command` | the id of the clicked native menu item (macOS); the window runs it. The menus are `src-tauri/menu.json`, which the Windows/Linux titlebar also draws |
+| `atlas:cli-open-project` | single-instance-relaunch plumbing |
 | `atlas:explorer:changed`, `atlas:fileindex:updated` | file-tree and file-index invalidation |
 | `atlas:knowledge:links-changed`, `atlas:knowledge:meta-changed` | knowledge-base backlink and metadata updates |
 | `atlas:model-download:*`, `atlas:memory-embed:*` | local model download and embedding progress |

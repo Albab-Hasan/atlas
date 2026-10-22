@@ -34,6 +34,8 @@ import {
 } from "../lib/diff";
 import { CommitAvatar } from "./commit-avatar";
 import type { DiffJump } from "../lib/diff-jump";
+import { useSettingsStore } from "@/features/settings/stores/settings-store";
+import { useCollapsedFiles } from "../lib/use-collapsed-files";
 
 type ViewMode = "split" | "unified";
 
@@ -111,13 +113,15 @@ function lineBg(type: DiffLine["type"] | undefined): string {
  * from Source Control → History and the Git Graph.
  */
 export function CommitView({ repoPath, sha }: { repoPath: string; sha: string }) {
+  // `diffIgnoreWhitespace`: a commit is only read here, never staged from.
+  const ignoreWhitespace = useSettingsStore((s) => s.settings.diffIgnoreWhitespace);
   const {
     data: detail,
     isLoading,
     error,
   } = useQuery({
-    queryKey: ["git-show", repoPath, sha],
-    queryFn: () => invoke<CommitDetail>("git_show", { path: repoPath, sha }),
+    queryKey: ["git-show", repoPath, sha, ignoreWhitespace],
+    queryFn: () => invoke<CommitDetail>("git_show", { path: repoPath, sha, ignoreWhitespace }),
     // A commit never changes under its sha.
     staleTime: Infinity,
     enabled: !!repoPath && !!sha,
@@ -181,7 +185,8 @@ export function DiffFilesView({
     localStorage.setItem(MODE_KEY, m);
   };
 
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const paths = useMemo(() => files.map((f) => f.path), [files]);
+  const [collapsed, setCollapsed] = useCollapsedFiles(paths);
   const rows = useMemo(() => buildCommitRows(files, collapsed, mode), [files, collapsed, mode]);
   const totalAdd = useMemo(() => files.reduce((s, f) => s + f.additions, 0), [files]);
   const totalDel = useMemo(() => files.reduce((s, f) => s + f.deletions, 0), [files]);

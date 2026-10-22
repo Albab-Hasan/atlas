@@ -10,6 +10,11 @@ import { Hint } from "@/ui/tooltip";
 import { agentMeta } from "@/features/agents/lib/agent-meta";
 import { deleteThread, onThreadsChanged, threadHistory, type ThreadRow } from "../lib/history-api";
 import { ImportThreadsModal } from "./import-threads-modal";
+import { ConfirmDialog } from "@/components/confirm-dialog";
+import { confirmDeleteChat } from "../lib/confirm-delete-chat";
+
+/** This dialog's own `ConfirmDialog`: see `ConfirmPrompt.scope`. */
+const HISTORY_CONFIRM_SCOPE = "thread-history";
 
 /**
  * Everything the user has ever done in Atlas, bucketed by when it started.
@@ -79,6 +84,7 @@ export function ThreadHistoryView({
   }, [threads, search]);
 
   const remove = useCallback(async (thread: ThreadRow) => {
+    if (!(await confirmDeleteChat(thread.title, HISTORY_CONFIRM_SCOPE))) return;
     try {
       await deleteThread(thread.threadId);
     } catch (err) {
@@ -204,6 +210,8 @@ export function ThreadHistoryView({
         </Dialog.Popup>
       </Dialog.Portal>
       <ImportThreadsModal open={importOpen} onOpenChange={setImportOpen} />
+      {/* Inside this Root, so Base UI nests it: see `ConfirmPrompt.scope`. */}
+      <ConfirmDialog scope={HISTORY_CONFIRM_SCOPE} />
     </Dialog.Root>
   );
 }

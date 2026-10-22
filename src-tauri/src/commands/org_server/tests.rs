@@ -753,20 +753,20 @@ fn sharing(on: bool) -> SharingGate {
 }
 
 fn setting(on: bool) -> OrgAccessGate {
-    Arc::new(move || on)
+    Arc::new(move |_: &str| on)
 }
 
 /// A setting the test can flip while a session runs.
 fn switchable(on: bool) -> (OrgAccessGate, Arc<AtomicBool>) {
     let flag = Arc::new(AtomicBool::new(on));
     let read = flag.clone();
-    (Arc::new(move || read.load(Ordering::SeqCst)), flag)
+    (Arc::new(move |_: &str| read.load(Ordering::SeqCst)), flag)
 }
 
 /// A window that is never asked anything in these tests.
 fn quiet_ui() -> axum::Router {
     let bridge = Arc::new(UiBridge::new(Arc::new(|_| Err("no window".into()))));
-    ui_server::router(ui_server::UiTools::new(bridge, Arc::new(|| true)))
+    ui_server::router(ui_server::UiTools::new(bridge, Arc::new(|_: &str| true)))
 }
 
 async fn serve(
@@ -5557,7 +5557,7 @@ fn offers(
     orgs: Arc<FakeSessionOrgs>,
 ) -> MemorySessionOffers {
     MemorySessionOffers::new(host, sharing(true))
-        .with_ui(UiOffer::new(Arc::new(|| true)))
+        .with_ui(UiOffer::new(Arc::new(|_: &str| true)))
         .with_org(OrgOffer::new(setting(setting_on), orgs))
 }
 
@@ -5746,8 +5746,8 @@ async fn a_signed_out_user_is_not_offered_the_org_server() {
 #[tokio::test(flavor = "multi_thread")]
 async fn without_the_org_third_the_offer_is_as_before() {
     let host = running_host(Arc::new(FakeOrganisation::default())).await;
-    let offers =
-        MemorySessionOffers::new(host, sharing(true)).with_ui(UiOffer::new(Arc::new(|| true)));
+    let offers = MemorySessionOffers::new(host, sharing(true))
+        .with_ui(UiOffer::new(Arc::new(|_: &str| true)));
     assert_eq!(
         names(&offers.offer(&session_request(true))),
         ["atlas_memory", UI_SERVER_NAME]
@@ -5806,7 +5806,7 @@ fn the_setting_is_not_read_for_a_connection_that_cannot_use_the_server() {
     let counted = reads.clone();
     let orgs = FakeSessionOrgs::new(true, Some(acme()));
     let offer = OrgOffer::new(
-        Arc::new(move || {
+        Arc::new(move |_: &str| {
             counted.fetch_add(1, Ordering::SeqCst);
             true
         }),

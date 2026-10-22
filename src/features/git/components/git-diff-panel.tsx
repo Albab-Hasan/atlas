@@ -24,6 +24,7 @@ import { Group, Panel, Separator, useDefaultLayout, usePanelRef } from "react-re
 import { useGitStore } from "../stores/git-store";
 import { ChangedFilesTree } from "./changed-files-tree";
 import { DiffMinimap } from "./diff-minimap";
+import { useSettingsStore } from "@/features/settings/stores/settings-store";
 
 // Match the CodeMirror editor's metrics (editor-panel.tsx: 14px / 18px) so the
 // diff reads at the same scale as the code editor.
@@ -323,6 +324,8 @@ export function GitDiffPanel({
 
   // A supplied text source wins over the repository — see `textSources`.
   const textSource = textSources?.[file];
+  // Subscribed only to re-render: `diffQueryKey` reads it, so a change re-keys.
+  useSettingsStore((s) => s.settings.diffIgnoreWhitespace);
   const queryKey = diffQueryKey(repoPath, file, staged, commit, textSource);
   const { data, isLoading, refetch } = useQuery({
     queryKey,

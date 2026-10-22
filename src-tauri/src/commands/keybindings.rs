@@ -307,28 +307,40 @@ pub async fn keybindings_open(app: AppHandle) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
-/// Point the native Window ▸ Close Tab item at `accelerator` (Tauri's
-/// spelling — the renderer converts, see `native-accelerator.ts`), or leave it
-/// without one for `None`. A no-op where Atlas installs no menu.
+/// Point the native menu's items at the user's chords: `accelerators` maps a
+/// menu item id to Tauri's accelerator spelling (the renderer converts, see
+/// `native-accelerator.ts`), `None` for an item with no chord. Ids the menu
+/// doesn't carry are ignored, and an item the map leaves out keeps what it has.
+/// A no-op where Atlas installs no menu.
 #[tauri::command]
-pub fn keybindings_set_close_tab_accelerator(
+pub fn menu_set_accelerators(
     app: AppHandle,
-    accelerator: Option<String>,
+    accelerators: std::collections::HashMap<String, Option<String>>,
 ) -> Result<(), String> {
     // The menu module is macOS-only (lib.rs); elsewhere there is no item to retarget.
     #[cfg(target_os = "macos")]
     {
         use tauri::Manager;
-        let Some(item) = app.try_state::<crate::menu::CloseTabItem>() else {
+        let Some(items) = app.try_state::<crate::menu::MenuItems>() else {
             return Ok(());
         };
-        item.0
-            .set_accelerator(accelerator.as_deref())
-            .map_err(|e| e.to_string())
+        let mut failed = Vec::new();
+        for (id, accelerator) in &accelerators {
+            if let Some(item) = items.0.get(id) {
+                if let Err(e) = item.set_accelerator(accelerator.as_deref()) {
+                    failed.push(format!("{id}: {e}"));
+                }
+            }
+        }
+        if failed.is_empty() {
+            Ok(())
+        } else {
+            Err(failed.join("; "))
+        }
     }
     #[cfg(not(target_os = "macos"))]
     {
-        let _ = (app, accelerator);
+        let _ = (app, accelerators);
         Ok(())
     }
 }

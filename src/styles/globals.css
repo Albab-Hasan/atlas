@@ -760,6 +760,7 @@
      `<ChatInput minHeight={80}>` type-checks and silently does nothing against
      the hardcoded 44px below. */
   font-family:
+    var(--atlas-ui-font, system-ui),
     system-ui,
     -apple-system,
     BlinkMacSystemFont,
@@ -994,7 +995,13 @@
     height: 100%;
     width: 100%;
     overflow: hidden;
-    font-family: -apple-system, "SF Pro Text", system-ui, sans-serif;
+    /* `uiFontFamily`, while set, leads; the system font stays behind it. */
+    font-family:
+      var(--atlas-ui-font, -apple-system),
+      "SF Pro Text",
+      -apple-system,
+      system-ui,
+      sans-serif;
     font-size: 13px;
     line-height: 1.45;
     color: var(--foreground);
@@ -1182,9 +1189,11 @@
        alone desyncs the gutter, leaving line numbers stranded at the top
        while text sits further down. Keep them at the editor root, and in
        step with the metrics in `themes/build-cm-theme.ts`. */
-    font-family: "JetBrains Mono", "SF Mono", "Fira Code", monospace;
-    font-size: 13px;
-    line-height: 20px;
+    font-family:
+      var(--atlas-code-font, "JetBrains Mono"), "JetBrains Mono", "SF Mono", "Fira Code", monospace;
+    /* `editorFontSize`; the 20/13 line height scales with it. */
+    font-size: var(--atlas-editor-font-size, 13px);
+    line-height: calc(var(--atlas-editor-font-size, 13px) * 20 / 13);
   }
   .cm-content {
     color: var(--atlas-editor-foreground, #d4d4d4);
@@ -1232,8 +1241,8 @@
   .xterm .xterm-char-measure-element,
   .xterm-helper-textarea {
     font-family:
-      Menlo, Monaco, "SF Mono", "SFMono-Regular", Consolas, "Liberation Mono", "Courier New",
-      monospace !important;
+      var(--atlas-code-font, Menlo), Menlo, Monaco, "SF Mono", "SFMono-Regular", Consolas,
+      "Liberation Mono", "Courier New", monospace !important;
     font-variant-ligatures: none !important;
     letter-spacing: 0 !important;
   }
@@ -2104,6 +2113,13 @@
   overflow-wrap: anywhere;
   overflow: hidden;
 }
+/* `chatCodeWrap` off: long lines keep their shape and the block scrolls. */
+html[data-chat-code-wrap="off"] .prose-chat pre {
+  white-space: pre;
+  word-break: normal;
+  overflow-wrap: normal;
+  overflow-x: auto;
+}
 
 /* Code-block affordances injected by CachedMarkdown — a hover-revealed
    language label + copy button floated at the top-right of each block. */
@@ -2150,7 +2166,9 @@
   background: var(--card);
   color: var(--foreground);
   font-size: 12px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family:
+    var(--atlas-code-font, ui-monospace), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    monospace;
 }
 .prose-chat pre code {
   padding: 0;
@@ -2855,4 +2873,63 @@
 }
 [data-sonner-toaster] [data-sonner-toast][data-styled="true"]:has([data-cancel]) [data-action] {
   margin-left: 0;
+}
+
+/* ── Display settings (`features/settings/lib/display-settings.ts`) ────────── */
+
+/* `uiFontFamily` / `codeFontFamily`, while set. The active theme defines
+   `--font-sans` / `--font-mono` in its own `html:root` block, so the
+   attribute is what outranks it. Every `font-sans` / `font-mono` utility,
+   and every rule that reads those two, follows. */
+html:root[data-ui-font] {
+  --font-sans: var(--atlas-ui-font), system-ui, sans-serif;
+}
+html:root[data-code-font] {
+  --font-mono: var(--atlas-code-font), monospace;
+}
+
+/* `terminalFontSize` sets the command line; a command's output runs a pixel
+   under it, as it always has (12px against 13). */
+.atlas-terminal-output {
+  font-size: calc(var(--atlas-terminal-font-size, 13px) - 1px);
+}
+
+/* `chatWidth`: the transcript and composer column (`CONTENT_COLUMN`). */
+:root {
+  --atlas-chat-column: 760px;
+}
+html[data-chat-width="wide"] {
+  --atlas-chat-column: 1080px;
+}
+html[data-chat-width="full"] {
+  --atlas-chat-column: 100%;
+}
+
+/* `diffPalette = "blue-orange"`: the theme's own info blue and warning orange
+   in place of green and red, so additions and removals stay apart under
+   red-green colour blindness and still follow the theme. The extra attribute
+   outranks the resolved theme's `html:root` block. */
+html:root[data-diff-palette="blue-orange"] {
+  --atlas-diff-added-text: var(--atlas-status-info-foreground);
+  --atlas-diff-added-background: color-mix(
+    in srgb,
+    var(--atlas-status-info-foreground) 13%,
+    transparent
+  );
+  --atlas-diff-added-emphasis: color-mix(
+    in srgb,
+    var(--atlas-status-info-foreground) 34%,
+    transparent
+  );
+  --atlas-diff-removed-text: var(--atlas-status-warning-foreground);
+  --atlas-diff-removed-background: color-mix(
+    in srgb,
+    var(--atlas-status-warning-foreground) 13%,
+    transparent
+  );
+  --atlas-diff-removed-emphasis: color-mix(
+    in srgb,
+    var(--atlas-status-warning-foreground) 34%,
+    transparent
+  );
 }

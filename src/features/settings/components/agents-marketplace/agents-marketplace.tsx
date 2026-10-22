@@ -39,6 +39,7 @@ import type { AgentCatalogEntry } from "@/types/agent-catalog";
 import { useRemoveAgentConfirmStore } from "@/features/agents/lib/remove-agent-confirm";
 import { downloadTrend, fmtDownloads } from "@/features/agents/lib/download-trends";
 import { TrendSparkline } from "@/components/trend-sparkline";
+import { formatDateTime } from "@/lib/format-time";
 
 /** Which action a card offers. Pure and exported so the precedence is tested
  *  rather than re-read out of JSX.
@@ -339,9 +340,7 @@ export function AgentsMarketplace() {
             disabled={refreshing}
             className="flex items-center gap-1.5 h-6 px-2 rounded-md text-xs text-[var(--secondary-foreground)] hover:bg-[var(--atlas-element-hover)] hover:text-[var(--foreground)] transition-colors cursor-pointer disabled:cursor-default disabled:hover:bg-transparent"
             title={
-              refreshedAt
-                ? `Last updated ${new Date(refreshedAt).toLocaleString()}`
-                : "Refresh the registry"
+              refreshedAt ? `Last updated ${formatDateTime(refreshedAt)}` : "Refresh the registry"
             }
           >
             <RefreshCw size={11} className={cn(refreshing && "animate-spin")} />
@@ -351,7 +350,7 @@ export function AgentsMarketplace() {
         {error && registryEntries.length > 0 && (
           <p className="text-2xs text-[var(--muted-foreground)]">
             Last refresh failed ({error}) — showing cached data
-            {refreshedAt ? ` from ${new Date(refreshedAt).toLocaleString()}` : ""}.
+            {refreshedAt ? ` from ${formatDateTime(refreshedAt)}` : ""}.
           </p>
         )}
       </div>

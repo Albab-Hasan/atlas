@@ -48,6 +48,7 @@ import { toEditable, toWireBody } from "../lib/comment-edit";
 import { COMMENT_BODY_MAX, visibleCount, type AnchorKind, type Comment } from "../lib/comments-api";
 import { selectionCommentBody, splitSelectionComment } from "../lib/selection-comment";
 import { NO_VOTES, nextVote, voteOf } from "../lib/votes";
+import { formatTime } from "@/lib/format-time";
 
 /** Everything the thread needs to talk to the server, supplied by the panel. */
 export interface CommentActions {
@@ -1071,5 +1072,5 @@ function Composer({
 /** `HH:MM:SS`, matching the timestamps the rest of the Session detail uses. */
 function time(iso: string): string {
   const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? "" : date.toLocaleTimeString();
+  return Number.isNaN(date.getTime()) ? "" : formatTime(date, { timeStyle: "medium" });
 }

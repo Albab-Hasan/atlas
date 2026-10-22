@@ -41,6 +41,7 @@ import { copyText } from "@/lib/clipboard";
 import { UiScaleControl } from "@/features/settings/components/ui-scale-control";
 import { getVersion } from "@tauri-apps/api/app";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { DISCORD_URL, DOCS_URL, GITHUB_URL, SITE_URL, X_URL } from "@/lib/atlas-links";
 import { GithubIcon } from "@/components/github-icon";
 import { useFeedbackStore } from "@/features/feedback/stores/feedback-store";
 import { openSettingsSection } from "@/features/settings/lib/open-settings";
@@ -1430,14 +1431,6 @@ function VirtualRail({
 function EmptyRail() {
   return <div className="px-2 py-3 text-xs text-[var(--muted-foreground)]">No projects yet.</div>;
 }
-
-/** Where the help menu points. Grouped as they render: docs and support, then
- *  the public channels, then the app's own surfaces. */
-const DOCS_URL = "https://docs.tryatlas.cc/docs/getting-started";
-const GITHUB_URL = "https://github.com/pacifio/atlas";
-const DISCORD_URL = "https://discord.gg/GmnFggaPfP";
-const X_URL = "https://x.com/tryatlas_cc";
-const SITE_URL = "https://tryatlas.cc/";
 
 function HelpItem({
   icon,

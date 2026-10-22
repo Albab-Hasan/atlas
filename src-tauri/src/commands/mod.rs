@@ -67,6 +67,8 @@ pub mod org_server;
 pub mod pdf_annotations;
 pub mod plans;
 pub mod project_session;
+pub mod project_settings;
+pub mod quit_guard;
 pub mod recent_files;
 pub mod registry;
 pub mod save_guard;

@@ -804,7 +804,8 @@ const LineList = memo(function LineList({
     // and back on only for inputs, `pre`, `code` and this class. This surface
     // used to be a `<pre>` and got selection for free; the line emulator
     // rework made it a `<div>` and selection silently died with the tag.
-    <div className="select-text whitespace-pre-wrap break-words px-3 py-2 font-mono text-sm leading-[1.45] text-[var(--secondary-foreground)]">
+    // `atlas-terminal-output`: `terminalFontSize` less a pixel (globals.css).
+    <div className="atlas-terminal-output select-text whitespace-pre-wrap break-words px-3 py-2 font-mono leading-[1.45] text-[var(--secondary-foreground)]">
       {lines.map((line) => (
         <OutputLine
           key={line.id}

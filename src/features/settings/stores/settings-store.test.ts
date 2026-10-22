@@ -44,39 +44,10 @@ beforeEach(() => {
       ...DEFAULT_SETTINGS,
       themeMode: "dark",
       themeOverrides: OVERRIDES,
-      notificationsMigrated: true,
-      notifyKindsMigrated: true,
     },
     configGeneration: 1,
   });
   vi.clearAllMocks();
-});
-
-describe("notification settings migration on hydrate", () => {
-  it("persists the migrated tier settings once, and not for a file that failed to load", async () => {
-    updateAtlasConfig.mockImplementation(async (patch: Partial<AppSettings>) => ({
-      kind: "applied",
-      settings: fromRust({ ...useSettingsStore.getState().settings, ...patch }),
-      generation: 2,
-    }));
-    const legacy = { ...DEFAULT_SETTINGS, terminalNotifyNative: false };
-    useSettingsStore.getState().actions.hydrate({
-      settings: legacy,
-      configGeneration: 1,
-      configStatus: { status: "usingDefaults", error: "bad toml" },
-    });
-    expect(updateAtlasConfig).not.toHaveBeenCalled();
-
-    useSettingsStore.getState().actions.hydrate({ settings: legacy, configGeneration: 1 });
-    expect(updateAtlasConfig).toHaveBeenCalledTimes(1);
-    expect(updateAtlasConfig.mock.calls[0]?.[0]).toMatchObject({
-      notifyNeedsYouNative: false,
-      notificationsMigrated: true,
-    });
-    await vi.waitFor(() =>
-      expect(useSettingsStore.getState().settings.notificationsMigrated).toBe(true),
-    );
-  });
 });
 
 describe("settings side effects", () => {
@@ -171,13 +142,11 @@ describe("telemetry side effect", () => {
       settings: {
         ...DEFAULT_SETTINGS,
         shareTelemetry: false,
-        notificationsMigrated: true,
-        notifyKindsMigrated: true,
       },
       configGeneration: 1,
     });
     configChanged?.({
-      settings: { ...DEFAULT_SETTINGS, notificationsMigrated: true, notifyKindsMigrated: true },
+      settings: { ...DEFAULT_SETTINGS },
       generation: 2,
     });
     await vi.waitFor(() => expect(setTelemetryEnabled).toHaveBeenLastCalledWith(true));

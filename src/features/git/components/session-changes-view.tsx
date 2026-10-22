@@ -5,6 +5,7 @@ import { useSessionFiles } from "@/features/chat/lib/session-files";
 import { parseDiff } from "../lib/diff";
 import { useDiffJump } from "../lib/diff-jump";
 import { DiffFilesView } from "./commit-view";
+import { useSettingsStore } from "@/features/settings/stores/settings-store";
 
 /**
  * What a thread has changed, as the commit tab shows a commit: every file the
@@ -26,6 +27,8 @@ export function SessionChangesView({
   sessionId: string;
 }) {
   const recorded = useSessionFiles(projectPath, sessionId);
+  // `diffIgnoreWhitespace`: this view is only read, never staged from.
+  const ignoreWhitespace = useSettingsStore((s) => s.settings.diffIgnoreWhitespace);
   const paths = useMemo(() => recorded.filter((f) => !f.outOfRepo).map((f) => f.path), [recorded]);
   // The record refreshes after every turn; its per-file counts move when an
   // edit lands, which is when the diff is worth re-reading.
@@ -34,10 +37,14 @@ export function SessionChangesView({
     [recorded],
   );
   const { data: diff, isLoading } = useQuery({
-    queryKey: ["session-diff", projectPath, sessionId, version],
+    queryKey: ["session-diff", projectPath, sessionId, version, ignoreWhitespace],
     queryFn: async () =>
       // An unmocked command resolves null in the browser harness.
-      (await invoke<string | null>("git_diff_paths", { path: projectPath, files: paths })) ?? "",
+      (await invoke<string | null>("git_diff_paths", {
+        path: projectPath,
+        files: paths,
+        ignoreWhitespace,
+      })) ?? "",
     enabled: paths.length > 0,
     placeholderData: keepPreviousData,
   });

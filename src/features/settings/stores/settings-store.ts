@@ -1,6 +1,10 @@
 import { create } from "zustand";
 import { createSelectors } from "@/lib/create-selectors";
 import { applyUiScale } from "@/features/settings/lib/ui-scale";
+import {
+  applyDisplaySettings,
+  displaySettingsChanged,
+} from "@/features/settings/lib/display-settings";
 import { applyConfiguredTheme } from "@/features/theme/stores/theme-store";
 import { appearanceForMode, getActiveTheme } from "@/features/theme/apply-theme";
 import { THEME_APPLIED_EVENT } from "@/features/theme/theme-values";
@@ -14,10 +18,6 @@ import {
   type SettingsPatch,
 } from "@/features/settings/lib/atlas-config-api";
 import { DEFAULT_SETTINGS, type AppSettings } from "@/features/settings/lib/app-settings";
-import {
-  migrateNotificationSettings,
-  readLegacyAgentPrefs,
-} from "@/features/settings/lib/notification-settings-migration";
 
 // Re-exported because most of the app reaches for `AppSettings` through the
 // store it reads settings from; the definition itself lives one directory over
@@ -115,6 +115,7 @@ function applySettingsSideEffects(next: AppSettings, previous: AppSettings): voi
     );
   }
   if (next.uiScale !== previous.uiScale) applyUiScale(next.uiScale);
+  if (displaySettingsChanged(next, previous)) applyDisplaySettings(next);
   if (
     next.theme !== previous.theme ||
     next.themeMode !== previous.themeMode ||
@@ -250,21 +251,13 @@ export const useSettingsStore = createSelectors(
         // Re-apply the persisted interface zoom (needs the Tauri WebView API,
         // so it can only run here, not in the pre-mount boot path).
         applyUiScale(settings.uiScale);
+        applyDisplaySettings(settings);
         // Resolve and apply the one persisted theme across chrome, editor,
         // terminal, diffs and syntax variables.
         applyConfiguredTheme(settings.theme, settings.themeMode, settings.themeOverrides);
         // The icon catalog is only listed here; no icon is fetched until a
         // row asks for one (decision 12).
         applyIcons(settings.iconTheme, settings.themeMode);
-
-        // Fold the pre-tier terminal + agent notification choices into the
-        // tier settings, once (the flag it sets is persisted with the patch).
-        // Not while the file is unreadable: those are defaults, not choices.
-        const migration =
-          !payload.configStatus || payload.configStatus.status === "ok"
-            ? migrateNotificationSettings(settings, readLegacyAgentPrefs())
-            : null;
-        if (migration) get().actions.updateSettings(migration);
       },
     },
   })),
@@ -283,12 +276,16 @@ export const useSettingsStore = createSelectors(
 // (`author-directory.test.ts` via the org directory), where Tauri's `listen`
 // throws on the missing `window` — and `void` turned that into an unhandled
 // rejection that failed the whole run.
+//
+// A `window` without Tauri (a happy-dom test that imports this through the
+// chat store) rejects instead, so the rejection is caught and reported rather
+// than left unhandled, which vitest fails the run on.
 if (typeof window !== "undefined") {
-  void onConfigChanged(({ settings, generation }) => {
+  onConfigChanged(({ settings, generation }) => {
     const previous = useSettingsStore.getState().settings;
     useSettingsStore.setState({ settings, configGeneration: generation, configError: null });
     applySettingsSideEffects(settings, previous);
-  });
+  }).catch(warnNoListener);
 }
 
 // Every theme apply — a settings change, the OS flipping appearance under
@@ -301,10 +298,14 @@ if (typeof window !== "undefined") {
   });
 }
 
+function warnNoListener(error: unknown): void {
+  console.warn("settings: can't listen for config.toml changes", error);
+}
+
 // A malformed external edit (or a write Rust rejected) — `settings` is
 // unchanged, this is purely "tell the user".
 if (typeof window !== "undefined") {
-  void onConfigError((error) => {
+  onConfigError((error) => {
     useSettingsStore.setState({ configError: error });
-  });
+  }).catch(warnNoListener);
 }

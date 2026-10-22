@@ -3,6 +3,7 @@
 // speaker grouping, DM titles) stay testable without a socket.
 
 import type { ChatConversation, ChatReaction, CommsMessage, OrgMemberProfile } from "../types";
+import { formatTime, timeFormat } from "@/lib/format-time";
 
 /** The server sends reaction ROWS and no aggregate; this is where counts come
  *  from. Ordered by first appearance so the chips don't reshuffle on a change. */
@@ -104,19 +105,18 @@ export function formatDayDivider(at: number): string {
 
 /** Intl is measurably the cost of a transcript render (~2 calls per row), and
  *  a timestamp's formatting never changes — cache it. Bounded FIFO. */
-const clockCache = new Map<number, string>();
+const clockCache = new Map<string, string>();
 export function formatClock(at: number): string {
-  const hit = clockCache.get(at);
+  // Keyed by the clock too, so switching `timeFormat` misses the cache.
+  const key = `${timeFormat()}|${at}`;
+  const hit = clockCache.get(key);
   if (hit) return hit;
-  const formatted = new Date(at).toLocaleTimeString(undefined, {
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  const formatted = formatTime(at);
   if (clockCache.size >= 1024) {
     const oldest = clockCache.keys().next().value;
     if (oldest !== undefined) clockCache.delete(oldest);
   }
-  clockCache.set(at, formatted);
+  clockCache.set(key, formatted);
   return formatted;
 }
 

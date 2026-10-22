@@ -1243,7 +1243,7 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
           ref={rootRef}
           className="h-full overflow-hidden rounded-lg bg-[var(--background)] shadow-lg ring-1 ring-[var(--border)]"
         >
-          <div className="mx-auto w-full max-w-[760px] pt-[46px]">
+          <div className="mx-auto w-full max-w-(--atlas-chat-column) pt-[46px]">
             <PanelSkeleton rows={6} />
           </div>
         </div>
@@ -1604,7 +1604,7 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
                     attached to the thread it describes. Unchanged when the
                     rail is closed: 760 is what `Column` was already giving
                     the rows. */}
-                <div className="relative flex min-h-0 w-full min-w-0 max-w-[760px] flex-1 flex-col">
+                <div className="relative flex min-h-0 w-full min-w-0 max-w-(--atlas-chat-column) flex-1 flex-col">
                   <Suspense fallback={<LoadingTranscriptState />}>
                     <Transcript
                       ref={messagesListRef}
@@ -1868,7 +1868,7 @@ function LoadingTranscriptState() {
   // historical chat reads as "loading messages" instead of a blank spinner.
   return (
     <div className="h-full overflow-hidden">
-      <div className="mx-auto w-full max-w-[760px]">
+      <div className="mx-auto w-full max-w-(--atlas-chat-column)">
         <PanelSkeleton rows={6} />
       </div>
     </div>

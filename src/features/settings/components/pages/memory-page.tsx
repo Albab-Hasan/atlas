@@ -34,6 +34,7 @@ export function MemoryPage() {
 
   return (
     <SettingsPage
+      scopeable
       title="Memory"
       description="Shared memory across agents, and instructions mirrored for them."
     >

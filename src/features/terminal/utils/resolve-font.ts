@@ -95,16 +95,18 @@ async function loadAndVerifyFont(fontName: string, fontSize: number): Promise<bo
  * family always carries the native + generic fallback so metrics are stable
  * and rendering is identical between dev and a shipped build.
  */
-export async function resolveTerminalFont(fontSize: number): Promise<string> {
+export async function resolveTerminalFont(fontSize: number, userFont = ""): Promise<string> {
   try {
     await document.fonts.ready;
   } catch {
     // Older WebViews may not expose the font-loading API — fall through.
   }
+  // The user's `codeFontFamily` leads when set; the same probe applies to it.
+  const requested = userFont.trim() || TERMINAL_PRIMARY_FONT;
   // Probe the first concrete primary; success just means we keep it leading.
-  const primary = splitFontFamilyList(TERMINAL_PRIMARY_FONT)[0] ?? MAC_FALLBACK;
+  const primary = splitFontFamilyList(requested)[0] ?? MAC_FALLBACK;
   const loaded = await loadAndVerifyFont(primary, fontSize);
   return loaded
-    ? buildTerminalFontFamily(TERMINAL_PRIMARY_FONT)
+    ? buildTerminalFontFamily(requested)
     : buildTerminalFontFamily(getPlatformFallback());
 }

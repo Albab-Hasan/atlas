@@ -819,12 +819,12 @@ pub fn install_manager(app: &AppHandle) {
         )));
         app.manage(ui_bridge.clone());
         // The user's "Let Atlas Agent navigate the app" setting, read on every
-        // offer and every call so switching it off stops the agent at once.
+        // offer and every call so switching it off stops the agent at once —
+        // as the session's project sets it, since a project can override it.
         let nav_app = app.clone();
-        let navigation: super::ui_server::NavigationGate = Arc::new(move || {
-            nav_app
-                .try_state::<crate::state::AtlasConfigHandle>()
-                .is_some_and(|config| config.lock().effective().agent_ui_navigation)
+        let navigation: super::ui_server::NavigationGate = Arc::new(move |cwd: &str| {
+            super::project_settings::effective_settings_for(&nav_app, std::path::Path::new(cwd))
+                .is_some_and(|settings| settings.agent_ui_navigation)
         });
         let ui_router = super::ui_server::router(super::ui_server::UiTools::new(
             ui_bridge.clone(),
@@ -836,10 +836,9 @@ pub fn install_manager(app: &AppHandle) {
         // organisation", is read on every offer and every call, like the
         // navigation one.
         let org_app = app.clone();
-        let org_access: super::org_server::OrgAccessGate = Arc::new(move || {
-            org_app
-                .try_state::<crate::state::AtlasConfigHandle>()
-                .is_some_and(|config| config.lock().effective().agent_org_access)
+        let org_access: super::org_server::OrgAccessGate = Arc::new(move |cwd: &str| {
+            super::project_settings::effective_settings_for(&org_app, std::path::Path::new(cwd))
+                .is_some_and(|settings| settings.agent_org_access)
         });
         // Every call is audited: its record goes to the window, which writes
         // the call's Logs row.
@@ -867,10 +866,9 @@ pub fn install_manager(app: &AppHandle) {
         // setting is read on every offer and every call, like the two
         // above; the shared-memory toggle does not gate it.
         let code_app = app.clone();
-        let code_tools: super::code_server::CodeToolsGate = Arc::new(move || {
-            code_app
-                .try_state::<crate::state::AtlasConfigHandle>()
-                .is_some_and(|config| config.lock().effective().agent_code_tools)
+        let code_tools: super::code_server::CodeToolsGate = Arc::new(move |cwd: &str| {
+            super::project_settings::effective_settings_for(&code_app, std::path::Path::new(cwd))
+                .is_some_and(|settings| settings.agent_code_tools)
         });
         // The code index (Phase 2) serves the symbol tools and names grep
         // hits by their enclosing symbol; it is managed in `setup` before

@@ -43,6 +43,13 @@ const CSS_VAR_ALLOWLIST: Record<string, string> = {
   "--atlas-pulse-color": "component-local animation colour",
   "--atlas-ants-color": "component-local animation colour",
   "--atlas-beam-travel": "component-local animation distance",
+  // Set on <html> by `features/settings/lib/display-settings.ts` from the
+  // user's settings; the two fonts only when set, so every reader carries its
+  // own fallback.
+  "--atlas-ui-font": "the user's uiFontFamily, set at runtime",
+  "--atlas-code-font": "the user's codeFontFamily, set at runtime",
+  "--atlas-editor-font-size": "the user's editorFontSize, set at runtime",
+  "--atlas-terminal-font-size": "the user's terminalFontSize, set at runtime",
 };
 
 describe("CSS custom properties", () => {

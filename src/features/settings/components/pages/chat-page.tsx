@@ -10,7 +10,22 @@ import {
   SettingsRow,
   SettingsSection,
 } from "../layout/settings-layout";
+import { Select } from "@/ui/select";
+import { NATIVE_AGENT_ID } from "@/types/agent";
+import { useAgentRegistryStore } from "@/features/agents/stores/agent-registry-store";
 import { SettingSelect, SettingSwitch } from "../layout/setting-controls";
+import { useScopedSetting } from "../../lib/use-scoped-setting";
+
+const CHAT_WIDTHS = [
+  { value: "normal", label: "Normal", description: "760 pixels, the easiest line length to read." },
+  { value: "wide", label: "Wide", description: "1080 pixels." },
+  { value: "full", label: "Full", description: "The whole panel." },
+] as const;
+
+const SIDEBAR_SORTS = [
+  { value: "recent", label: "Latest activity" },
+  { value: "created", label: "Date started" },
+] as const;
 
 const SWITCH_OPTIONS = [
   {
@@ -36,9 +51,34 @@ export function ChatPage() {
 
   return (
     <SettingsPage
+      scopeable
       title="Chat"
-      description="The composer, switching agents, and what Atlas Agent may do."
+      description="New chats, the composer, layout, switching agents, and what Atlas Agent may do."
     >
+      <SettingsSection title="New chats">
+        <SettingsGroup>
+          <SettingsRow
+            setting="defaultAgent"
+            description="The agent a new chat starts with. Until it's installed, chats start with Atlas Agent."
+            control={<DefaultAgentSelect />}
+          />
+        </SettingsGroup>
+      </SettingsSection>
+
+      <SettingsSection title="Layout">
+        <SettingsGroup>
+          <SettingsRow
+            setting="chatWidth"
+            control={<SettingSelect setting="chatWidth" options={CHAT_WIDTHS} />}
+          />
+          <SettingsRow setting="chatCodeWrap" control={<SettingSwitch setting="chatCodeWrap" />} />
+          <SettingsRow
+            setting="sidebarSort"
+            control={<SettingSelect setting="sidebarSort" options={SIDEBAR_SORTS} />}
+          />
+        </SettingsGroup>
+      </SettingsSection>
+
       <SettingsSection title="Composer">
         <SettingsGroup>
           <SettingsRow setting="enterToSend" control={<SettingSwitch setting="enterToSend" />} />
@@ -129,6 +169,33 @@ export function ChatPage() {
         </SettingsGroup>
       </SettingsSection>
     </SettingsPage>
+  );
+}
+
+/** Atlas Agent and every installed agent. A saved id that is no longer
+ *  installed stays listed, marked, so the select still shows what the file says. */
+function DefaultAgentSelect() {
+  const scoped = useScopedSetting("defaultAgent");
+  // The primitive signature, not the arrays: see the store's header.
+  useAgentRegistryStore((s) => s.signature);
+  const catalog = useAgentRegistryStore.getState().catalog;
+  const options = [
+    { value: NATIVE_AGENT_ID, label: "Atlas Agent" },
+    ...catalog
+      .filter((entry) => entry.installed && entry.agentType !== NATIVE_AGENT_ID)
+      .map((entry) => ({ value: entry.agentType, label: entry.name })),
+  ];
+  if (!options.some((option) => option.value === scoped.value)) {
+    options.push({ value: scoped.value, label: `${scoped.value} (not installed)` });
+  }
+  return (
+    <Select
+      value={scoped.value}
+      options={options}
+      disabled={scoped.globalOnly}
+      aria-label="New chats: Default agent"
+      onValueChange={(next) => scoped.set(next)}
+    />
   );
 }
 

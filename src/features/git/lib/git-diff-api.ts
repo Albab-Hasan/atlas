@@ -4,6 +4,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { QueryClient } from "@tanstack/react-query";
 import { useLayoutStore } from "@/features/layout/stores/layout-store";
+import { useSettingsStore } from "@/features/settings/stores/settings-store";
 
 export type DiffLineKind = "context" | "added" | "removed" | "changed";
 
@@ -65,7 +66,20 @@ export function diffQueryKey(
     // Part of the key: two turns editing the same path must not share an entry,
     // and they differ only by their text.
     textSource ? `${textSource.old.length}:${textSource.new.length}` : null,
+    // And the setting, so switching it refetches rather than serving the other.
+    hideWhitespace(),
   ] as const;
+}
+
+/**
+ * `diffIgnoreWhitespace`, for the diffs that are only read: this file's, a
+ * commit's, a chat's. Never for a diff that can be staged from (Source
+ * Control's changes list), since a patch without the whitespace no longer
+ * applies. A view that uses it subscribes to the setting, so it re-renders,
+ * and so re-keys, when it changes.
+ */
+export function hideWhitespace(): boolean {
+  return useSettingsStore.getState().settings.diffIgnoreWhitespace;
 }
 
 /** Warm the cache for a text-sourced diff, so the viewer mounts onto data. */
@@ -95,6 +109,7 @@ export function gitDiffStructured(
     file,
     staged,
     commit: commit ?? null,
+    ignoreWhitespace: hideWhitespace(),
   });
 }
 
@@ -115,7 +130,12 @@ export function diffStructuredText(
   newText: string,
   file: string,
 ): Promise<FileDiff> {
-  return invoke<FileDiff>("diff_structured_text", { oldText, newText, file });
+  return invoke<FileDiff>("diff_structured_text", {
+    oldText,
+    newText,
+    file,
+    ignoreWhitespace: hideWhitespace(),
+  });
 }
 
 export interface CommitFile {

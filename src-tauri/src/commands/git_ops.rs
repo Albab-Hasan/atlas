@@ -1087,7 +1087,11 @@ pub async fn git_delete_tag(
 // ── Commit detail (history view) ─────────────────────────────────────────
 
 #[tauri::command]
-pub async fn git_show(path: String, sha: String) -> Result<CommitDetail, GitErrorPayload> {
+pub async fn git_show(
+    path: String,
+    sha: String,
+    ignore_whitespace: Option<bool>,
+) -> Result<CommitDetail, GitErrorPayload> {
     tokio::task::spawn_blocking(move || {
         let fmt = format!("%H{US}%h{US}%an{US}%ae{US}%ad{US}%s{US}%b");
         let meta = git_out(
@@ -1105,17 +1109,13 @@ pub async fn git_show(path: String, sha: String) -> Result<CommitDetail, GitErro
         // shows a merge as what it brought into its branch — the default is a
         // combined `diff --cc`, which is empty for a clean merge and not a
         // unified diff the viewer can read. No effect on ordinary commits.
-        let diff = git_out(
-            &path,
-            &[
-                "show",
-                "--no-color",
-                "--format=",
-                "-m",
-                "--first-parent",
-                &sha,
-            ],
-        )?;
+        // `-w`: `diffIgnoreWhitespace`. A commit is only ever read here.
+        let mut args = vec!["show", "--no-color", "--format=", "-m", "--first-parent"];
+        if ignore_whitespace.unwrap_or(false) {
+            args.push("-w");
+        }
+        args.push(&sha);
+        let diff = git_out(&path, &args)?;
         Ok(CommitDetail {
             hash: p.first().copied().unwrap_or("").to_string(),
             short_hash: p.get(1).copied().unwrap_or("").to_string(),

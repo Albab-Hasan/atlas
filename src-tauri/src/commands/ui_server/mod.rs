@@ -65,7 +65,9 @@ pub fn action_event(request: &UiRequest) -> &'static str {
 /// Whether the user lets Atlas Agent act on the window (Settings → General →
 /// "Let Atlas Agent navigate the app"). Checked when a session is offered the
 /// server and on every call, so switching it off stops the agent at once.
-pub type NavigationGate = Arc<dyn Fn() -> bool + Send + Sync>;
+/// Given the session's launch directory: the setting can be overridden per
+/// project.
+pub type NavigationGate = Arc<dyn Fn(&str) -> bool + Send + Sync>;
 
 /// The window's answer to one UI action. An id nobody is waiting on — already
 /// answered, timed out, or never issued — is a harmless no-op.

@@ -32,7 +32,7 @@ fn sharing(on: bool) -> SharingGate {
 }
 
 fn enabled(on: bool) -> CodeToolsGate {
-    Arc::new(move || on)
+    Arc::new(move |_: &str| on)
 }
 
 /// A project directory holding `files` (relative path, text).

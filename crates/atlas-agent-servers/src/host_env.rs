@@ -312,8 +312,12 @@ mod probe_tests {
             &format!("echo $$ > '{}'\nexec sleep 30", pid_file.display()),
         );
 
+        // Long enough for the fake shell to start and record its pid first:
+        // macOS scans a freshly written executable on its first launch, which
+        // alone took ~330ms on a dev Mac — past the 300ms this used to allow,
+        // so the shell was killed before it wrote the pid file.
         let started = std::time::Instant::now();
-        let out = probe_shell(&shell, "ignored", std::time::Duration::from_millis(300));
+        let out = probe_shell(&shell, "ignored", std::time::Duration::from_secs(2));
         assert!(out.is_none(), "an expired probe reports nothing");
         assert!(
             started.elapsed() < std::time::Duration::from_secs(5),

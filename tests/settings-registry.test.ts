@@ -93,18 +93,6 @@ describe("the generated settings registry", () => {
     }
   });
 
-  it("marks the keys nothing reads any more as legacy, and says so in the file", () => {
-    const legacy = source.settings.filter((setting) => setting.status === "legacy");
-    expect(legacy.map((setting) => setting.key)).toEqual([
-      "terminalNotifications",
-      "terminalNotifyOnFailure",
-      "terminalNotifyOnAttention",
-      "terminalNotifyNative",
-      "terminalNotifySound",
-    ]);
-    for (const setting of legacy) expect(configComment(setting), setting.key).toMatch(/Legacy/);
-  });
-
   it("rejects a registry entry that would generate something wrong", () => {
     const base = read("src-tauri/settings-registry.toml");
     const broken = base.replace(

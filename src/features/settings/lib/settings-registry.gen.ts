@@ -159,35 +159,10 @@ export interface AppSettings {
    */
   atlasOnlyMemory: boolean;
   /**
-   * Legacy: superseded by notifyDisabledKinds. Read once by the notification migration and
-   * ignored after; safe to delete once notificationsMigrated is true.
-   */
-  terminalNotifications: boolean;
-  /**
    * A successful command shorter than this many milliseconds never notifies. Must be between 0
    * and 3600000.
    */
   terminalNotifyMinDurationMs: number;
-  /**
-   * Legacy: superseded by notifyDisabledKinds. Read once by the notification migration and
-   * ignored after; safe to delete once notificationsMigrated is true.
-   */
-  terminalNotifyOnFailure: boolean;
-  /**
-   * Legacy: superseded by notifyDisabledKinds. Read once by the notification migration and
-   * ignored after; safe to delete once notificationsMigrated is true.
-   */
-  terminalNotifyOnAttention: boolean;
-  /**
-   * Legacy: superseded by the notify*Native keys. Read once by the notification migration and
-   * ignored after; safe to delete once notificationsMigrated is true.
-   */
-  terminalNotifyNative: boolean;
-  /**
-   * Legacy: superseded by the notify*Sound keys. Read once by the notification migration and
-   * ignored after; safe to delete once notificationsMigrated is true.
-   */
-  terminalNotifySound: boolean;
   /**
    * Notifications master switch. Off silences every notification except sign-in problems, which
    * always show.
@@ -221,21 +196,11 @@ export interface AppSettings {
    */
   notifyPermissionActions: boolean;
   /**
-   * Set once Atlas has folded your earlier terminal and agent notification choices into the
-   * keys above. Leave it alone.
-   */
-  notificationsMigrated: boolean;
-  /**
    * Notification kinds you switched off in Settings > Notifications, by id, e.g.
    * ["terminal-done", "git-behind"]. Unknown ids are ignored; a kind that must always show
    * (sign-in lost) cannot be silenced.
    */
   notifyDisabledKinds: string[];
-  /**
-   * Set once Atlas has folded your earlier per-kind notification switches into
-   * notifyDisabledKinds. Leave it alone.
-   */
-  notifyKindsMigrated: boolean;
   /**
    * An agent turn that finished faster than this many milliseconds stays quiet; failures and
    * requests for you are never held back. 0 turns it off. Must be between 0 and 3600000.
@@ -247,6 +212,77 @@ export interface AppSettings {
    * ignored.
    */
   favoriteModels: string[];
+  /**
+   * Ask before deleting a chat from the sidebar or the history. A deleted chat's transcript
+   * stays with its agent, but Atlas forgets the chat. Archiving never asks, because it can be
+   * undone.
+   */
+  confirmDeleteChat: boolean;
+  /**
+   * Ask before quitting while an agent is in the middle of a turn, since quitting stops it.
+   * Quitting again while the question is open quits anyway.
+   */
+  confirmQuitWhileRunning: boolean;
+  /**
+   * The agent a new chat starts with: "atlas-agent" for Atlas Agent, or the id of an installed
+   * ACP agent, such as "claude-code". An agent that isn't installed falls back to Atlas Agent.
+   */
+  defaultAgent: string;
+  /**
+   * How wide the conversation and the composer may grow: "normal" (760 pixels), "wide" (1080
+   * pixels) or "full" (the whole panel).
+   */
+  chatWidth: "normal" | "wide" | "full";
+  /** Wrap long lines in a chat's code blocks. Off: they keep their lines and scroll sideways. */
+  chatCodeWrap: boolean;
+  /**
+   * The order of chats in the sidebar: "recent" puts the chat with the latest activity first,
+   * "created" the one started most recently.
+   */
+  sidebarSort: "recent" | "created";
+  /**
+   * The clock for every time of day Atlas shows: "12h", "24h", or "system" to follow your
+   * system's region settings.
+   */
+  timeFormat: "system" | "12h" | "24h";
+  /**
+   * The font for Atlas's interface and chats, as a CSS font-family list such as "Inter,
+   * sans-serif". Empty uses the system font. A font that isn't installed falls through to the
+   * next one in the list.
+   */
+  uiFontFamily: string;
+  /**
+   * The font for the editor, the terminal and code in chats, as a CSS font-family list such as
+   * "JetBrains Mono, monospace". Empty uses Atlas's default monospace fonts.
+   */
+  codeFontFamily: string;
+  /**
+   * The code editor's font size, in pixels. The interface zoom scales it along with everything
+   * else.
+   */
+  editorFontSize: number;
+  /**
+   * The terminal's font size, in pixels. The interface zoom scales it along with everything
+   * else.
+   */
+  terminalFontSize: number;
+  /**
+   * Leave out changes that are only whitespace in diffs you read: a file's diff, a commit, and
+   * a chat's changes. Diffs you stage from always show every change, since a patch without the
+   * whitespace no longer applies.
+   */
+  diffIgnoreWhitespace: boolean;
+  /**
+   * Open a diff of several files, such as a commit or your changes, with each file collapsed to
+   * its header. Off: every file starts expanded.
+   */
+  diffFilesCollapsed: boolean;
+  /**
+   * The colours for added and removed lines: "theme" uses the theme's green and red,
+   * "blue-orange" uses its blue and orange, which stay distinct with red-green colour
+   * blindness.
+   */
+  diffPalette: "theme" | "blue-orange";
 }
 
 export type SettingKey = keyof AppSettings;
@@ -281,12 +317,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   memoryDreams: false,
   memoryRepoMirror: false,
   atlasOnlyMemory: true,
-  terminalNotifications: true,
   terminalNotifyMinDurationMs: 10000,
-  terminalNotifyOnFailure: true,
-  terminalNotifyOnAttention: true,
-  terminalNotifyNative: true,
-  terminalNotifySound: false,
   notificationsEnabled: true,
   notifyNeedsYouNative: true,
   notifyNeedsYouSound: true,
@@ -297,11 +328,23 @@ export const DEFAULT_SETTINGS: AppSettings = {
   notifyTeamNative: true,
   notifyTeamSound: true,
   notifyPermissionActions: true,
-  notificationsMigrated: false,
   notifyDisabledKinds: [],
-  notifyKindsMigrated: false,
   notifyAgentMinDurationMs: 0,
   favoriteModels: [],
+  confirmDeleteChat: true,
+  confirmQuitWhileRunning: true,
+  defaultAgent: "atlas-agent",
+  chatWidth: "normal",
+  chatCodeWrap: true,
+  sidebarSort: "recent",
+  timeFormat: "system",
+  uiFontFamily: "",
+  codeFontFamily: "",
+  editorFontSize: 13,
+  terminalFontSize: 13,
+  diffIgnoreWhitespace: false,
+  diffFilesCollapsed: false,
+  diffPalette: "theme",
 };
 
 export type SettingType =
@@ -316,16 +359,16 @@ export type SettingType =
 
 /**
  * Where a setting is changed: a Settings row (`live`), another part of the app
- * (`elsewhere`), only by editing the file (`file-only`), by Atlas itself
- * (`internal`), or nowhere any more (`legacy`).
+ * (`elsewhere`), only by editing the file (`file-only`),
+ * or by Atlas itself (`internal`).
  */
-export type SettingStatus = "live" | "elsewhere" | "file-only" | "internal" | "legacy";
+export type SettingStatus = "live" | "elsewhere" | "file-only" | "internal";
 
 export const SETTINGS_PAGES = [
   {
     id: "general",
     title: "General",
-    description: "Interface, the app icon, and how Atlas treats your project's files.",
+    description: "Interface, fonts, confirmations, and how Atlas treats your project's files.",
   },
   {
     id: "appearance",
@@ -340,7 +383,7 @@ export const SETTINGS_PAGES = [
   {
     id: "chat",
     title: "Chat",
-    description: "The composer, switching agents, and what Atlas Agent may do.",
+    description: "New chats, the composer, layout, switching agents, and what Atlas Agent may do.",
   },
   {
     id: "memory",
@@ -355,7 +398,7 @@ export const SETTINGS_PAGES = [
   {
     id: "source-control",
     title: "Source Control",
-    description: "Git in the editor and in the background.",
+    description: "Git in the editor, diffs, and in the background.",
   },
   {
     id: "privacy",
@@ -387,6 +430,9 @@ export interface SettingMeta {
   applies?: string;
   /** For `elsewhere`: where in the app it is changed. */
   setIn?: string;
+  /** A project's `.atlas/config.toml` can override it — `"tighten"`: only
+   *  turn it off. */
+  project?: true | "tighten";
 }
 
 export const SETTINGS_REGISTRY: readonly SettingMeta[] = [
@@ -543,6 +589,7 @@ export const SETTINGS_REGISTRY: readonly SettingMeta[] = [
     section: "Editor",
     title: "Inline Git blame",
     summary: "Show who last changed the current line, and when, at the end of the line.",
+    project: true,
   },
   {
     key: "gitAutoFetch",
@@ -553,6 +600,7 @@ export const SETTINGS_REGISTRY: readonly SettingMeta[] = [
     title: "Auto-fetch from remote",
     summary:
       "Quietly fetch the open project so the Pull badge shows what the remote has. Never pulls.",
+    project: "tighten",
   },
   {
     key: "keepAwakeWhileRunning",
@@ -620,6 +668,7 @@ export const SETTINGS_REGISTRY: readonly SettingMeta[] = [
     title: "Let Atlas Agent navigate the app",
     summary:
       "Open files at a line, switch tabs and panels, and fill in a message or command for you.",
+    project: "tighten",
   },
   {
     key: "agentOrgAccess",
@@ -629,6 +678,7 @@ export const SETTINGS_REGISTRY: readonly SettingMeta[] = [
     section: "Atlas Agent permissions",
     title: "Let Atlas Agent act in your organization",
     summary: "Read your organization's sessions, comments and conversations, and act there as you.",
+    project: "tighten",
   },
   {
     key: "agentCodeTools",
@@ -639,6 +689,7 @@ export const SETTINGS_REGISTRY: readonly SettingMeta[] = [
     title: "Let agents search code with Atlas",
     summary:
       "Give agents Atlas's in-process grep and find-files, which respect .gitignore and skip secrets.",
+    project: "tighten",
   },
   {
     key: "memoryDreams",
@@ -649,6 +700,7 @@ export const SETTINGS_REGISTRY: readonly SettingMeta[] = [
     title: "Nightly memory review",
     summary:
       "Once a day, propose changes to shared memory for you to review. Nothing applies without you.",
+    project: "tighten",
   },
   {
     key: "memoryRepoMirror",
@@ -658,6 +710,7 @@ export const SETTINGS_REGISTRY: readonly SettingMeta[] = [
     section: "Shared memory",
     title: "Mirror memory as an Agent Memory Repo",
     summary: "Keep a read-only local git copy of each project's memory, outside the project.",
+    project: "tighten",
   },
   {
     key: "atlasOnlyMemory",
@@ -670,15 +723,6 @@ export const SETTINGS_REGISTRY: readonly SettingMeta[] = [
       "Turn off each agent's own memory so every agent reads and writes the one shared memory.",
   },
   {
-    key: "terminalNotifications",
-    type: "boolean",
-    status: "legacy",
-    page: "notifications",
-    section: "Legacy",
-    title: "Terminal notifications (legacy)",
-    summary: "Superseded by the per-kind switches in Notifications.",
-  },
-  {
     key: "terminalNotifyMinDurationMs",
     type: "integer",
     status: "live",
@@ -689,42 +733,6 @@ export const SETTINGS_REGISTRY: readonly SettingMeta[] = [
       "A terminal command that succeeds faster than this stays quiet. Failures always notify.",
     min: 0,
     max: 3600000,
-  },
-  {
-    key: "terminalNotifyOnFailure",
-    type: "boolean",
-    status: "legacy",
-    page: "notifications",
-    section: "Legacy",
-    title: "Notify on command failure (legacy)",
-    summary: "Superseded by the per-kind switches in Notifications.",
-  },
-  {
-    key: "terminalNotifyOnAttention",
-    type: "boolean",
-    status: "legacy",
-    page: "notifications",
-    section: "Legacy",
-    title: "Notify when a command wants input (legacy)",
-    summary: "Superseded by the per-kind switches in Notifications.",
-  },
-  {
-    key: "terminalNotifyNative",
-    type: "boolean",
-    status: "legacy",
-    page: "notifications",
-    section: "Legacy",
-    title: "Terminal system notifications (legacy)",
-    summary: "Superseded by the per-tier System notification switches.",
-  },
-  {
-    key: "terminalNotifySound",
-    type: "boolean",
-    status: "legacy",
-    page: "notifications",
-    section: "Legacy",
-    title: "Terminal notification sound (legacy)",
-    summary: "Superseded by the per-tier Sound switches.",
   },
   {
     key: "notificationsEnabled",
@@ -818,15 +826,6 @@ export const SETTINGS_REGISTRY: readonly SettingMeta[] = [
       "Show Allow once and Deny on a permission banner, so you can answer without opening Atlas.",
   },
   {
-    key: "notificationsMigrated",
-    type: "boolean",
-    status: "internal",
-    page: "notifications",
-    section: "Legacy",
-    title: "Notification choices migrated",
-    summary: "Set once Atlas has folded earlier notification choices into the current keys.",
-  },
-  {
     key: "notifyDisabledKinds",
     type: "string-list",
     status: "live",
@@ -834,15 +833,6 @@ export const SETTINGS_REGISTRY: readonly SettingMeta[] = [
     section: "Kinds",
     title: "Notification kinds",
     summary: "One switch per kind of notification, from command finished to Git behind.",
-  },
-  {
-    key: "notifyKindsMigrated",
-    type: "boolean",
-    status: "internal",
-    page: "notifications",
-    section: "Legacy",
-    title: "Notification kinds migrated",
-    summary: "Set once Atlas has folded earlier per-kind switches into notifyDisabledKinds.",
   },
   {
     key: "notifyAgentMinDurationMs",
@@ -865,5 +855,140 @@ export const SETTINGS_REGISTRY: readonly SettingMeta[] = [
     title: "Favorite models",
     summary: "Models you starred in the composer's model picker.",
     setIn: "the star in the composer's model picker",
+  },
+  {
+    key: "confirmDeleteChat",
+    type: "boolean",
+    status: "live",
+    page: "general",
+    section: "Confirmations",
+    title: "Confirm before deleting a chat",
+    summary: "Ask first when you delete a chat from the sidebar or history.",
+  },
+  {
+    key: "confirmQuitWhileRunning",
+    type: "boolean",
+    status: "live",
+    page: "general",
+    section: "Confirmations",
+    title: "Confirm before quitting while an agent is running",
+    summary: "Ask first when you quit Atlas with an agent in the middle of a turn.",
+  },
+  {
+    key: "defaultAgent",
+    type: "string",
+    status: "live",
+    page: "chat",
+    section: "New chats",
+    title: "Default agent",
+    summary: "The agent a new chat starts with.",
+    project: true,
+  },
+  {
+    key: "chatWidth",
+    type: "enum",
+    status: "live",
+    page: "chat",
+    section: "Layout",
+    title: "Chat width",
+    summary: "How wide the conversation and the composer may grow.",
+    values: ["normal", "wide", "full"],
+  },
+  {
+    key: "chatCodeWrap",
+    type: "boolean",
+    status: "live",
+    page: "chat",
+    section: "Layout",
+    title: "Wrap code in chat",
+    summary: "Wrap long lines in a chat's code blocks instead of scrolling sideways.",
+  },
+  {
+    key: "sidebarSort",
+    type: "enum",
+    status: "live",
+    page: "chat",
+    section: "Layout",
+    title: "Sort chats by",
+    summary: "Order the sidebar's chats by their latest activity or by when they started.",
+    values: ["recent", "created"],
+  },
+  {
+    key: "timeFormat",
+    type: "enum",
+    status: "live",
+    page: "general",
+    section: "Interface",
+    title: "Time format",
+    summary: "Show times on a 12-hour or 24-hour clock, or as your system does.",
+    values: ["system", "12h", "24h"],
+  },
+  {
+    key: "uiFontFamily",
+    type: "string",
+    status: "live",
+    page: "general",
+    section: "Fonts",
+    title: "Interface font",
+    summary: "The font for Atlas's interface and chats. Empty uses the system font.",
+  },
+  {
+    key: "codeFontFamily",
+    type: "string",
+    status: "live",
+    page: "general",
+    section: "Fonts",
+    title: "Code font",
+    summary: "The font for the editor, the terminal and code in chats. Empty uses the default.",
+  },
+  {
+    key: "editorFontSize",
+    type: "integer",
+    status: "live",
+    page: "general",
+    section: "Fonts",
+    title: "Editor font size",
+    summary: "The code editor's font size, in pixels.",
+    min: 8,
+    max: 32,
+  },
+  {
+    key: "terminalFontSize",
+    type: "integer",
+    status: "live",
+    page: "general",
+    section: "Fonts",
+    title: "Terminal font size",
+    summary: "The terminal's font size, in pixels.",
+    min: 8,
+    max: 32,
+  },
+  {
+    key: "diffIgnoreWhitespace",
+    type: "boolean",
+    status: "live",
+    page: "source-control",
+    section: "Diffs",
+    title: "Hide whitespace changes",
+    summary: "Leave out lines that only changed whitespace when you review a diff.",
+  },
+  {
+    key: "diffFilesCollapsed",
+    type: "boolean",
+    status: "live",
+    page: "source-control",
+    section: "Diffs",
+    title: "Start files collapsed",
+    summary: "Open a diff of several files with each one collapsed to its header.",
+  },
+  {
+    key: "diffPalette",
+    type: "enum",
+    status: "live",
+    page: "source-control",
+    section: "Diffs",
+    title: "Diff colours",
+    summary: "Use the theme's green and red for changes, or blue and orange.",
+    values: ["theme", "blue-orange"],
   },
 ];
