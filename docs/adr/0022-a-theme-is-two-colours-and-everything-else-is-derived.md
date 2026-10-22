@@ -92,7 +92,9 @@ therefore moves slightly, once, in this change.
 
 **What gets pinned:**
 
-- Built-in themes pin what they care about.
+- Built-in themes pin every base token. Each was tuned by hand or ports a published
+  theme, so a rule improving must not repaint it. A built-in
+  may drop a token later, deliberately, to follow the rule instead.
 - Imports pin every token the importer derived. The user previewed the result and
   accepted it, so it must not move under them when a rule improves.
 - A theme made in the creator saves only what the user touched, and accepts that its

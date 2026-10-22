@@ -134,6 +134,11 @@ export function ThemeEditorPanel({
   const [name, setName] = useState(() =>
     editing ? source.name : session.kind === "duplicate" ? `${source.name} copy` : "",
   );
+  // A duplicate is a derivative, so it starts with the source's credit and
+  // licence, which an MIT or Apache theme requires it to keep. A theme made
+  // from seeds is new and starts with neither; both matter once it is shared.
+  const [author, setAuthor] = useState(() => (session.kind === "create" ? "" : source.author));
+  const [license, setLicense] = useState(() => (session.kind === "create" ? "" : source.license));
   const [draft, setDraft] = useState<Draft>(() => initialDraft(session, source));
   const [appearance, setAppearance] = useState<ThemeAppearance>(() =>
     source[session.initialAppearance]
@@ -163,12 +168,12 @@ export function ThemeEditorPanel({
       schema: 1,
       id: "theme-editor-draft",
       name,
-      author: source.author,
-      license: source.license,
+      author,
+      license,
       ...(light ? { light } : {}),
       ...(dark ? { dark } : {}),
     };
-  }, [appearance, draft, name, source.author, source.license]);
+  }, [appearance, draft, name, author, license]);
 
   const resolved = useMemo(() => resolveTheme(draftTheme, appearance), [draftTheme, appearance]);
 
@@ -249,10 +254,8 @@ export function ThemeEditorPanel({
       schema: 1,
       id,
       name: trimmed,
-      // A duplicate is a derivative: it keeps the source's author and licence,
-      // which an MIT or Apache theme requires. A theme made from seeds is new.
-      author: session.kind === "create" ? "" : source.author,
-      license: session.kind === "create" ? "" : source.license,
+      author: author.trim(),
+      license: license.trim(),
       ...(session.kind !== "create" && source.base ? { base: source.base } : {}),
       ...(light ? { light } : {}),
       ...(dark ? { dark } : {}),
@@ -375,6 +378,30 @@ export function ThemeEditorPanel({
                 }}
               />
             </label>
+            <label className="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] items-center gap-3">
+              <span className="text-xs font-medium">Author</span>
+              <Input
+                size="sm"
+                placeholder="Who made it"
+                value={author}
+                onChange={(event) => setAuthor(event.currentTarget.value)}
+              />
+            </label>
+            <label className="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] items-center gap-3">
+              <span className="text-xs font-medium">Licence</span>
+              <Input
+                size="sm"
+                placeholder="e.g. MIT"
+                value={license}
+                onChange={(event) => setLicense(event.currentTarget.value)}
+              />
+            </label>
+            {session.kind === "duplicate" && source.author && (
+              <p className="text-xs text-muted-foreground">
+                If you share it, keep the original credit (“{source.author}”) in Author: most theme
+                licences require it.
+              </p>
+            )}
             {error && (
               <p aria-live="polite" className="text-xs text-error">
                 {error}
