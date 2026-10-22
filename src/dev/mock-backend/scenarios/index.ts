@@ -15,6 +15,8 @@ import {
   requestPermissionPlan,
   requestPermissionQuestion,
   requestPermissionQuestionMulti,
+  sleepMidTurn,
+  sleepMidTurnFailed,
 } from "../fake-agent";
 import {
   chatComments,
@@ -60,6 +62,9 @@ const all: Scenario[] = [
     actions: {
       commsIncomingMessage,
       ...permissionActions,
+      // The computer sleeping under a running turn (`sleep_watch.rs`).
+      sleepMidTurn,
+      sleepMidTurnFailed,
       gitPullPrefersRebase,
       gitPullPrefersMerge,
       gitPullAsks,

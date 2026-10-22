@@ -20,7 +20,7 @@ vi.mock("@tauri-apps/api/event", () => ({
 
 import type { AgentDelta, SessionMessage, ToolCall } from "@/types/agents";
 import type { SwitchableAgent } from "@/types/agent";
-import { useChatStore } from "./chat-store";
+import { SLEEP_NOTICE, sleepFailureText, useChatStore } from "./chat-store";
 
 const TAB = "tab-1";
 const AGENT = "agent-1";
@@ -801,5 +801,96 @@ describe("applyAgentDelta: a whole turn, in wire order", () => {
       }),
     );
     expect(last().toolCalls[0]).toMatchObject({ status: "completed", startedAt });
+  });
+});
+
+describe("applyAgentDelta: slept_mid_turn", () => {
+  // Rust names a turn the computer slept through (`src-tauri/src/sleep_watch.rs`)
+  // ahead of that turn's terminal. The notice belongs after the reply it may
+  // have cut short, not in the middle of it.
+
+  it("holds the notice while the turn runs and closes the turn with it", () => {
+    boundTab();
+    apply(
+      d("status", { status: "running", turn_seq: 1 }),
+      d("text_chunk", { message_id: "a", delta: "half a rep" }),
+      d("slept_mid_turn", { turn_seq: 1, slept_secs: 900 }),
+    );
+    // Nothing in the transcript yet, and later text still joins the reply.
+    expect(messages()).toHaveLength(2);
+    apply(d("text_chunk", { message_id: "a", delta: "ly" }));
+    expect(last().content).toBe("half a reply");
+
+    apply(
+      d("turn_finished", { stop_reason: "end_turn", turn_seq: 1 }),
+      d("status", { status: "idle", turn_seq: 1 }),
+    );
+    expect(messages()).toHaveLength(3);
+    expect(messages()[1].content).toBe("half a reply");
+    expect(last()).toMatchObject({ role: "assistant", content: SLEEP_NOTICE });
+    expect(session().sleptMidTurn).toBeUndefined();
+  });
+
+  it("leads a failure on waking with the sleep, keeping the agent's error", () => {
+    boundTab();
+    apply(
+      d("status", { status: "running", turn_seq: 1 }),
+      d("slept_mid_turn", { turn_seq: 1, slept_secs: 600 }),
+      // The projector sends the error status before the failure itself.
+      d("status", { status: "error", turn_seq: 1 }),
+      d("turn_failed", { error: "error decoding response body", turn_seq: 1 }),
+    );
+    expect(last().content).toBe(sleepFailureText("error decoding response body"));
+    expect(last().content).toContain("error decoding response body");
+    expect(messages().filter((m) => m.content.includes("went to sleep"))).toHaveLength(1);
+    expect(session().status).toBe("error");
+  });
+
+  it("writes a notice that arrives after the turn ended straight in", () => {
+    boundTab();
+    apply(
+      d("status", { status: "running", turn_seq: 1 }),
+      d("text_chunk", { message_id: "a", delta: "done" }),
+      d("turn_finished", { stop_reason: "end_turn", turn_seq: 1 }),
+      d("status", { status: "idle", turn_seq: 1 }),
+      d("slept_mid_turn", { turn_seq: 1, slept_secs: 60 }),
+    );
+    expect(last().content).toBe(SLEEP_NOTICE);
+  });
+
+  it("drops a notice for a superseded turn", () => {
+    boundTab();
+    apply(
+      d("status", { status: "running", turn_seq: 2 }),
+      d("slept_mid_turn", { turn_seq: 1, slept_secs: 60 }),
+    );
+    expect(session().sleptMidTurn).toBeUndefined();
+    expect(messages()).toHaveLength(1);
+  });
+
+  it("a held notice does not outlive its turn into the next one", () => {
+    boundTab();
+    apply(
+      d("status", { status: "running", turn_seq: 1 }),
+      d("slept_mid_turn", { turn_seq: 1, slept_secs: 60 }),
+      // A bare terminal with no turn_finished / turn_failed behind it.
+      d("status", { status: "idle", turn_seq: 1 }),
+    );
+    useChatStore.getState().actions.addMessage(TAB, "user", "next");
+    apply(
+      d("status", { status: "running", turn_seq: 2 }),
+      d("turn_finished", { stop_reason: "end_turn", turn_seq: 2 }),
+    );
+    expect(messages().some((m) => m.content === SLEEP_NOTICE)).toBe(false);
+  });
+
+  it("an agent dying after the sleep still says so", () => {
+    boundTab();
+    apply(
+      d("status", { status: "running", turn_seq: 1 }),
+      d("slept_mid_turn", { turn_seq: 1, slept_secs: 60 }),
+      d("agent_disconnected", { reason: "process died" }),
+    );
+    expect(last().content).toBe(SLEEP_NOTICE);
   });
 });

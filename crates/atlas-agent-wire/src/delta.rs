@@ -184,6 +184,16 @@ pub enum SessionDelta {
         #[serde(skip_serializing_if = "Option::is_none")]
         error_kind: Option<String>,
     },
+    /// The computer slept (lid closed, system sleep) while this session's turn
+    /// was running, so whatever the agent was streaming may have been cut
+    /// off. Emitted by the host on waking, for any agent — it is about the
+    /// machine, not the agent. `turn_seq` is the turn that was in flight
+    /// (0 = untracked/current); `slept_secs` is roughly how long the machine
+    /// was asleep. Additive: old frontends ignore unknown kinds.
+    SleptMidTurn {
+        turn_seq: u64,
+        slept_secs: u64,
+    },
     /// Underlying ACP agent process died.
     AgentDisconnected {
         reason: String,

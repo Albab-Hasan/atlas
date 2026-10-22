@@ -212,6 +212,11 @@ export interface ChatSession {
     /** ms epoch when this retry status arrived (for the countdown). */
     receivedAt: number;
   };
+  /** The computer slept while this turn was running (`slept_mid_turn`). Held
+   *  until the turn ends, then written into the transcript as a notice after
+   *  the reply it may have cut short — so it neither splits the reply nor
+   *  absorbs the text that follows it. `turnSeq` is the turn it belongs to. */
+  sleptMidTurn?: { turnSeq: number };
   /** Ids of tool calls currently pending/running, maintained incrementally on
    *  tool_call_upserted and swept (to undefined) on every terminal — the O(1)
    *  source for `hasInFlightToolCalls`. */

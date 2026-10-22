@@ -82,6 +82,7 @@ fn expected() -> BTreeMap<String, BTreeSet<String>> {
         ("permission_resolved", &["request_id"]),
         ("turn_finished", &["stop_reason", "turn_seq"]),
         ("turn_failed", &["error", "turn_seq", "error_kind"]),
+        ("slept_mid_turn", &["turn_seq", "slept_secs"]),
         ("agent_disconnected", &["reason"]),
     ]
     .into_iter()
@@ -127,6 +128,7 @@ fn contract_kind(delta: &SessionDelta) -> &'static str {
         SessionDelta::PermissionResolved { .. } => "permission_resolved",
         SessionDelta::TurnFinished { .. } => "turn_finished",
         SessionDelta::TurnFailed { .. } => "turn_failed",
+        SessionDelta::SleptMidTurn { .. } => "slept_mid_turn",
         SessionDelta::AgentDisconnected { .. } => "agent_disconnected",
     }
 }
@@ -293,6 +295,10 @@ fn samples() -> Vec<SessionDelta> {
             error: "boom".into(),
             turn_seq: 3,
             error_kind: Some("transient".into()),
+        },
+        SessionDelta::SleptMidTurn {
+            turn_seq: 3,
+            slept_secs: 600,
         },
         SessionDelta::AgentDisconnected {
             reason: "process died".into(),
@@ -546,6 +552,10 @@ fn golden() -> BTreeMap<&'static str, serde_json::Value> {
                 "turn_seq": 3,
                 "error_kind": "transient",
             }),
+        ),
+        (
+            "slept_mid_turn",
+            json!({ "kind": "slept_mid_turn", "turn_seq": 3, "slept_secs": 600 }),
         ),
         (
             "agent_disconnected",

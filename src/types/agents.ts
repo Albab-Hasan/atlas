@@ -391,6 +391,16 @@ export type AgentDelta =
       last_error: string;
     }
   | {
+      /** The computer slept while this turn was running, so the reply may have
+       *  been cut off. Emitted by the host on waking, for any agent. */
+      kind: "slept_mid_turn";
+      agent_id: AgentId;
+      session_id: AcpSessionId;
+      turn_seq: number;
+      /** Roughly how long the machine was asleep. */
+      slept_secs: number;
+    }
+  | {
       kind: "agent_disconnected";
       agent_id: AgentId;
       session_id: AcpSessionId;

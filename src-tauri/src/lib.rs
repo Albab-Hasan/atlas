@@ -7,6 +7,7 @@ mod logging;
 mod menu;
 mod notifier;
 mod open_vsx;
+mod sleep_watch;
 mod state;
 mod telemetry;
 mod window_background;

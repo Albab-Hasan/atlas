@@ -789,6 +789,28 @@ export function stopReasonNotice(stopReason: string): string | null {
   }
 }
 
+/** What a turn the computer slept through ends with, in the same register as
+ *  `stopReasonNotice`: a reply cut off by sleep reads exactly like a finished
+ *  one, so it has to say so. Exported for tests. */
+export const SLEEP_NOTICE =
+  "(your computer went to sleep mid-response — the response above may be incomplete)";
+
+/** A failed turn the computer slept through. The failure on waking is almost
+ *  always the sleep's doing — a dropped stream reports as "connection reset" or
+ *  "error decoding response body", which names nothing the user did — so the
+ *  sleep leads, and the agent's own words follow for anyone diagnosing it.
+ *  Exported for tests. */
+export function sleepFailureText(error: string): string {
+  return `Error: Your computer went to sleep mid-response. The response above may be incomplete. (After waking: ${error})`;
+}
+
+/** Write a held sleep notice (`sleptMidTurn`) into the transcript, if any. */
+function flushSleepNotice(session: ChatSession): void {
+  if (!session.sleptMidTurn) return;
+  session.sleptMidTurn = undefined;
+  session.messages.push(makeAssistantTextMessage(SLEEP_NOTICE));
+}
+
 export const useChatStore = createSelectors(
   create<ChatState & ChatActions>()(
     immer((set, get) => ({
@@ -2008,6 +2030,11 @@ function applyDeltaToDraft(s: ChatDraft, env: AgentDelta): void {
           session.livePlan = undefined;
           // Start a fresh per-turn files-touched scratch for the adaptive card.
           session.turnScratch = { seq, tools: {} };
+          // A sleep notice still held for an older turn missed its place —
+          // the new user message is already below it.
+          if (session.sleptMidTurn && session.sleptMidTurn.turnSeq < seq) {
+            session.sleptMidTurn = undefined;
+          }
         }
         session.status = env.status;
         return;
@@ -2197,6 +2224,9 @@ function applyDeltaToDraft(s: ChatDraft, env: AgentDelta): void {
         }
         break;
       }
+      // Last, so the reply keeps its footer, summary and chips and the notice
+      // closes the turn.
+      flushSleepNotice(session);
       return;
     }
     case "turn_failed": {
@@ -2215,7 +2245,12 @@ function applyDeltaToDraft(s: ChatDraft, env: AgentDelta): void {
       // in-process and shares this error delta, so its provider errors (e.g. a
       // Gemini HTTP 400) were being mislabeled as ACP failures. Use a neutral
       // prefix.
-      session.messages.push(makeAssistantTextMessage(`Error: ${env.error}`));
+      if (session.sleptMidTurn) {
+        session.sleptMidTurn = undefined;
+        session.messages.push(makeAssistantTextMessage(sleepFailureText(env.error)));
+      } else {
+        session.messages.push(makeAssistantTextMessage(`Error: ${env.error}`));
+      }
       session.status = "error";
       session.stopping = undefined;
       session.retryStatus = undefined;
@@ -2249,6 +2284,20 @@ function applyDeltaToDraft(s: ChatDraft, env: AgentDelta): void {
       session.disconnected = true;
       session.stopping = undefined;
       session.retryStatus = undefined;
+      flushSleepNotice(session);
+      return;
+    }
+    case "slept_mid_turn": {
+      if (isStaleTurn(session, env.turn_seq)) return;
+      // Held while the turn runs, written when it ends (see `sleptMidTurn`).
+      // Rust delivers it ahead of the turn's terminal, but the background tick
+      // can lose that race — then the turn is already over and the notice goes
+      // straight in.
+      if (isBusyAgentStatus(session.status)) {
+        session.sleptMidTurn = { turnSeq: env.turn_seq };
+      } else {
+        session.messages.push(makeAssistantTextMessage(SLEEP_NOTICE));
+      }
       return;
     }
     case "retry_status": {
