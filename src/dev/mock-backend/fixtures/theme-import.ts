@@ -27,6 +27,7 @@ import {
   type ThemeImportPreview,
   type ThemeImportReport,
 } from "@/features/theme/lib/theme-import-api";
+import type { OpenVsxExtension } from "@/lib/open-vsx";
 import type { TypedHandlers } from "../types";
 import importedThemesJson from "./imported-themes.json";
 import { BUILTIN_THEMES } from "./builtin-themes";
@@ -121,6 +122,7 @@ function candidate(theme: Theme, draft: DraftReport): ThemeImportCandidate {
 const SHADCN: ThemeImportPreview = {
   origin: "pasted text",
   format: "shadcn registry item",
+  skipped: [],
   themes: [
     candidate(byId("catppuccin"), {
       format: "shadcn",
@@ -183,6 +185,7 @@ const SHADCN: ThemeImportPreview = {
 const ZED: ThemeImportPreview = {
   origin: "rose-pine.json",
   format: "Zed theme",
+  skipped: [],
   themes: [
     candidate(byId("rose-pine"), {
       format: "zed",
@@ -264,6 +267,7 @@ const ZED: ThemeImportPreview = {
 const VSCODE: ThemeImportPreview = {
   origin: "nocturne-bright.json",
   format: "VS Code color theme",
+  skipped: [],
   themes: [
     candidate(byId("nocturne-bright"), {
       format: "vscode",
@@ -374,6 +378,76 @@ function previewFor(args: { text?: string; url?: string; path?: string }): Theme
   return SHADCN;
 }
 
+/**
+ * Open VSX colour-theme search. The real command checks each hit's manifest
+ * for `contributes.themes`; the fakes are what that leaves, plus one hit whose
+ * download fails, because "the registry did not answer" is the state a
+ * picker most needs to look right in.
+ */
+const COLOR_THEME_HITS: OpenVsxExtension[] = [
+  {
+    id: "GitHub.github-vscode-theme",
+    namespace: "GitHub",
+    name: "github-vscode-theme",
+    displayName: "GitHub Theme",
+    version: "6.3.5",
+    description: "GitHub theme for VS Code",
+    license: "MIT",
+    downloads: 2_100_000,
+    installed: false,
+  },
+  {
+    id: "nocturne.nocturne-theme",
+    namespace: "nocturne",
+    name: "nocturne-theme",
+    displayName: "Nocturne",
+    version: "2.1.0",
+    description: "A dark theme in two weights, one of them a TextMate holdover",
+    license: "MIT",
+    downloads: 48_210,
+    installed: false,
+  },
+  {
+    id: "broken.colours",
+    namespace: "broken",
+    name: "colours",
+    displayName: "Half-Published Colours",
+    version: "0.0.1",
+    description: "Listed, but its .vsix never finished uploading",
+    license: "Unspecified",
+    downloads: 12,
+    installed: false,
+  },
+];
+
+function searchColorThemes(query: string): OpenVsxExtension[] {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return [];
+  if (needle === "offline") {
+    throw new Error(
+      "The Open VSX search failed — Atlas could not reach open-vsx.org. Are you online?",
+    );
+  }
+  return COLOR_THEME_HITS.filter((hit) =>
+    `${hit.displayName} ${hit.id} ${hit.description}`.toLowerCase().includes(needle),
+  );
+}
+
+/** An extension's preview: the converted VS Code fixture, as every theme an
+ *  extension yields would be, with the one it had to skip. */
+function previewExtension(source: { namespace: string; name: string }): ThemeImportPreview {
+  if (source.namespace === "broken") {
+    throw new Error('Open VSX has no downloadable .vsix for "broken.colours".');
+  }
+  return {
+    ...VSCODE,
+    origin: `open-vsx.org/${source.namespace}/${source.name}`,
+    skipped: [
+      "Nocturne Classic: `./themes/classic.tmTheme` is a TextMate theme, which Atlas does not import",
+    ],
+  };
+}
+
 /** Rust labels a preview with where the bytes came from; so does the mock. */
 function originOf(args: { text?: string; url?: string; path?: string }): string {
   if (args.path) return args.path.split("/").pop() ?? args.path;
@@ -481,15 +555,23 @@ function install(toml: string, typedId: string, name: string): CommittedThemeImp
  */
 export interface ThemeImportResponses {
   preview_theme_import: ThemeImportPreview;
+  search_color_themes: OpenVsxExtension[];
   commit_theme_import: CommittedThemeImport;
   export_theme_shadcn: ShadcnExport;
 }
 
 export const themeImportHandlers: TypedHandlers<ThemeImportResponses> = {
   preview_theme_import: ({ input }): ThemeImportPreview => {
-    const args = (input ?? {}) as { text?: string; url?: string; path?: string };
+    const args = (input ?? {}) as {
+      text?: string;
+      url?: string;
+      path?: string;
+      openVsx?: { namespace: string; name: string };
+    };
+    if (args.openVsx) return previewExtension(args.openVsx);
     return { ...previewFor(args), origin: originOf(args) };
   },
+  search_color_themes: ({ query }): OpenVsxExtension[] => searchColorThemes(String(query)),
   commit_theme_import: ({ toml, id, name }): CommittedThemeImport =>
     install(String(toml), String(id), String(name)),
   export_theme_shadcn: ({ id }): ShadcnExport => exportOf(String(id)),

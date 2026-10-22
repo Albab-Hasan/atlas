@@ -610,6 +610,7 @@ pub(crate) fn import(
         name_hint: options.name_hint.clone().or(Some(name)),
         author_hint: options.author_hint.clone(),
         license_hint: options.license_hint.clone(),
+        include_root: None,
     };
     finish_theme(vec![draft], report, &scoped).map(|theme| vec![theme])
 }

@@ -6,6 +6,7 @@ mod logging;
 #[cfg(target_os = "macos")]
 mod menu;
 mod notifier;
+mod open_vsx;
 mod state;
 mod telemetry;
 mod window_background;
@@ -801,6 +802,7 @@ pub fn run() {
             commands::themes::get_theme,
             commands::themes::save_theme,
             commands::theme_import::preview_theme_import,
+            commands::theme_import::search_color_themes,
             commands::theme_import::commit_theme_import,
             commands::theme_import::export_theme_shadcn,
             commands::icon_themes::list_icon_themes,

@@ -12,7 +12,7 @@
  * chosen.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Download, Loader2, Plus, Search, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -28,8 +28,8 @@ import {
   removeIconTheme,
   searchIconThemes,
   MINIMAL_ICON_THEME_ID,
-  type OpenVsxIconTheme,
 } from "@/features/icon-theme/lib/icon-theme-api";
+import type { OpenVsxExtension } from "@/lib/open-vsx";
 import { useSettingsStore } from "../../stores/settings-store";
 import { SettingsSection } from "../layout/settings-layout";
 
@@ -176,7 +176,7 @@ function RemoveButton({ id, name }: { id: string; name: string }) {
 type SearchState =
   | { phase: "idle" }
   | { phase: "searching" }
-  | { phase: "done"; results: OpenVsxIconTheme[] }
+  | { phase: "done"; results: OpenVsxExtension[] }
   | { phase: "failed"; message: string };
 
 function OpenVsxSearch() {
@@ -186,19 +186,28 @@ function OpenVsxSearch() {
   const themes = useIconThemeStore.use.themes();
   const installedIds = useMemo(() => new Set(themes.map((theme) => theme.id)), [themes]);
 
+  // Only the latest search may land: a slow answer to an earlier query must
+  // not replace the results of the one after it.
+  const latest = useRef(0);
+
   const run = () => {
     const trimmed = query.trim();
+    const request = ++latest.current;
     if (!trimmed) {
       setState({ phase: "idle" });
       return;
     }
     setState({ phase: "searching" });
     void searchIconThemes(trimmed)
-      .then((results) => setState({ phase: "done", results }))
-      .catch((reason: unknown) => setState({ phase: "failed", message: String(reason) }));
+      .then((results) => {
+        if (request === latest.current) setState({ phase: "done", results });
+      })
+      .catch((reason: unknown) => {
+        if (request === latest.current) setState({ phase: "failed", message: String(reason) });
+      });
   };
 
-  const install = (hit: OpenVsxIconTheme) => {
+  const install = (hit: OpenVsxExtension) => {
     setInstalling(hit.id);
     void installIconTheme({ namespace: hit.namespace, name: hit.name })
       .then((summary) => toast.success(`Installed “${summary.name}”`))

@@ -473,6 +473,7 @@ fn finish_theme_with_name(
         name_hint: Some(name.to_string()),
         author_hint: Some(author.unwrap_or(family).to_string()),
         license_hint: options.license_hint.clone(),
+        include_root: None,
     };
     finish_theme(drafts, report, &scoped)
 }
