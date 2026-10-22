@@ -64,6 +64,19 @@ export function getTheme(id: string): Promise<Theme> {
   return invoke("get_theme", { id });
 }
 
+/** Where `saveTheme` wrote. */
+export interface SavedTheme {
+  /** The id it was saved under, slugged: what `themeDark`/`themeLight` name. */
+  id: string;
+  path: string;
+}
+
+/** Write a theme from the theme editor to `~/.config/atlas/themes/<id>.toml`.
+ *  It carries only what the author set; the rest derives (ADR-0022). */
+export function saveTheme(theme: Theme): Promise<SavedTheme> {
+  return invoke("save_theme", { theme });
+}
+
 export function onThemesChanged(callback: () => void): Promise<UnlistenFn> {
   return listen(THEMES_CHANGED_EVENT, callback);
 }

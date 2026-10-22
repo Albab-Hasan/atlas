@@ -179,3 +179,58 @@ export function readable(surface: string, a: string, b: string): string {
 export function lighten(value: string, amount: number): string {
   return mix(value, "#ffffff", amount);
 }
+
+// ─── HSV, for the colour picker's plane and hue slider ──────────────────────
+// Ported from T3 Code's `lib/color.ts`. HSV is what a saturation/brightness
+// square is drawn in; nothing derives in it.
+
+export interface HsvColor {
+  /** 0–360 */
+  h: number;
+  /** 0–1 */
+  s: number;
+  /** 0–1 */
+  v: number;
+}
+
+/** Any colour `parseColor` reads, as HSV; black when it does not parse. */
+export function toHsv(value: string): HsvColor {
+  const color = parseColor(value) ?? { r: 0, g: 0, b: 0, a: 1 };
+  const [red, green, blue] = [color.r / 255, color.g / 255, color.b / 255];
+  const max = Math.max(red, green, blue);
+  const delta = max - Math.min(red, green, blue);
+  let hue = 0;
+  if (delta !== 0) {
+    if (max === red) hue = ((green - blue) / delta) % 6;
+    else if (max === green) hue = (blue - red) / delta + 2;
+    else hue = (red - green) / delta + 4;
+    hue *= 60;
+    if (hue < 0) hue += 360;
+  }
+  return { h: hue, s: max === 0 ? 0 : delta / max, v: max };
+}
+
+export function hsvToHex({ h, s, v }: HsvColor): string {
+  const hue = ((h % 360) + 360) % 360;
+  const chroma = v * s;
+  const x = chroma * (1 - Math.abs(((hue / 60) % 2) - 1));
+  const [red, green, blue] =
+    hue < 60
+      ? [chroma, x, 0]
+      : hue < 120
+        ? [x, chroma, 0]
+        : hue < 180
+          ? [0, chroma, x]
+          : hue < 240
+            ? [0, x, chroma]
+            : hue < 300
+              ? [x, 0, chroma]
+              : [chroma, 0, x];
+  const match = v - chroma;
+  return colorToCss({
+    r: (red + match) * 255,
+    g: (green + match) * 255,
+    b: (blue + match) * 255,
+    a: 1,
+  });
+}

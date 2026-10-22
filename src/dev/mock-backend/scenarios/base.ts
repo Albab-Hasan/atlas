@@ -6,7 +6,8 @@
 
 import type { UpdaterSnapshot } from "@/features/updater/lib/updater-api";
 import type { FileEntry } from "@/features/explorer/stores/explorer-store";
-import type { Theme, ThemeCatalogSummary } from "@/features/theme/lib/theme-api";
+import type { SavedTheme, Theme, ThemeCatalogSummary } from "@/features/theme/lib/theme-api";
+import { themeIdSlug } from "@/features/theme/lib/theme-import-api";
 import type { MockHandlers } from "../types";
 import { DEFAULT_APP_PROFILE, type AppProfile } from "@/lib/app-profile";
 import { BUILTIN_THEMES } from "../fixtures/builtin-themes";
@@ -96,6 +97,22 @@ export const baseHandlers: MockHandlers = {
     );
     if (!theme) throw new Error(`theme '${String(a.id)}' was not found`);
     return theme;
+  },
+  // The theme editor's save, into the same session-only list an import
+  // lands in, under the rules Rust applies: the id slugged, and never a
+  // built-in's (which a user theme would shadow).
+  save_theme: (a): SavedTheme => {
+    const theme = a.theme as Theme;
+    const id = themeIdSlug(theme.id);
+    if (!id) throw new Error("a theme name needs at least one letter or digit");
+    if (builtinThemes.some((builtIn) => builtIn.id === id)) {
+      throw new Error(`"${id}" is a built-in theme; pick another name`);
+    }
+    const saved = { ...theme, id };
+    const existing = importedUserThemes.findIndex((candidate) => candidate.id === id);
+    if (existing >= 0) importedUserThemes[existing] = saved;
+    else importedUserThemes.push(saved);
+    return { id, path: `~/.config/atlas/themes/${id}.toml` };
   },
   ...themeImportHandlers,
 
