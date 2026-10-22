@@ -135,7 +135,10 @@ impl Staging {
             .map_or(0, |elapsed| elapsed.as_nanos());
         let dir =
             std::env::temp_dir().join(format!("atlas-theme-{id}-{}-{nanos}", std::process::id()));
-        std::fs::create_dir_all(&dir)?;
+        // `create_dir`, not `create_dir_all`: on a shared `/tmp` a path that
+        // already exists may be another user's, and this must neither unpack
+        // into it nor later delete it.
+        std::fs::create_dir(&dir)?;
         Ok(Self(dir))
     }
 
