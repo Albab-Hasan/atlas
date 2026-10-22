@@ -92,6 +92,9 @@
   --font-sans: var(--font-sans);
   --font-serif: var(--font-serif);
   --font-mono: var(--font-mono);
+  /* `font-terminal`: the terminal's own font while `terminalFontFamily` is
+     set, else the code font — the block terminal and xterm both read it. */
+  --font-terminal: var(--atlas-terminal-font, var(--font-mono));
 
   /* Radius (decision 26). Theme authors own `--radius`; the four steps derive
      from it through `--radius-base`, so `rounded-*` moves with the theme rather
@@ -736,7 +739,7 @@
      positioned 8px from the top — hangs out the bottom of. Structure must not
      depend on an injection that can fail, so it lives here too. Unlayered, so
      it also beats the `@layer base` .cm-editor rules that dress the CODE
-     editor in JetBrains Mono.
+     editor in the code font.
 
      Stronger than "keep in step with chat-input.tsx": these rules WIN over the
      runtime theme, they do not merely stand in for it. style-mod prepends CM's
@@ -789,7 +792,7 @@
 
 /* Team-chat composer — the same problem as the chat host above, and the same
    solution. `@layer base` dresses every `.cm-editor` as a CODE editor (13px
-   JetBrains Mono), which is why a mention pill in the comms composer rendered
+   in the code font), which is why a mention pill in the comms composer rendered
    in monospace. A chat message is prose, so the editor has to be undressed
    again.
 
@@ -1013,7 +1016,6 @@
     background: var(--background);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    letter-spacing: -0.01em;
     user-select: none;
     -webkit-user-select: none;
   }
@@ -1189,8 +1191,7 @@
        alone desyncs the gutter, leaving line numbers stranded at the top
        while text sits further down. Keep them at the editor root, and in
        step with the metrics in `themes/build-cm-theme.ts`. */
-    font-family:
-      var(--atlas-code-font, "JetBrains Mono"), "JetBrains Mono", "SF Mono", "Fira Code", monospace;
+    font-family: var(--font-mono);
     /* `editorFontSize`; the 20/13 line height scales with it. */
     font-size: var(--atlas-editor-font-size, 13px);
     line-height: calc(var(--atlas-editor-font-size, 13px) * 20 / 13);
@@ -1240,9 +1241,7 @@
   .xterm-rows,
   .xterm .xterm-char-measure-element,
   .xterm-helper-textarea {
-    font-family:
-      var(--atlas-code-font, Menlo), Menlo, Monaco, "SF Mono", "SFMono-Regular", Consolas,
-      "Liberation Mono", "Courier New", monospace !important;
+    font-family: var(--atlas-terminal-font, var(--font-mono)), Menlo, monospace !important;
     font-variant-ligatures: none !important;
     letter-spacing: 0 !important;
   }

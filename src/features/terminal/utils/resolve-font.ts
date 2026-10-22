@@ -24,9 +24,9 @@ const CSS_GENERIC_FONT_FAMILIES = new Set([
   "system-ui",
 ]);
 
-/** The app's preferred monospace identity. Used when actually installed;
- *  otherwise the resolver falls back to the platform native font. */
-const TERMINAL_PRIMARY_FONT = "JetBrains Mono, SF Mono";
+/** What the resolver asks for when handed nothing, matching the head of the
+ *  default `--font-mono` stack; the platform native font backs it. */
+const TERMINAL_PRIMARY_FONT = "SF Mono";
 
 function getPlatformFallback(): string {
   if (typeof navigator === "undefined") return LINUX_FALLBACK;

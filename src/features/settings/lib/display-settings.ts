@@ -63,12 +63,15 @@ export function appliedTerminalFontSize(root = document.documentElement): number
   return Number.isFinite(px) && px > 0 ? px : 13;
 }
 
-/** The terminal's applied font family — its own, else the code font's — or
- *  "" for the default. */
+/** The terminal's applied font family: its own, else the code font's, else
+ *  the theme's mono stack — the same chain `font-terminal` resolves in CSS,
+ *  so xterm (which takes a family string, not a stylesheet) draws in the font
+ *  the rest of the terminal does. */
 export function appliedTerminalFont(root = document.documentElement): string {
   return (
     root.style.getPropertyValue("--atlas-terminal-font").trim() ||
-    root.style.getPropertyValue("--atlas-code-font").trim()
+    root.style.getPropertyValue("--atlas-code-font").trim() ||
+    getComputedStyle(root).getPropertyValue("--font-mono").trim()
   );
 }
 

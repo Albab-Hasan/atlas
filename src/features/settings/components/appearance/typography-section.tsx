@@ -8,6 +8,7 @@
  * and is the font you will actually get — fallbacks included.
  */
 
+import { isMac } from "@/lib/platform";
 import { Select } from "@/ui/select";
 import type { AppSettings } from "../../lib/app-settings";
 import { settingMeta } from "../../lib/settings-sections";
@@ -17,10 +18,10 @@ import { FontPicker } from "./font-picker";
 
 /** What each default resolves to, written once for the picker and the sample. */
 const SYSTEM_SANS = 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-const DEFAULT_MONO = '"JetBrains Mono", "SF Mono", Menlo, monospace';
 const UI_FONT = `var(--atlas-ui-font, ${SYSTEM_SANS})`;
 const COMPOSER_FONT = `var(--atlas-composer-font, ${UI_FONT})`;
-const CODE_FONT = `var(--atlas-code-font, ${DEFAULT_MONO})`;
+// `--font-mono` already follows `codeFontFamily` (`globals.css`).
+const CODE_FONT = "var(--font-mono)";
 const TERMINAL_FONT = `var(--atlas-terminal-font, ${CODE_FONT})`;
 
 type FontKey = "uiFontFamily" | "composerFontFamily" | "codeFontFamily" | "terminalFontFamily";
@@ -68,8 +69,8 @@ export function TypographySection() {
             <FontControl
               setting="codeFontFamily"
               size="editorFontSize"
-              defaultLabel="JetBrains Mono"
-              fallback={DEFAULT_MONO}
+              defaultLabel={isMac ? "SF Mono" : "Default monospace"}
+              fallback={CODE_FONT}
               monospace
             />
           }
