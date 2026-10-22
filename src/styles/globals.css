@@ -2876,10 +2876,9 @@ html[data-chat-code-wrap="off"] .prose-chat pre {
 
 /* ── Display settings (`features/settings/lib/display-settings.ts`) ────────── */
 
-/* `uiFontFamily` / `codeFontFamily`, while set. The active theme defines
-   `--font-sans` / `--font-mono` in its own `html:root` block, so the
-   attribute is what outranks it. Every `font-sans` / `font-mono` utility,
-   and every rule that reads those two, follows. */
+/* `uiFontFamily` / `codeFontFamily`, while set, over the defaults in
+   `tokens.css` (a theme never sets fonts). Every `font-sans` / `font-mono`
+   utility, and every rule that reads those two, follows. */
 html:root[data-ui-font] {
   --font-sans: var(--atlas-ui-font), system-ui, sans-serif;
 }

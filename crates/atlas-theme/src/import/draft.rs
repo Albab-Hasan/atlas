@@ -22,11 +22,6 @@ use crate::color;
 use crate::import::report::{DerivedKey, MappedKey};
 use crate::{is_css_color, ThemeKeyValue, ThemeVariant, BASE_TOKENS, PALETTE_KEYS};
 
-/// Atlas's own answer when neither the source nor another token can supply one.
-const ATLAS_FONT_SANS: &str = "-apple-system, \"SF Pro Text\", system-ui, sans-serif";
-const ATLAS_FONT_SERIF: &str = "ui-serif, Georgia, Cambria, \"Times New Roman\", serif";
-const ATLAS_FONT_MONO: &str = "\"SF Mono\", \"Geist Mono\", \"JetBrains Mono\", monospace";
-
 /// A variant under construction, plus the audit trail of how it got that way.
 pub(crate) struct VariantDraft {
     pub appearance: &'static str,
@@ -293,7 +288,7 @@ impl VariantDraft {
     }
 }
 
-/// Non-colour base tokens (`radius`, the font stacks, the shadow ramp) are free
+/// Non-colour base tokens (`radius`, tracking, spacing, the shadow ramp) are free
 /// text, so only the colour ones are syntax-checked on the way in.
 fn is_css_value(token: &str, value: &str) -> bool {
     if crate::NON_COLOR_BASE_TOKENS.contains(&token) {
@@ -348,9 +343,6 @@ fn atlas_default(token: &str, dark: bool) -> &'static str {
             }
         }
         "radius" => "8px",
-        "font-sans" => ATLAS_FONT_SANS,
-        "font-serif" => ATLAS_FONT_SERIF,
-        "font-mono" => ATLAS_FONT_MONO,
         "tracking-normal" => "0em",
         "spacing" => "0.25rem",
         "shadow-2xs" => {

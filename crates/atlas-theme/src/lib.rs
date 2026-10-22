@@ -79,9 +79,6 @@ pub const BASE_TOKENS: &[&str] = &[
     "sidebar-border",
     "sidebar-ring",
     "radius",
-    "font-sans",
-    "font-serif",
-    "font-mono",
     "tracking-normal",
     "spacing",
     "shadow-2xs",
@@ -93,14 +90,17 @@ pub const BASE_TOKENS: &[&str] = &[
     "shadow-2xl",
 ];
 
-/// Base tokens whose value is free text (a length, a font stack, a composed
+/// The font stacks shadcn themes carry and an Atlas theme does not: fonts are
+/// the user's choice (`uiFontFamily`, `codeFontFamily`, … in `config.toml`),
+/// so picking a colour theme never changes them. Named so the loader and the
+/// importers can say so rather than report an unknown token.
+pub const FONT_TOKENS: &[&str] = &["font-sans", "font-serif", "font-mono"];
+
+/// Base tokens whose value is free text (a length, a composed
 /// shadow) rather than a colour, so the colour validator skips them — and
 /// [`is_safe_css_value`] checks them instead.
 pub const NON_COLOR_BASE_TOKENS: &[&str] = &[
     "radius",
-    "font-sans",
-    "font-serif",
-    "font-mono",
     "tracking-normal",
     "spacing",
     "shadow-2xs",
@@ -860,6 +860,15 @@ fn validate_variant(
     origin: &str,
     appearance: &str,
 ) -> Result<(), ThemeError> {
+    if let Some(key) = base.keys().find(|key| FONT_TOKENS.contains(&key.as_str())) {
+        return Err(validation(
+            origin,
+            format!(
+                "{appearance}.base.{key}: a theme does not set fonts; they are settings \
+                 (Settings → Appearance → Typography). Delete the line."
+            ),
+        ));
+    }
     let allowed_base = BASE_TOKENS.iter().copied().collect::<BTreeSet<_>>();
     if let Some(key) = base.keys().find(|key| !allowed_base.contains(key.as_str())) {
         return Err(validation(
@@ -1247,6 +1256,15 @@ mod tests {
     /// Free-text base tokens are written into a `:root { … }` style block, so
     /// a value that closes the block would be CSS injection from a theme file.
     #[test]
+    fn a_font_in_a_theme_is_rejected_with_where_fonts_live() {
+        let source =
+            minimal_theme("").replacen("[dark.base]", "[dark.base]\n\"font-mono\" = \"Menlo\"", 1);
+        let error = parse_theme(&source, "test").unwrap_err().to_string();
+        assert!(error.contains("dark.base.font-mono"), "{error}");
+        assert!(error.contains("Settings"), "{error}");
+    }
+
+    #[test]
     fn free_text_base_tokens_cannot_break_out_of_the_style_block() {
         for bad in [
             "1rem; } body { display: none",
@@ -1259,13 +1277,13 @@ mod tests {
             "@import 'x'",
         ] {
             let source = minimal_theme("").replacen(
-                "\"font-sans\" = \"1rem\"",
-                &format!("\"font-sans\" = {bad:?}"),
+                "\"spacing\" = \"1rem\"",
+                &format!("\"spacing\" = {bad:?}"),
                 1,
             );
             assert_ne!(source, minimal_theme(""), "fixture replaced");
             let error = parse_theme(&source, "test").unwrap_err().to_string();
-            assert!(error.contains("dark.base.font-sans"), "{bad:?}: {error}");
+            assert!(error.contains("dark.base.spacing"), "{bad:?}: {error}");
         }
         for good in [
             "\"Segoe UI\", ui-sans-serif, system-ui",
@@ -1274,7 +1292,7 @@ mod tests {
             "-0.01em",
         ] {
             assert!(is_safe_css_value(good), "{good:?}");
-            assert!(is_valid_base_value("font-sans", good), "{good:?}");
+            assert!(is_valid_base_value("spacing", good), "{good:?}");
         }
         assert!(!is_valid_base_value("background", "1rem"));
         assert!(is_valid_base_value("background", "#fff"));

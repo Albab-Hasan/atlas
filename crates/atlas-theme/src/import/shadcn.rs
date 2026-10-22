@@ -33,7 +33,7 @@ use crate::color;
 use crate::import::draft::VariantDraft;
 use crate::import::report::{Fidelity, ImportReport};
 use crate::import::{css, finish_theme, ImportOptions, ImportedTheme};
-use crate::{ThemeError, BASE_TOKENS};
+use crate::{ThemeError, BASE_TOKENS, FONT_TOKENS};
 
 /// tweakcn emits the ingredients of its shadow ramp alongside the ramp itself.
 /// Atlas takes the composed `shadow-*` values; the parts have nowhere to go.
@@ -241,7 +241,13 @@ fn build(
             if !reported.insert(name.clone()) {
                 continue;
             }
-            if SHADOW_RECIPE.contains(&name.as_str()) {
+            if FONT_TOKENS.contains(&name.as_str()) {
+                report.ignore(
+                    format!("--{name} ({where_})"),
+                    "fonts",
+                    "an Atlas theme does not set fonts; pick them in Settings → Appearance",
+                );
+            } else if SHADOW_RECIPE.contains(&name.as_str()) {
                 report.ignore(
                     format!("--{name}"),
                     "shadow recipe",

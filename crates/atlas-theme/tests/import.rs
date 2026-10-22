@@ -104,9 +104,11 @@ fn a_tweakcn_registry_item_becomes_a_complete_two_variant_theme() {
     // The author's own notation survives: nothing is converted to hex.
     let dark = theme.dark.as_ref().unwrap();
     assert_eq!(dark.base["background"], "oklch(0.2155 0.0254 284.0647)");
-    assert_eq!(
-        dark.base["font-sans"], "Montserrat, sans-serif",
-        "cssVars.theme reaches both variants"
+    // Fonts are a setting, not part of a theme: tweakcn's are reported, not kept.
+    assert!(!dark.base.contains_key("font-sans"));
+    assert!(
+        report.ignored.iter().any(|entry| entry.category == "fonts"),
+        "the dropped fonts should be reported under fonts"
     );
     // Except `radius`: its rem assumes a 16px root and Atlas's is 13px, so it
     // is carried over as the px the author saw, and the report says so.
@@ -168,11 +170,8 @@ fn a_pasted_globals_css_yields_light_and_dark() {
         "oklch(0.145 0 0)"
     );
     // `@theme` reaches both variants, and `--letter-spacing` is tweakcn's name
-    // for the tracking token.
-    assert_eq!(
-        theme.dark.as_ref().unwrap().base["font-sans"],
-        "Inter, sans-serif"
-    );
+    // for the tracking token. (Its `--font-sans` does not: fonts are a setting.)
+    assert!(!theme.dark.as_ref().unwrap().base.contains_key("font-sans"));
     assert_eq!(
         theme.dark.as_ref().unwrap().base["tracking-normal"],
         "0.01em"

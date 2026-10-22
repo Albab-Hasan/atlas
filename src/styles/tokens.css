@@ -38,7 +38,10 @@
   --sidebar-ring: #3d3d3d;
   --font-sans: -apple-system, "SF Pro Text", system-ui, sans-serif;
   --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", serif;
-  --font-mono: "SF Mono", "Geist Mono", "JetBrains Mono", "Fira Code", monospace;
+  /* Fonts are settings, never part of a theme (`display-settings.ts`
+     overrides these two). Each platform's own mono, so code reads the same
+     everywhere a user has not picked one. */
+  --font-mono: "SF Mono", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
   /* Decision 26's default. Deliberately px, not rem — see `--radius-base`. */
   --radius: 8px;
   --tracking-normal: 0em;
