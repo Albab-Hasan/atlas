@@ -68,7 +68,8 @@ const OPERATIONS = {
     call: "readableOn",
     amount: false,
     docs: () => "readable: B:foreground or B:background",
-    prose: () => "whichever of base.foreground and base.background reads better on it",
+    prose: () =>
+      "whichever of base.foreground and base.background reads better on it (white or black while foreground itself is derived)",
   },
 };
 
@@ -461,7 +462,11 @@ const towardForeground =
 const readableOn =
   (): ColorTransform =>
   (color, { base }) =>
-    readable(color, base.foreground ?? "#ffffff", base.background ?? "#000000");
+    // Until \`foreground\` exists — only while deriving it — the choice is
+    // white or black, since \`background\` cannot be read on itself.
+    base.foreground === undefined
+      ? readable(color, "#ffffff", "#000000")
+      : readable(color, base.foreground, base.background ?? "#000000");
 
 export interface BaseRule {
   token: string;

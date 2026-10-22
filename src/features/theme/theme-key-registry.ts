@@ -60,7 +60,11 @@ const towardForeground =
 const readableOn =
   (): ColorTransform =>
   (color, { base }) =>
-    readable(color, base.foreground ?? "#ffffff", base.background ?? "#000000");
+    // Until `foreground` exists — only while deriving it — the choice is
+    // white or black, since `background` cannot be read on itself.
+    base.foreground === undefined
+      ? readable(color, "#ffffff", "#000000")
+      : readable(color, base.foreground, base.background ?? "#000000");
 
 export interface BaseRule {
   token: string;
@@ -93,9 +97,9 @@ export const BASE_RULE_REGISTRY: readonly BaseRule[] = [
     description: "The app's ground. A seed.",
   }),
   rule("foreground", {
-    dark: "#ffffff",
-    light: "#000000",
-    description: "Body text. A seed.",
+    base: "background",
+    transform: readableOn(),
+    description: "Body text. A seed; left out, the ink that reads on the background.",
   }),
   rule("card", {
     base: "background",

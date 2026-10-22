@@ -3,7 +3,7 @@
 #
 # token, palette, base, op, amount, dark, light; `-` where absent.
 background	-	-	-	-	#000000	#ffffff
-foreground	-	-	-	-	#ffffff	#000000
+foreground	-	background	readable	-	-	-
 card	-	background	toward_foreground	0.05	-	-
 card-foreground	-	foreground	-	-	-	-
 popover	-	background	toward_foreground	0.12	-	-

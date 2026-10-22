@@ -79,6 +79,12 @@ describe("base derivation (ADR-0022)", () => {
     expect(contrastRatio(base.primary, base["primary-foreground"])).toBeGreaterThan(4.5);
   });
 
+  it("gives a background with no foreground whichever ink reads on it", () => {
+    // A light background in a dark variant: white, the dark default, would not read.
+    const base = resolveBase({ background: "#f5f0e6" }, {}, "dark");
+    expect(base.foreground).toBe("#000000");
+  });
+
   it("never touches a written token and lets the palette feed the charts", () => {
     const base = resolveBase({ card: "#222222" }, { green: "#00ff00" }, "dark");
     expect(base.card).toBe("#222222");

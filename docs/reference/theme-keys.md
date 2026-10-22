@@ -95,7 +95,7 @@ seeds; a theme that sets only those still sets every token.
 | Token | Source | Transform | D (dark / light) | What it is |
 |---|---|---|---|---|
 | `background` | D | — | `#000000` / `#ffffff` | The app's ground. A seed. |
-| `foreground` | D | — | `#ffffff` / `#000000` | Body text. A seed. |
+| `foreground` | B:background | readable: B:foreground or B:background | — | Body text. A seed; left out, the ink that reads on the background. |
 | `card` | B:background | mix 0.05 → B:foreground | — | Raised surfaces: cards, composer, tiles. |
 | `card-foreground` | B:foreground | — | — | Text on a card. |
 | `popover` | B:background | mix 0.12 → B:foreground | — | Menus, popovers, tooltips. |

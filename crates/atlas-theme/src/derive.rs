@@ -82,13 +82,14 @@ fn apply(op: Op, value: &str, base: &BTreeMap<String, String>) -> String {
         Op::Lighten(amount) => color::mix(value, "#ffffff", amount),
         Op::TowardBackground(amount) => color::mix(value, &token("background", "#000000"), amount),
         Op::TowardForeground(amount) => color::mix(value, &token("foreground", "#ffffff"), amount),
-        Op::Readable => {
-            let (foreground, background) = (
-                token("foreground", "#ffffff"),
-                token("background", "#000000"),
-            );
-            color::readable(value, &foreground, &background).to_string()
-        }
+        // Until `foreground` exists — only while deriving it — the choice is
+        // white or black, since `background` cannot be read on itself.
+        Op::Readable => match base.get("foreground") {
+            None => color::readable(value, "#ffffff", "#000000").to_string(),
+            Some(foreground) => {
+                color::readable(value, foreground, &token("background", "#000000")).to_string()
+            }
+        },
     }
 }
 

@@ -105,9 +105,9 @@ light = "#ffffff"
 
 [[base]]
 name = "foreground"
-description = "Body text. A seed."
-dark = "#ffffff"
-light = "#000000"
+description = "Body text. A seed; left out, the ink that reads on the background."
+base = "background"
+op = "readable"
 
 [[base]]
 name = "card"

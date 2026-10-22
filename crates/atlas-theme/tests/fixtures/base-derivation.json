@@ -479,5 +479,58 @@
       "shadow-xl": "0 12px 36px rgba(0, 0, 0, 0.82)",
       "shadow-2xl": "0 16px 48px rgba(0, 0, 0, 0.9)"
     }
+  },
+  {
+    "name": "a light background in a dark variant takes dark text",
+    "appearance": "dark",
+    "written": {
+      "background": "#f5f0e6",
+      "primary": "#b4637a"
+    },
+    "palette": {},
+    "base": {
+      "background": "#f5f0e6",
+      "primary": "#b4637a",
+      "foreground": "#000000",
+      "card": "#e5e0d7",
+      "card-foreground": "#000000",
+      "popover": "#cfcac2",
+      "popover-foreground": "#000000",
+      "primary-foreground": "#000000",
+      "secondary": "#e5e0d7",
+      "secondary-foreground": "#272624",
+      "muted": "#e5e0d7",
+      "muted-foreground": "#302f2d",
+      "accent": "#e5e0d7",
+      "accent-foreground": "#000000",
+      "destructive": "#f44747",
+      "destructive-foreground": "#000000",
+      "border": "#c2beb6",
+      "input": "#c2beb6",
+      "ring": "#b4637a",
+      "chart-1": "#b4637a",
+      "chart-2": "#9ecf8a",
+      "chart-3": "#e0b070",
+      "chart-4": "#c9a2f5",
+      "chart-5": "#7fd1e8",
+      "sidebar": "#f5f0e6",
+      "sidebar-foreground": "#000000",
+      "sidebar-primary": "#b4637a",
+      "sidebar-primary-foreground": "#000000",
+      "sidebar-accent": "#e5e0d7",
+      "sidebar-accent-foreground": "#000000",
+      "sidebar-border": "#dbd7ce",
+      "sidebar-ring": "#b4637a",
+      "radius": "8px",
+      "tracking-normal": "0em",
+      "spacing": "0.25rem",
+      "shadow-2xs": "0 1px 2px rgba(0, 0, 0, 0.35)",
+      "shadow-xs": "0 1px 2px rgba(0, 0, 0, 0.45)",
+      "shadow-sm": "0 1px 3px rgba(0, 0, 0, 0.55)",
+      "shadow-md": "0 4px 12px rgba(0, 0, 0, 0.65)",
+      "shadow-lg": "0 8px 24px rgba(0, 0, 0, 0.75)",
+      "shadow-xl": "0 12px 36px rgba(0, 0, 0, 0.82)",
+      "shadow-2xl": "0 16px 48px rgba(0, 0, 0, 0.9)"
+    }
   }
 ]
