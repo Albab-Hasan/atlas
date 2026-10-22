@@ -16,12 +16,6 @@ import { useAgentRegistryStore } from "@/features/agents/stores/agent-registry-s
 import { SettingSelect, SettingSwitch } from "../layout/setting-controls";
 import { useScopedSetting } from "../../lib/use-scoped-setting";
 
-const CHAT_WIDTHS = [
-  { value: "normal", label: "Normal", description: "760 pixels, the easiest line length to read." },
-  { value: "wide", label: "Wide", description: "1080 pixels." },
-  { value: "full", label: "Full", description: "The whole panel." },
-] as const;
-
 const SIDEBAR_SORTS = [
   { value: "recent", label: "Latest activity" },
   { value: "created", label: "Date started" },
@@ -67,10 +61,6 @@ export function ChatPage() {
 
       <SettingsSection title="Layout">
         <SettingsGroup>
-          <SettingsRow
-            setting="chatWidth"
-            control={<SettingSelect setting="chatWidth" options={CHAT_WIDTHS} />}
-          />
           <SettingsRow setting="chatCodeWrap" control={<SettingSwitch setting="chatCodeWrap" />} />
           <SettingsRow
             setting="sidebarSort"

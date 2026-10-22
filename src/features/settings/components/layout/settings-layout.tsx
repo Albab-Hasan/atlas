@@ -68,22 +68,27 @@ export function SettingsSection({
   title,
   description,
   action,
+  anchor,
   children,
 }: {
   title: string;
   description?: ReactNode;
   /** Right-aligned in the header — a button or a small switch. */
   action?: ReactNode;
+  /** Search anchor for a section that is one control rather than rows of
+   *  them — a picker grid, say. */
+  anchor?: string;
   children: ReactNode;
 }) {
+  const ref = useSearchTarget<HTMLElement>(anchor);
   return (
-    <section className="flex flex-col gap-2">
-      <div className="flex items-end justify-between gap-3 px-1">
+    <section ref={ref} data-setting-anchor={anchor} className="flex scroll-mt-4 flex-col gap-2">
+      <div className="flex items-center justify-between gap-3 px-1">
         <div className="flex min-w-0 flex-col gap-0.5">
           <h2 className="eyebrow">{title}</h2>
           {description && <p className="caption">{description}</p>}
         </div>
-        {action && <div className="shrink-0 pb-0.5">{action}</div>}
+        {action && <div className="shrink-0">{action}</div>}
       </div>
       {children}
     </section>
@@ -286,8 +291,8 @@ export function SettingsRow({
  * owns it consumes it, so a target on a page that has not rendered yet is
  * picked up as soon as it does.
  */
-function useSearchTarget(anchor: string | undefined) {
-  const ref = useRef<HTMLDivElement>(null);
+function useSearchTarget<T extends HTMLElement = HTMLDivElement>(anchor: string | undefined) {
+  const ref = useRef<T>(null);
   const pending = useSettingsNav((s) => s.anchor);
   const clearAnchor = useSettingsNav((s) => s.clearAnchor);
   useEffect(() => {

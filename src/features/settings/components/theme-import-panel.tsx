@@ -1,11 +1,13 @@
 import { useCallback, useMemo, useState } from "react";
 import { CopyGlyph } from "@/ui/animated-icon";
-import { AlertTriangle, ArrowLeft, Check, FileJson, Link2, Upload } from "lucide-react";
+import { AlertTriangle, Check, FileJson, Link2, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { copyText } from "@/lib/clipboard";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/ui/badge";
 import { Button } from "@/ui/button";
+import { DialogTitle } from "@/ui/dialog";
+import { IconButton } from "@/ui/icon-button";
 import { Icon } from "@/ui/icon";
 import { Input } from "@/ui/input";
 import { ScrollArea } from "@/ui/scroll-area";
@@ -24,7 +26,8 @@ import {
 import type { ThemeSummary } from "@/features/theme/lib/theme-api";
 
 /**
- * Import a foreign theme, and export an Atlas one.
+ * Import a foreign theme, and export an Atlas one. Shown in a dialog over the
+ * Appearance page (`appearance/themes-section.tsx`).
  *
  * The panel is built around one claim: **the report is the product**. Anyone
  * can paste a VS Code theme and get colours out; what stops the result being
@@ -63,11 +66,8 @@ export function ThemeImportPanel({ themes, onClose, onImported }: Props) {
   const [mode, setMode] = useState<"import" | "export">("import");
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex h-tab-strip shrink-0 items-center gap-1 border-b border-border bg-background px-2">
-        <Button variant="ghost" size="sm" onClick={onClose}>
-          <Icon icon={ArrowLeft} size="sm" />
-          Themes
-        </Button>
+      <div className="flex h-11 shrink-0 items-center gap-1 border-b border-border px-3">
+        <DialogTitle>{mode === "import" ? "Import a theme" : "Export a theme"}</DialogTitle>
         <div className="ml-auto flex items-center gap-1">
           {(["import", "export"] as const).map((value) => (
             <Button
@@ -80,6 +80,7 @@ export function ThemeImportPanel({ themes, onClose, onImported }: Props) {
               {value}
             </Button>
           ))}
+          <IconButton icon={X} size="sm" label="Close" onClick={onClose} />
         </div>
       </div>
       {mode === "import" ? (

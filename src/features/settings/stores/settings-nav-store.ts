@@ -14,7 +14,6 @@ import { create } from "zustand";
 export const SETTINGS_SECTIONS = [
   "general",
   "appearance",
-  "icons",
   "chat",
   "memory",
   "notifications",

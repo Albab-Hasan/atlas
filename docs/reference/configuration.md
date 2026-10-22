@@ -155,21 +155,21 @@ bookkeeping).
 | `autoAddAtlasGitignore` | boolean | `true` | General › Files › Keep .atlas out of git | — |
 | `enableAtlasLogs` | boolean | `true` | Privacy › Diagnostics › Atlas logs | — |
 | `showHiddenFiles` | boolean | `true` | General › Files › Show hidden files | — |
-| `uiScale` | number | `1.0` | General › Interface › Interface zoom | finite, `0.5`–`2.0` inclusive |
+| `uiScale` | number | `1.0` | Appearance › Interface › Interface zoom | finite, `0.5`–`2.0` inclusive |
 | `shareTelemetry` | boolean | `true` | Privacy › Usage data › Share usage data | — |
 | `linkTelemetryToAccount` | boolean | `true` | Privacy › Usage data › Link usage data to my account | — |
 | `embeddingModelId` | string | `"all-MiniLM-L6-v2"` | Settings → Local Models | non-empty |
-| `theme` | string | `"atlas"` | Appearance › Theme › Theme | known theme id; an unknown id is logged and falls back to `"atlas"` |
-| `themeMode` | `"system"` \| `"dark"` \| `"light"` | `"system"` | Appearance › Theme › Mode | exactly one of these values; a missing requested variant falls back to the theme's other variant |
+| `theme` | string | `"atlas"` | Appearance › Themes › Theme | known theme id; an unknown id is logged and falls back to `"atlas"` |
+| `themeMode` | `"system"` \| `"dark"` \| `"light"` | `"system"` | Appearance › Colour scheme › Mode | exactly one of these values; a missing requested variant falls back to the theme's other variant |
 | `themeOverrides` | table | absent | file only | optional `base`, `palette`, and `keys` patch applied after the active theme variant; a bad entry is dropped, not fatal |
-| `iconTheme` | string | `"material-icon-theme"` | Icons › File icons › File icon theme | a plain id (letters, digits, `.`, `-`, `_`) — it names a directory under `~/.config/atlas/icon-themes/`. `"minimal"` keeps Atlas's lucide icons. See `docs/reference/icon-themes.md` |
-| `appIcon` | string | `"dark"` | General › Interface › App icon | a plain id (letters, digits, `-`, `_`) from `src-tauri/icons/app-icons/app-icons.json` — today `"dark"` or `"light"`. An id this Atlas does not ship shows the default without rewriting the file |
+| `iconTheme` | string | `"material-icon-theme"` | Appearance › File icons › File icon theme | a plain id (letters, digits, `.`, `-`, `_`) — it names a directory under `~/.config/atlas/icon-themes/`. `"minimal"` keeps Atlas's lucide icons. See `docs/reference/icon-themes.md` |
+| `appIcon` | string | `"dark"` | Appearance › Interface › App icon | a plain id (letters, digits, `-`, `_`) from `src-tauri/icons/app-icons/app-icons.json` — today `"dark"` or `"light"`. An id this Atlas does not ship shows the default without rewriting the file |
 | `adaptiveSuggestions` | `"agent"` \| `"off"` | `"agent"` | Chat › Conversation › Next-step suggestions | exactly one of these two strings |
 | `agentSwitchBehavior` | `"reset"` \| `"new-tab"` \| `"handoff"` | `"reset"` | Chat › Switching agents › Switching agents in a chat | exactly one of these three strings. An empty chat always switches in place and a running one always gets a new tab, whatever this says |
 | `rememberBeforeSwitch` | boolean | `false` | Chat › Switching agents › Save to memory before switching agents | — . Acts only on a chat with a conversation whose agent advertises `/remember` (the bundled `remember` skill); waits at most 3 minutes, and the user can switch at once |
 | `gitBlameInline` | boolean | `true` | Source Control › Editor › Inline Git blame (per project too) | — |
 | `gitAutoFetch` | boolean | `true` | Source Control › Repositories › Auto-fetch from remote (a project can turn it off) | — |
-| `keepAwakeWhileRunning` | boolean | `false` | General › Interface › Keep awake while an agent is working | no effect on Windows |
+| `keepAwakeWhileRunning` | boolean | `false` | General › System › Keep awake while an agent is working | no effect on Windows |
 | `autoUpdate` | boolean | `true` | Updates › Atlas › Automatic updates | — |
 | `curatedPluginSync` | boolean | `false` | Updates › Atlas Agent › Keep Atlas Agent's plugin catalog up to date | — |
 | `instructionSync` | boolean | `false` | Memory › Instructions › Mirror CLAUDE.md and .claude/rules into AGENTS.md | — . See [Mirrored instructions](#mirrored-instructions-instructionsync) |
@@ -198,17 +198,17 @@ bookkeeping).
 | `confirmDeleteChat` | boolean | `true` | General › Confirmations › Confirm before deleting a chat | — |
 | `confirmQuitWhileRunning` | boolean | `true` | General › Confirmations › Confirm before quitting while an agent is running | — |
 | `defaultAgent` | string | `"atlas-agent"` | Chat › New chats › Default agent (per project too) | a non-empty agent id; one that isn't installed falls back to Atlas Agent |
-| `chatWidth` | `"normal"` \| `"wide"` \| `"full"` | `"normal"` | Chat › Layout › Chat width | exactly one of these three strings |
+| `chatWidth` | `"normal"` \| `"wide"` \| `"full"` | `"normal"` | Appearance › Interface › Chat width | exactly one of these three strings |
 | `chatCodeWrap` | boolean | `true` | Chat › Layout › Wrap code in chat | — |
 | `sidebarSort` | `"recent"` \| `"created"` | `"recent"` | Chat › Layout › Sort chats by | exactly one of these two strings |
-| `timeFormat` | `"system"` \| `"12h"` \| `"24h"` | `"system"` | General › Interface › Time format | exactly one of these three strings |
-| `uiFontFamily` | string | `""` | General › Fonts › Interface font | a CSS font-family list, at most 200 characters, with no `{`, `}`, `;`, `<` or `>`; empty uses the system font |
-| `codeFontFamily` | string | `""` | General › Fonts › Code font | a CSS font-family list, at most 200 characters, with no `{`, `}`, `;`, `<` or `>`; empty uses the default |
-| `editorFontSize` | integer | `13` | General › Fonts › Editor font size | 8 ≤ n ≤ 32 |
-| `terminalFontSize` | integer | `13` | General › Fonts › Terminal font size | 8 ≤ n ≤ 32 |
+| `timeFormat` | `"system"` \| `"12h"` \| `"24h"` | `"system"` | General › System › Time format | exactly one of these three strings |
+| `uiFontFamily` | string | `""` | Appearance › Typography › Interface font | a CSS font-family list, at most 200 characters, with no `{`, `}`, `;`, `<` or `>`; empty uses the system font |
+| `codeFontFamily` | string | `""` | Appearance › Typography › Code font | a CSS font-family list, at most 200 characters, with no `{`, `}`, `;`, `<` or `>`; empty uses the default |
+| `editorFontSize` | integer | `13` | Appearance › Typography › Editor font size | 8 ≤ n ≤ 32 |
+| `terminalFontSize` | integer | `13` | Appearance › Typography › Terminal font size | 8 ≤ n ≤ 32 |
 | `diffIgnoreWhitespace` | boolean | `false` | Source Control › Diffs › Hide whitespace changes | — |
 | `diffFilesCollapsed` | boolean | `false` | Source Control › Diffs › Start files collapsed | — |
-| `diffPalette` | `"theme"` \| `"blue-orange"` | `"theme"` | Source Control › Diffs › Diff colours | exactly one of these two strings |
+| `diffPalette` | `"theme"` \| `"blue-orange"` | `"theme"` | Appearance › Interface › Diff colours | exactly one of these two strings |
 
 <!-- /generated:settings -->
 

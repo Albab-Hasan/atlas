@@ -14,14 +14,13 @@ import {
 } from "@/ui/dialog";
 import { ProvidersSettings } from "./providers-settings";
 import { LayoutsSettings } from "./layouts-settings";
-import { AtlasThemesSettings } from "./atlas-themes-settings";
-import { IconThemesSettings } from "./icon-themes-settings";
 import { SkillsAndPacks } from "./skills-and-packs";
 import { AgentsMarketplace } from "./agents-marketplace/agents-marketplace";
 import { ModelsManager } from "./models-manager";
 import { KeybindingsSettings } from "./keybindings-settings";
 import { NotificationsSettings } from "./notifications-settings";
 import { GeneralPage } from "./pages/general-page";
+import { AppearancePage } from "./pages/appearance-page";
 import { ChatPage } from "./pages/chat-page";
 import { MemoryPage } from "./pages/memory-page";
 import { AboutPage, PrivacyPage, SourceControlPage, UpdatesPage } from "./pages/other-pages";
@@ -43,8 +42,6 @@ const NAV_COLLAPSED_KEY = "atlas:settings:navCollapsed";
 
 /** Screens that own their whole layout, toolbar and scrolling included. */
 const SCREENS: Partial<Record<SettingsSection, () => React.ReactElement>> = {
-  appearance: () => <AtlasThemesSettings />,
-  icons: () => <IconThemesSettings />,
   keybindings: () => <KeybindingsSettings />,
   agents: () => <AgentsMarketplace />,
   skills: () => <SkillsAndPacks />,
@@ -55,6 +52,7 @@ const SCREENS: Partial<Record<SettingsSection, () => React.ReactElement>> = {
 /** Pages drawn with the settings layout, inside one scroll area. */
 const PAGES: Partial<Record<SettingsSection, () => React.ReactElement>> = {
   general: () => <GeneralPage />,
+  appearance: () => <AppearancePage />,
   chat: () => <ChatPage />,
   memory: () => <MemoryPage />,
   notifications: () => <NotificationsSettings />,

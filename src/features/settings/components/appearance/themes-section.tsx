@@ -1,115 +1,32 @@
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Download, Monitor, Moon, Search, Sun, X } from "lucide-react";
+/**
+ * The theme library: every installed theme as a live miniature, and the way
+ * in for new ones.
+ *
+ * Picking a card applies the theme; the Dark/Light swatches on a card swap
+ * only that card's miniature, so both variants can be seen before choosing.
+ * Importing opens in a dialog over the page — a shadcn, Zed or VS Code theme
+ * converted by Rust, with the report of what mapped shown before anything is
+ * written (`theme-import-panel.tsx`).
+ */
+
+import { memo, useCallback, useEffect, useState } from "react";
+import { AlertTriangle, Download } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/ui/button";
+import { Dialog, DialogContent } from "@/ui/dialog";
 import { Icon } from "@/ui/icon";
 import { Hint } from "@/ui/tooltip";
-import { ScrollArea } from "@/ui/scroll-area";
 import { useThemeStore } from "@/features/theme/stores/theme-store";
 import { appearanceForMode } from "@/features/theme/apply-theme";
 import { previewTheme, type ThemePreview } from "@/features/theme/preview-theme";
 import { ThemeMiniature } from "@/features/theme/components/theme-miniature";
-import type {
-  Theme,
-  ThemeAppearance,
-  ThemeMode,
-  ThemeSummary,
-} from "@/features/theme/lib/theme-api";
-import { useSettingsStore } from "@/features/settings/stores/settings-store";
-import { ThemeImportPanel } from "./theme-import-panel";
+import type { Theme, ThemeAppearance, ThemeSummary } from "@/features/theme/lib/theme-api";
+import { useSettingsStore } from "../../stores/settings-store";
+import { SettingsSection } from "../layout/settings-layout";
+import { ThemeImportPanel } from "../theme-import-panel";
 
-// All three, since the app-wide light pass is done. A theme with no light
-// variant still resolves — `resolveTheme` falls back to its other variant,
-// which is the documented schema-1 behaviour and is why picking Light with a
-// dark-only theme selected is not an error state.
-const MODES = [
-  { mode: "system", label: "System", icon: Monitor },
-  { mode: "dark", label: "Dark", icon: Moon },
-  { mode: "light", label: "Light", icon: Sun },
-] as const satisfies readonly { mode: ThemeMode; label: string; icon: typeof Monitor }[];
-
-/**
- * Segmented System / Dark / Light control. One thumb slides under the equal-width
- * segments instead of each segment swapping its own background, so a change reads
- * as movement rather than a flicker. Arrow keys move the selection, as they do
- * in any native radio group.
- */
-function ModeSwitch({
-  value,
-  systemAppearance,
-  onChange,
-}: {
-  value: ThemeMode;
-  systemAppearance: ThemeAppearance;
-  onChange: (mode: ThemeMode) => void;
-}) {
-  const index = Math.max(
-    0,
-    MODES.findIndex((m) => m.mode === value),
-  );
-
-  const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    const step =
-      event.key === "ArrowRight" || event.key === "ArrowDown"
-        ? 1
-        : event.key === "ArrowLeft" || event.key === "ArrowUp"
-          ? -1
-          : 0;
-    if (!step) return;
-    event.preventDefault();
-    const next = (index + step + MODES.length) % MODES.length;
-    onChange(MODES[next].mode);
-    event.currentTarget.querySelectorAll<HTMLButtonElement>("[role=radio]")[next]?.focus();
-  };
-
-  return (
-    <div
-      role="radiogroup"
-      aria-label="Appearance mode"
-      onKeyDown={onKeyDown}
-      className="relative grid shrink-0 grid-cols-3 rounded-full border border-border bg-card p-0.5"
-    >
-      <span
-        aria-hidden
-        className="absolute inset-y-0.5 left-0.5 w-[calc((100%-4px)/3)] rounded-full bg-element-selected ring-1 ring-border transition-transform duration-200 ease-out-strong motion-reduce:transition-none"
-        style={{ transform: `translateX(${index * 100}%)` }}
-      />
-      {MODES.map(({ mode, label, icon }) => {
-        const active = value === mode;
-        const button = (
-          <button
-            key={mode}
-            type="button"
-            role="radio"
-            aria-checked={active}
-            aria-label={label}
-            tabIndex={active ? 0 : -1}
-            onClick={() => onChange(mode)}
-            className={cn(
-              "relative z-10 flex h-control-xs cursor-pointer items-center justify-center gap-1 rounded-full px-2.5 text-2xs font-medium outline-none transition-colors focus-visible:ring-1 focus-visible:ring-ring",
-              active ? "text-foreground" : "text-muted-foreground hover:text-secondary-foreground",
-            )}
-          >
-            <Icon icon={icon} size="xs" />
-            {/* Icon-only when the toolbar is narrow: three labelled segments
-                are ~200px, and below that the labels overlap each other. */}
-            <span className="hidden @lg:inline">{label}</span>
-          </button>
-        );
-        return mode === "system" ? (
-          <Hint key={mode} label={`Follow the OS — currently ${systemAppearance}`}>
-            {button}
-          </Hint>
-        ) : (
-          button
-        );
-      })}
-    </div>
-  );
-}
-
-export function AtlasThemesSettings() {
+export function ThemesSection() {
   const settings = useSettingsStore.use.settings();
   const { updateSettings } = useSettingsStore.use.actions();
   const themes = useThemeStore.use.themes();
@@ -118,7 +35,6 @@ export function AtlasThemesSettings() {
   const loading = useThemeStore.use.loading();
   const error = useThemeStore.use.error();
   const { load, loadAll, reapply } = useThemeStore.use.actions();
-  const [query, setQuery] = useState("");
   const [importing, setImporting] = useState(false);
   /** Per-card appearance override — see `AppearanceSwatch`. */
   const [previewing, setPreviewing] = useState<Record<string, ThemeAppearance>>({});
@@ -138,8 +54,7 @@ export function AtlasThemesSettings() {
   const appearance = appearanceForMode(settings.themeMode);
 
   // Both stable, because `ThemeCard` is memoised: a card whose props did not
-  // change must not re-render, and a fresh closure per card per keystroke
-  // would change one on every card of every render.
+  // change must not re-render.
   const onPreview = useCallback((id: string, next: ThemeAppearance) => {
     setPreviewing((state) => ({ ...state, [id]: next }));
   }, []);
@@ -157,119 +72,81 @@ export function AtlasThemesSettings() {
     [settings.theme, reapply, updateSettings],
   );
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return themes;
-    return themes.filter(
-      (theme) => theme.name.toLowerCase().includes(q) || theme.author.toLowerCase().includes(q),
-    );
-  }, [query, themes]);
-
-  // The import panel replaces the grid rather than floating over it: it is a
-  // multi-step, scrolling surface (paste, convert, read the report, name the
-  // theme) and a dialog would fight the settings pane for height.
-  if (importing) {
-    return (
-      <ThemeImportPanel
-        themes={themes}
-        onClose={() => setImporting(false)}
-        onImported={(id) => {
-          // The watcher will re-list the catalog; applying it here is what
-          // makes the import visibly land.
-          updateSettings({ theme: id });
-          void load();
-        }}
-      />
-    );
-  }
-
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      {/* One toolbar: filter the catalog, pick the mode, import a new theme.
-          A container, so the mode switch can drop its labels on a narrow pane;
-          narrower still, it wraps rather than squeezing the search to nothing. */}
-      <div className="@container flex min-h-[36px] shrink-0 flex-wrap items-center gap-x-1.5 gap-y-1 border-b border-border bg-background px-3 py-1">
-        <Search size={11} className="shrink-0 text-muted-foreground" />
-        <input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search themes…"
-          spellCheck={false}
-          className="min-w-20 flex-1 bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground"
-        />
-        {query && (
-          <Hint label="Clear search">
-            <button
-              type="button"
-              onClick={() => setQuery("")}
-              className="shrink-0 cursor-pointer text-muted-foreground hover:text-foreground"
-            >
-              <X size={11} />
-            </button>
-          </Hint>
-        )}
-        <ModeSwitch
-          value={settings.themeMode}
-          systemAppearance={appearanceForMode("system")}
-          onChange={(mode) => updateSettings({ themeMode: mode })}
-        />
+    <SettingsSection
+      title="Themes"
+      anchor="theme"
+      action={
         <Hint label="Convert a shadcn, Zed or VS Code theme">
-          <Button size="xs" variant="outline" onClick={() => setImporting(true)}>
-            <Icon icon={Download} size="xs" />
-            Import
+          <Button size="sm" variant="ghost" onClick={() => setImporting(true)}>
+            <Icon icon={Download} size="sm" />
+            Import theme
           </Button>
         </Hint>
+      }
+    >
+      {/* A file Rust could not load is skipped rather than fatal, which is
+          what keeps the catalog alive — but it also means the theme you
+          just saved simply never appears, with no clue why. Silent on a
+          healthy install; the whole point on a broken one. */}
+      {skipped.length > 0 && (
+        <div className="rounded-lg border border-warning/40 bg-warning-muted p-2.5">
+          <div className="flex items-center gap-1.5">
+            <Icon icon={AlertTriangle} size="sm" className="text-warning" />
+            <span className="text-xs font-medium text-foreground">
+              {skipped.length === 1
+                ? "1 theme file was skipped"
+                : `${skipped.length} theme files were skipped`}
+            </span>
+          </div>
+          <ul className="mt-1.5 space-y-1">
+            {skipped.map((warning) => (
+              <li key={warning.key} className="text-2xs leading-snug text-muted-foreground">
+                <span className="font-medium text-secondary-foreground">{warning.key}</span> —{" "}
+                {warning.message}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-3 @2xl:grid-cols-3">
+        {themes.map((theme) => (
+          <ThemeCard
+            key={theme.id}
+            summary={theme}
+            full={loaded[theme.id]}
+            selected={theme.id === settings.theme}
+            appearance={previewing[theme.id] ?? appearance}
+            onPreview={onPreview}
+            onApply={onApply}
+          />
+        ))}
       </div>
 
-      <ScrollArea className="flex-1 p-2">
-        {/* A file Rust could not load is skipped rather than fatal, which is
-            what keeps the catalog alive — but it also means the theme you
-            just saved simply never appears, with no clue why. Silent on a
-            healthy install; the whole point on a broken one. */}
-        {skipped.length > 0 && (
-          <div className="mb-2 rounded-lg border border-warning/40 bg-warning-muted p-2.5">
-            <div className="flex items-center gap-1.5">
-              <AlertTriangle size={11} className="shrink-0 text-warning" />
-              <span className="text-xs font-medium text-foreground">
-                {skipped.length === 1
-                  ? "1 theme file was skipped"
-                  : `${skipped.length} theme files were skipped`}
-              </span>
-            </div>
-            <ul className="mt-1.5 space-y-1">
-              {skipped.map((warning) => (
-                <li key={warning.key} className="text-2xs leading-snug text-muted-foreground">
-                  <span className="font-medium text-secondary-foreground">{warning.key}</span> —{" "}
-                  {warning.message}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+      {loading && themes.length === 0 && (
+        <p className="py-6 text-center text-xs text-muted-foreground">Loading…</p>
+      )}
+      {error && <p className="py-6 text-center text-xs text-error">{error}</p>}
 
-        <div className="grid grid-cols-2 gap-2">
-          {filtered.map((theme) => (
-            <ThemeCard
-              key={theme.id}
-              summary={theme}
-              full={loaded[theme.id]}
-              selected={theme.id === settings.theme}
-              appearance={previewing[theme.id] ?? appearance}
-              onPreview={onPreview}
-              onApply={onApply}
-            />
-          ))}
-        </div>
-
-        {loading && <div className="py-6 text-center text-xs text-muted-foreground">Loading…</div>}
-        {error && <div className="py-6 text-center text-xs text-error">{error}</div>}
-        {!loading && !error && filtered.length === 0 && (
-          <div className="py-6 text-center text-xs text-muted-foreground">
-            No themes match “{query}”.
-          </div>
-        )}
-      </ScrollArea>
-    </div>
+      <Dialog open={importing} onOpenChange={setImporting}>
+        <DialogContent
+          showCloseButton={false}
+          className="h-[min(40rem,calc(100vh-4rem))] max-w-[min(44rem,calc(100vw-2rem))] gap-0 overflow-hidden p-0"
+        >
+          <ThemeImportPanel
+            themes={themes}
+            onClose={() => setImporting(false)}
+            onImported={(id) => {
+              // The watcher will re-list the catalog; applying it here is what
+              // makes the import visibly land.
+              updateSettings({ theme: id });
+              void load();
+            }}
+          />
+        </DialogContent>
+      </Dialog>
+    </SettingsSection>
   );
 }
 

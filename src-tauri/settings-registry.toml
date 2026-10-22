@@ -44,7 +44,7 @@
 #               it must never switch on what the user switched off).
 #               Only for a live key whose every reader knows its project.
 #   page        Settings page id (a `[[page]]` id, also a Settings section):
-#               general, appearance, icons, chat, memory, notifications, source-control, privacy, updates
+#               general, appearance, chat, memory, notifications, source-control, privacy, updates
 #   section     heading inside that page.
 #   title       the row's label, sentence case, no trailing period.
 #   summary     one sentence for the row's description and for search results.
@@ -67,17 +67,12 @@
 [[page]]
 id = "general"
 title = "General"
-description = "Interface, fonts, confirmations, and how Atlas treats your project's files."
+description = "Confirmations, the clock, and how Atlas treats your project's files."
 
 [[page]]
 id = "appearance"
 title = "Appearance"
-description = "One theme for the whole app, and whether it follows your system."
-
-[[page]]
-id = "icons"
-title = "Icons"
-description = "File and folder icons, chosen separately from the theme."
+description = "Themes, icons, fonts, and how the interface is drawn."
 
 [[page]]
 id = "chat"
@@ -159,7 +154,7 @@ min = 0.5
 max = 2.0
 default = 1.0
 status = "live"
-page = "general"
+page = "appearance"
 section = "Interface"
 title = "Interface zoom"
 summary = "Scale the whole interface: text, icons and spacing together."
@@ -222,7 +217,7 @@ type = "string"
 default = "atlas"
 status = "live"
 page = "appearance"
-section = "Theme"
+section = "Themes"
 title = "Theme"
 summary = "One theme for the whole app: chrome, editor, terminal, diffs and syntax."
 doc = """
@@ -238,7 +233,7 @@ values = ["system", "dark", "light"]
 default = "system"
 status = "live"
 page = "appearance"
-section = "Theme"
+section = "Colour scheme"
 title = "Mode"
 summary = "Follow the system, or always use the theme's dark or light variant."
 doc = """
@@ -255,7 +250,7 @@ ts_import = "@/features/theme/resolve-theme"
 ts_default = "{}"
 status = "file-only"
 page = "appearance"
-section = "Theme"
+section = "Themes"
 title = "Theme overrides"
 summary = "A personal patch of base, palette and key colours applied on top of the active theme."
 doc = """
@@ -269,7 +264,7 @@ key = "iconTheme"
 type = "string"
 default = "material-icon-theme"
 status = "live"
-page = "icons"
+page = "appearance"
 section = "File icons"
 title = "File icon theme"
 summary = "File and folder icons, chosen separately from the colour theme."
@@ -286,7 +281,7 @@ type = "string"
 default = "dark"
 status = "live"
 platforms = ["macos"]
-page = "general"
+page = "appearance"
 section = "Interface"
 title = "App icon"
 summary = "The icon in the Dock, Finder and Launchpad."
@@ -386,7 +381,7 @@ default = false
 status = "live"
 platforms = ["macos", "linux"]
 page = "general"
-section = "Interface"
+section = "System"
 title = "Keep awake while an agent is working"
 summary = "Prevent idle system sleep while an agent is running. The display can still turn off."
 doc = """
@@ -836,8 +831,8 @@ type = "enum"
 values = ["normal", "wide", "full"]
 default = "normal"
 status = "live"
-page = "chat"
-section = "Layout"
+page = "appearance"
+section = "Interface"
 title = "Chat width"
 summary = "How wide the conversation and the composer may grow."
 doc = """
@@ -884,7 +879,7 @@ values = ["system", "12h", "24h"]
 default = "system"
 status = "live"
 page = "general"
-section = "Interface"
+section = "System"
 title = "Time format"
 summary = "Show times on a 12-hour or 24-hour clock, or as your system does."
 doc = """
@@ -898,8 +893,8 @@ key = "uiFontFamily"
 type = "string"
 default = ""
 status = "live"
-page = "general"
-section = "Fonts"
+page = "appearance"
+section = "Typography"
 title = "Interface font"
 summary = "The font for Atlas's interface and chats. Empty uses the system font."
 doc = """
@@ -914,8 +909,8 @@ key = "codeFontFamily"
 type = "string"
 default = ""
 status = "live"
-page = "general"
-section = "Fonts"
+page = "appearance"
+section = "Typography"
 title = "Code font"
 summary = "The font for the editor, the terminal and code in chats. Empty uses the default."
 doc = """
@@ -932,8 +927,8 @@ min = 8
 max = 32
 default = 13
 status = "live"
-page = "general"
-section = "Fonts"
+page = "appearance"
+section = "Typography"
 title = "Editor font size"
 summary = "The code editor's font size, in pixels."
 doc = """
@@ -949,8 +944,8 @@ min = 8
 max = 32
 default = 13
 status = "live"
-page = "general"
-section = "Fonts"
+page = "appearance"
+section = "Typography"
 title = "Terminal font size"
 summary = "The terminal's font size, in pixels."
 doc = """
@@ -996,8 +991,8 @@ type = "enum"
 values = ["theme", "blue-orange"]
 default = "theme"
 status = "live"
-page = "source-control"
-section = "Diffs"
+page = "appearance"
+section = "Interface"
 title = "Diff colours"
 summary = "Use the theme's green and red for changes, or blue and orange."
 doc = """

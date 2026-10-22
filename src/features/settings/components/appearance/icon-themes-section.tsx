@@ -1,10 +1,25 @@
+/**
+ * File and folder icons, beside the colour themes and on their own track
+ * (decisions 4 and 11).
+ *
+ * The grid is what is installed — the bundled Material theme, "Minimal"
+ * (Atlas's own lucide icons) and anything the user added. "Add icon theme"
+ * searches Open VSX, which decision 11 leaves as the only remote source.
+ *
+ * Nothing fetches until a person types. A search that fails because the
+ * machine is offline says so and leaves the installed list untouched: an icon
+ * theme is an ornament, and losing the network must not cost anything already
+ * chosen.
+ */
+
 import { useEffect, useMemo, useState } from "react";
-import { Download, Loader2, Search, Trash2, X } from "lucide-react";
+import { Download, Loader2, Plus, Search, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { Button } from "@/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/ui/dialog";
+import { Icon } from "@/ui/icon";
 import { Hint } from "@/ui/tooltip";
-import { ScrollArea } from "@/ui/scroll-area";
-import { useSettingsStore } from "@/features/settings/stores/settings-store";
 import { useIconThemeStore } from "@/features/icon-theme/stores/icon-theme-store";
 import { IconThemePreview } from "@/features/icon-theme/components/icon-theme-preview";
 import { appearanceForMode } from "@/features/theme/apply-theme";
@@ -15,27 +30,17 @@ import {
   MINIMAL_ICON_THEME_ID,
   type OpenVsxIconTheme,
 } from "@/features/icon-theme/lib/icon-theme-api";
+import { useSettingsStore } from "../../stores/settings-store";
+import { SettingsSection } from "../layout/settings-layout";
 
-/**
- * The icon-theme picker, beside the colour-theme picker (decisions 4 and 11).
- *
- * Two halves. The top is what is installed — the bundled Material theme,
- * "Minimal" (Atlas's own lucide icons) and anything the user added. The bottom
- * is Open VSX, which decision 11 leaves as the only remote source.
- *
- * Nothing here fetches until a person types. A search that fails because the
- * machine is offline says so and leaves the installed list untouched: an icon
- * theme is an ornament, and losing the network must not cost anything already
- * chosen.
- */
-
-export function IconThemesSettings() {
+export function IconThemesSection() {
   const settings = useSettingsStore.use.settings();
   const { updateSettings } = useSettingsStore.use.actions();
   const themes = useIconThemeStore.use.themes();
   const loading = useIconThemeStore.use.loading();
   const error = useIconThemeStore.use.error();
   const { load } = useIconThemeStore.use.actions();
+  const [adding, setAdding] = useState(false);
 
   useEffect(() => {
     void load();
@@ -48,76 +53,85 @@ export function IconThemesSettings() {
   const appearance = appearanceForMode(settings.themeMode);
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      {/* The strip that used to live here showed the ACTIVE theme — the one
-          theme nobody needs shown. Every card carries its own row now. */}
-      <ScrollArea className="min-h-0 flex-1">
-        <div className="p-2">
-          <div className="grid grid-cols-2 gap-2">
-            {themes.map((theme) => {
-              const selected = theme.id === settings.iconTheme;
-              return (
-                <button
-                  key={theme.id}
-                  type="button"
-                  onClick={() => {
-                    updateSettings({ iconTheme: theme.id });
-                    toast.success(`Applied “${theme.name}” icons`);
-                  }}
-                  className={cn(
-                    "group flex min-h-20 cursor-pointer flex-col justify-between rounded-lg border bg-card p-3 text-left transition-colors",
-                    selected ? "border-primary" : "border-border hover:border-border-strong",
-                  )}
-                >
-                  <IconThemePreview
-                    themeId={theme.id}
-                    appearance={appearance}
-                    className="mb-2.5 h-4"
-                  />
-                  <div className="flex w-full items-start gap-1.5">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className="truncate text-sm font-medium text-foreground">
-                          {theme.name}
-                        </span>
-                        {selected && <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />}
-                      </div>
-                      <p className="mt-1 truncate text-xs text-muted-foreground">
-                        {theme.author} · {theme.license}
-                      </p>
-                    </div>
-                    {!theme.builtIn && <RemoveButton id={theme.id} name={theme.name} />}
+    <SettingsSection
+      title="File icons"
+      anchor="iconTheme"
+      action={
+        <Button size="sm" variant="ghost" onClick={() => setAdding(true)}>
+          <Icon icon={Plus} size="sm" />
+          Add icon theme
+        </Button>
+      }
+    >
+      <div className="grid grid-cols-2 gap-3 @2xl:grid-cols-3">
+        {themes.map((theme) => {
+          const selected = theme.id === settings.iconTheme;
+          return (
+            <button
+              key={theme.id}
+              type="button"
+              onClick={() => {
+                updateSettings({ iconTheme: theme.id });
+                toast.success(`Applied “${theme.name}” icons`);
+              }}
+              className={cn(
+                "group flex min-h-20 cursor-pointer flex-col justify-between rounded-lg border bg-card p-3 text-left transition-colors",
+                selected ? "border-primary" : "border-border hover:border-border-strong",
+              )}
+            >
+              <IconThemePreview themeId={theme.id} appearance={appearance} className="mb-2.5 h-4" />
+              <div className="flex w-full items-start gap-1.5">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="truncate text-sm font-medium text-foreground">
+                      {theme.name}
+                    </span>
+                    {selected && <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />}
                   </div>
-                  <div className="mt-2 flex items-center gap-1 text-3xs uppercase tracking-wide text-muted-foreground">
-                    {theme.id === MINIMAL_ICON_THEME_ID ? (
-                      <span>Atlas defaults</span>
-                    ) : theme.builtIn ? (
-                      <span>Bundled</span>
-                    ) : (
-                      <span>Installed</span>
-                    )}
-                    {theme.warnings && theme.warnings.length > 0 && (
-                      <Hint label={theme.warnings.map((w) => `${w.key}: ${w.message}`).join("\n")}>
-                        <span className="text-warning">
-                          {theme.warnings.length} warning{theme.warnings.length === 1 ? "" : "s"}
-                        </span>
-                      </Hint>
-                    )}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
+                  <p className="mt-1 truncate text-xs text-muted-foreground">
+                    {theme.author} · {theme.license}
+                  </p>
+                </div>
+                {!theme.builtIn && <RemoveButton id={theme.id} name={theme.name} />}
+              </div>
+              <div className="mt-2 flex items-center gap-1 text-3xs uppercase tracking-wide text-muted-foreground">
+                {theme.id === MINIMAL_ICON_THEME_ID ? (
+                  <span>Atlas defaults</span>
+                ) : theme.builtIn ? (
+                  <span>Bundled</span>
+                ) : (
+                  <span>Installed</span>
+                )}
+                {theme.warnings && theme.warnings.length > 0 && (
+                  <Hint label={theme.warnings.map((w) => `${w.key}: ${w.message}`).join("\n")}>
+                    <span className="text-warning">
+                      {theme.warnings.length} warning{theme.warnings.length === 1 ? "" : "s"}
+                    </span>
+                  </Hint>
+                )}
+              </div>
+            </button>
+          );
+        })}
+      </div>
 
-          {loading && (
-            <div className="py-4 text-center text-xs text-muted-foreground">Loading…</div>
-          )}
-          {error && <div className="py-4 text-center text-xs text-error">{error}</div>}
+      {loading && themes.length === 0 && (
+        <p className="py-4 text-center text-xs text-muted-foreground">Loading…</p>
+      )}
+      {error && <p className="py-4 text-center text-xs text-error">{error}</p>}
 
-          <OpenVsxSection />
-        </div>
-      </ScrollArea>
-    </div>
+      <Dialog open={adding} onOpenChange={setAdding}>
+        <DialogContent className="max-h-[min(36rem,calc(100vh-4rem))] max-w-[min(36rem,calc(100vw-2rem))]">
+          <DialogHeader>
+            <DialogTitle>Add an icon theme</DialogTitle>
+            <DialogDescription>
+              Search VS Code icon themes on open-vsx.org. Installing one adds it to the grid.
+            </DialogDescription>
+          </DialogHeader>
+          <OpenVsxSearch />
+        </DialogContent>
+      </Dialog>
+    </SettingsSection>
   );
 }
 
@@ -165,7 +179,7 @@ type SearchState =
   | { phase: "done"; results: OpenVsxIconTheme[] }
   | { phase: "failed"; message: string };
 
-function OpenVsxSection() {
+function OpenVsxSearch() {
   const [query, setQuery] = useState("");
   const [state, setState] = useState<SearchState>({ phase: "idle" });
   const [installing, setInstalling] = useState<string | null>(null);
@@ -193,14 +207,7 @@ function OpenVsxSection() {
   };
 
   return (
-    <div className="mt-4 border-t border-border pt-3">
-      <div className="mb-2 flex items-center justify-between">
-        <span className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Install from Open VSX
-        </span>
-        <span className="text-2xs text-muted-foreground">open-vsx.org</span>
-      </div>
-
+    <div className="flex min-h-0 flex-col">
       <div className="flex h-[28px] items-center gap-1.5 rounded-md border border-border bg-card px-2">
         <Search size={11} className="shrink-0 text-muted-foreground" />
         <input
@@ -256,7 +263,7 @@ function OpenVsxSection() {
       )}
 
       {state.phase === "done" && state.results.length > 0 && (
-        <div className="mt-2 flex flex-col gap-1">
+        <div className="mt-2 flex min-h-0 flex-col gap-1 overflow-y-auto">
           {state.results.map((hit) => {
             const already = hit.installed || installedIds.has(hit.id);
             const busy = installing === hit.id;
