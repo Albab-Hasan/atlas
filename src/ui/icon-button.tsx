@@ -35,6 +35,8 @@ const iconButtonVariants = cva(
     "rounded border border-transparent select-none",
     "transition-colors duration-fast ease-out-strong",
     "data-disabled:cursor-not-allowed data-disabled:opacity-50",
+    // A toggle (`aria-pressed`) that is on reads as selected, in any variant.
+    "aria-pressed:bg-element-selected aria-pressed:text-foreground",
     "[&_svg]:pointer-events-none",
   ],
   {

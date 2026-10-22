@@ -254,7 +254,7 @@ export function SettingsRow({
       >
         <div className={cn("flex min-w-0 flex-col gap-0.5", disabled && "opacity-50")}>
           <div className="flex min-h-5 items-center gap-1">
-            <h3 className="label">{rowTitle}</h3>
+            <h3 className="text-sm font-medium text-foreground">{rowTitle}</h3>
             {scope !== null && setting && meta?.project && <InheritanceHint scoped={scoped} />}
             {showReset && (
               <Hint label={scoped.resetLabel}>
@@ -268,9 +268,7 @@ export function SettingsRow({
             )}
           </div>
           {(description ?? meta?.summary) && (
-            <p className="max-w-xl text-2xs text-muted-foreground">
-              {description ?? meta?.summary}
-            </p>
+            <p className="max-w-xl text-xs text-muted-foreground">{description ?? meta?.summary}</p>
           )}
           {status && <p className="caption pt-0.5">{status}</p>}
         </div>

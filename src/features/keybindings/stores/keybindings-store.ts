@@ -65,6 +65,9 @@ interface KeybindingsState {
 
 const SAVE_DEBOUNCE_MS = 150;
 
+/** What the profile an edit to the built-in Default forks into is called. */
+const FORK_NAME = "My keybindings";
+
 function activeProfile(file: KeybindingsFile): KeybindingProfile | undefined {
   return file.profiles.find((p) => p.id === file.activeProfileId);
 }
@@ -124,11 +127,34 @@ export const useKeybindingsStore = createSelectors(
       }, SAVE_DEBOUNCE_MS);
     };
 
-    /** Apply `fn` to the active profile unless it is the locked built-in. */
+    /**
+     * Apply `fn` to the active profile. The built-in Default never changes:
+     * editing it forks it into "My keybindings" first and makes that the
+     * active profile, so the first rebind just works instead of asking the
+     * user to duplicate something they never knew existed.
+     */
     const editActive = (fn: (p: KeybindingProfile) => KeybindingProfile) => {
       const file = get().file;
       const current = activeProfile(file);
-      if (!current || current.builtIn) return;
+      if (!current) return;
+      if (current.builtIn) {
+        const id = newProfileId(file);
+        const fork = fn({
+          id,
+          name: uniqueName(file, FORK_NAME),
+          ...(current.basedOn ? { basedOn: current.basedOn } : {}),
+          bindings: { ...current.bindings },
+        });
+        // Nothing changed (a reset on Default, say): no fork.
+        if (
+          fork.basedOn === current.basedOn &&
+          JSON.stringify(fork.bindings) === JSON.stringify(current.bindings)
+        ) {
+          return;
+        }
+        commit({ ...file, activeProfileId: id, profiles: [...file.profiles, fork] });
+        return;
+      }
       commit({
         ...file,
         profiles: file.profiles.map((p) => (p.id === current.id ? fn(p) : p)),
@@ -226,14 +252,20 @@ export const useKeybindingsStore = createSelectors(
         setProfilePreset: (id, presetId) => {
           const file = get().file;
           const target = file.profiles.find((p) => p.id === id);
-          if (!target || target.builtIn || (target.basedOn ?? null) === presetId) return;
+          if (!target || (target.basedOn ?? null) === presetId) return;
+          const withPreset = (p: KeybindingProfile): KeybindingProfile => {
+            const { basedOn: _drop, ...rest } = p;
+            return presetId ? { ...rest, basedOn: presetId } : rest;
+          };
+          // The built-in can only be changed by forking it, and only the
+          // active one is forked — a fork becomes the active profile.
+          if (target.builtIn) {
+            if (file.activeProfileId === id) editActive(withPreset);
+            return;
+          }
           commit({
             ...file,
-            profiles: file.profiles.map((p) => {
-              if (p.id !== id) return p;
-              const { basedOn: _drop, ...rest } = p;
-              return presetId ? { ...rest, basedOn: presetId } : rest;
-            }),
+            profiles: file.profiles.map((p) => (p.id === id ? withPreset(p) : p)),
           });
         },
         importProfile: (text) => {

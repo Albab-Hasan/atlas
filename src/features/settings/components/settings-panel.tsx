@@ -34,15 +34,11 @@ import { useSettingsStore } from "../stores/settings-store";
 import { DEFAULT_SETTINGS, type AppSettings } from "../lib/app-settings";
 import { changedOnPage, sectionLabel, type SearchItem } from "../lib/settings-sections";
 import { useAgentRegistryStore } from "@/features/agents/stores/agent-registry-store";
-import { Toggle } from "./settings-controls";
-
-export { Toggle };
 
 const NAV_COLLAPSED_KEY = "atlas:settings:navCollapsed";
 
 /** Screens that own their whole layout, toolbar and scrolling included. */
 const SCREENS: Partial<Record<SettingsSection, () => React.ReactElement>> = {
-  keybindings: () => <KeybindingsSettings />,
   agents: () => <AgentsMarketplace />,
   skills: () => <SkillsAndPacks />,
   providers: () => <ProvidersSettings />,
@@ -56,6 +52,7 @@ const PAGES: Partial<Record<SettingsSection, () => React.ReactElement>> = {
   chat: () => <ChatPage />,
   memory: () => <MemoryPage />,
   notifications: () => <NotificationsSettings />,
+  keybindings: () => <KeybindingsSettings />,
   "source-control": () => <SourceControlPage />,
   privacy: () => <PrivacyPage />,
   updates: () => <UpdatesPage />,
