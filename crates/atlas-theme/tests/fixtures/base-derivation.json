@@ -532,5 +532,58 @@
       "shadow-xl": "0 12px 36px rgba(0, 0, 0, 0.82)",
       "shadow-2xl": "0 16px 48px rgba(0, 0, 0, 0.9)"
     }
+  },
+  {
+    "name": "an hsl seed with a hue past 240°",
+    "appearance": "dark",
+    "written": {
+      "background": "hsl(330 40% 8%)",
+      "primary": "hsl(346 77% 50%)"
+    },
+    "palette": {},
+    "base": {
+      "background": "hsl(330 40% 8%)",
+      "primary": "hsl(346 77% 50%)",
+      "foreground": "#ffffff",
+      "card": "#26161e",
+      "card-foreground": "#ffffff",
+      "popover": "#34242b",
+      "popover-foreground": "#ffffff",
+      "primary-foreground": "#ffffff",
+      "secondary": "#26161e",
+      "secondary-foreground": "#b9b2b5",
+      "muted": "#26161e",
+      "muted-foreground": "#b0a8ab",
+      "accent": "#26161e",
+      "accent-foreground": "#ffffff",
+      "destructive": "#f44747",
+      "destructive-foreground": "hsl(330 40% 8%)",
+      "border": "#3c2c33",
+      "input": "#3c2c33",
+      "ring": "hsl(346 77% 50%)",
+      "chart-1": "hsl(346 77% 50%)",
+      "chart-2": "#9ecf8a",
+      "chart-3": "#e0b070",
+      "chart-4": "#c9a2f5",
+      "chart-5": "#7fd1e8",
+      "sidebar": "hsl(330 40% 8%)",
+      "sidebar-foreground": "#ffffff",
+      "sidebar-primary": "hsl(346 77% 50%)",
+      "sidebar-primary-foreground": "#ffffff",
+      "sidebar-accent": "#26161e",
+      "sidebar-accent-foreground": "#ffffff",
+      "sidebar-border": "#2c1c23",
+      "sidebar-ring": "hsl(346 77% 50%)",
+      "radius": "8px",
+      "tracking-normal": "0em",
+      "spacing": "0.25rem",
+      "shadow-2xs": "0 1px 2px rgba(0, 0, 0, 0.35)",
+      "shadow-xs": "0 1px 2px rgba(0, 0, 0, 0.45)",
+      "shadow-sm": "0 1px 3px rgba(0, 0, 0, 0.55)",
+      "shadow-md": "0 4px 12px rgba(0, 0, 0, 0.65)",
+      "shadow-lg": "0 8px 24px rgba(0, 0, 0, 0.75)",
+      "shadow-xl": "0 12px 36px rgba(0, 0, 0, 0.82)",
+      "shadow-2xl": "0 16px 48px rgba(0, 0, 0, 0.9)"
+    }
   }
 ]

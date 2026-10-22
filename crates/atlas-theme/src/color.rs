@@ -205,7 +205,8 @@ fn parse_alpha(value: Option<&str>) -> f64 {
 }
 
 fn hsl_to_rgb(hue: f64, saturation: f64, lightness: f64) -> Rgba {
-    let h = ((hue % 360.0) + 360.0) / 360.0;
+    // Into [0, 1): see `hslToRgb` in color.ts for why the second `%` matters.
+    let h = hue.rem_euclid(360.0) / 360.0;
     let s = clamp(saturation, 0.0, 1.0);
     let l = clamp(lightness, 0.0, 1.0);
     if s == 0.0 {
@@ -487,6 +488,10 @@ mod tests {
             "rgba(10, 20, 30, 0.25)"
         );
         assert_eq!(to_css(parse("hsl(0 100% 50%)").unwrap()), "#ff0000");
+        // Past 240° the red channel wraps twice; a negative hue wraps up.
+        assert_eq!(to_css(parse("hsl(300 100% 50%)").unwrap()), "#ff00ff");
+        assert_eq!(to_css(parse("hsl(-60 100% 50%)").unwrap()), "#ff00ff");
+        assert_eq!(to_css(parse("hsl(660 100% 50%)").unwrap()), "#ff00ff");
         assert_eq!(to_css(parse("oklch(1 0 0)").unwrap()), "#ffffff");
         assert_eq!(
             to_css(parse("oklch(62.8% 0.2577 29.23deg)").unwrap()),

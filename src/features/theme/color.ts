@@ -17,7 +17,10 @@ function parseAlpha(value: string | undefined): number {
 }
 
 function hslToRgb(hue: number, saturation: number, lightness: number): RgbaColor {
-  const h = ((hue % 360) + 360) / 360;
+  // Into [0, 1): `% 360` alone leaves a negative hue negative, and the old
+  // `(hue % 360 + 360) / 360` landed in [1, 2), which the channel wrap below
+  // (one step of ±1) cannot bring back for a hue past 240° — magenta read as blue.
+  const h = (((hue % 360) + 360) % 360) / 360;
   const s = clamp(saturation);
   const l = clamp(lightness);
   if (s === 0) return { r: l * 255, g: l * 255, b: l * 255, a: 1 };
