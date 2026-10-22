@@ -2,6 +2,11 @@
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["typescript", "unicorn", "oxc"],
   "jsPlugins": ["@shadcn/lint"],
+  "settings": {
+    "shadcn": {
+      "ui": "@/ui"
+    }
+  },
   "categories": {
     "correctness": "error"
   },

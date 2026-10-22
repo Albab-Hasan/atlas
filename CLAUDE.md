@@ -67,6 +67,9 @@ bun run ci:local        # what CI would run for this branch, as CI runs it (clip
   the PR. The app's Windows compile check (`app-windows`) is the one job that
   runs only in CI. `--linux` is the full container replica, for when you
   suspect the Ubuntu userland itself.
+  Alongside the jobs, CodeRabbit reviews the branch's commits against the
+  version branch; major findings fail the run like a red job (`--no-review`
+  skips it).
 
 Rust (`rust-toolchain.toml`), Bun and Node (`mise.toml`) are pinned to what CI
 installs. Bumping Rust brings new clippy lints: fix them in the same change.

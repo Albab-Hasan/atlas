@@ -204,7 +204,14 @@ bun run ci:local --list               # what it would run, without running it
 bun run ci:local --linux              # every Linux job in the container, not just the ones that need it
 bun run ci:local --native             # no container at all
 bun run ci:local --shell              # a shell in that container
+bun run ci:local --no-review          # without the CodeRabbit review
 ```
+
+A planned run (one not given job names) also has CodeRabbit review the
+branch's commits against the version branch it will PR into — the review the
+PR itself would get. It runs alongside the jobs and its output prints after
+theirs; major or critical findings fail the run. Without the `coderabbit` CLI
+installed it is skipped, and the summary says so.
 
 Jobs run on your machine, except:
 
