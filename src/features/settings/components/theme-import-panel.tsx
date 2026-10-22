@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { CopyGlyph } from "@/ui/animated-icon";
 import { AlertTriangle, Check, FileJson, Link2, Loader2, Search, Upload, X } from "lucide-react";
 import { toast } from "sonner";
@@ -297,8 +297,13 @@ function OpenVsxSearch({
   const [state, setState] = useState<SearchState>({ phase: "idle" });
   const [picked, setPicked] = useState<string | null>(null);
 
+  // Each search is numbered, and only the latest may land: a slow answer to
+  // an earlier query must not replace the results of the one after it.
+  const latest = useRef(0);
+
   const search = () => {
     const trimmed = query.trim();
+    const request = ++latest.current;
     if (!trimmed) {
       setState({ phase: "idle" });
       return;
@@ -306,8 +311,12 @@ function OpenVsxSearch({
     onSearch();
     setState({ phase: "searching" });
     void searchColorThemes(trimmed)
-      .then((results) => setState({ phase: "done", results }))
-      .catch((reason: unknown) => setState({ phase: "failed", message: String(reason) }));
+      .then((results) => {
+        if (request === latest.current) setState({ phase: "done", results });
+      })
+      .catch((reason: unknown) => {
+        if (request === latest.current) setState({ phase: "failed", message: String(reason) });
+      });
   };
 
   return (

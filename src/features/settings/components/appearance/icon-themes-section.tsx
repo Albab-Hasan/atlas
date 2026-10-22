@@ -12,7 +12,7 @@
  * chosen.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Download, Loader2, Plus, Search, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -186,16 +186,25 @@ function OpenVsxSearch() {
   const themes = useIconThemeStore.use.themes();
   const installedIds = useMemo(() => new Set(themes.map((theme) => theme.id)), [themes]);
 
+  // Only the latest search may land: a slow answer to an earlier query must
+  // not replace the results of the one after it.
+  const latest = useRef(0);
+
   const run = () => {
     const trimmed = query.trim();
+    const request = ++latest.current;
     if (!trimmed) {
       setState({ phase: "idle" });
       return;
     }
     setState({ phase: "searching" });
     void searchIconThemes(trimmed)
-      .then((results) => setState({ phase: "done", results }))
-      .catch((reason: unknown) => setState({ phase: "failed", message: String(reason) }));
+      .then((results) => {
+        if (request === latest.current) setState({ phase: "done", results });
+      })
+      .catch((reason: unknown) => {
+        if (request === latest.current) setState({ phase: "failed", message: String(reason) });
+      });
   };
 
   const install = (hit: OpenVsxExtension) => {
