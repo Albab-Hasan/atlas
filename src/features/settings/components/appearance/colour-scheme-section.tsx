@@ -99,7 +99,9 @@ function SchemePicture({
   light: ThemePreview | null;
   dark: ThemePreview | null;
 }) {
-  const frame = "relative h-24 overflow-hidden rounded-md border border-border-subtle";
+  // `w-full`: WebKit does not stretch a flex child of a `<button>`, so the
+  // frame would otherwise shrink to its content in the app (not in Chrome).
+  const frame = "relative h-28 w-full overflow-hidden rounded-md border border-border-subtle";
   // The document is one `get_theme` away; hold the card's height meanwhile.
   if (!light || !dark) return <div className={cn(frame, "bg-element-selected")} />;
   if (mode !== "system") {
@@ -118,45 +120,86 @@ function SchemePicture({
 }
 
 /**
- * The app as shapes, not content: a sidebar of rows, a thread, a floating
- * panel and the composer with its send button. A colour scheme is about light
- * against dark, so the sketch carries surfaces, hairlines and the one accent,
- * and leaves syntax and terminal colours to the theme cards' own orbs.
+ * Atlas's own window, pared down to shapes: the titlebar, the project
+ * sidebar with one row selected, a chat (a message you sent, the reply, the
+ * composer and its send button) and the source-control panel listing changed
+ * files. A colour scheme is about surfaces against each other, so the sketch
+ * draws surfaces, hairlines, text weight and the one accent, and nothing that
+ * would make two themes look different for reasons other than light and dark.
  *
  * `preview.vars` scopes every utility below to the previewed theme.
  */
 function SchemeSketch({ preview, className }: { preview: ThemePreview; className?: string }) {
-  const bar = "h-1 rounded-full bg-border";
   return (
-    <div aria-hidden style={preview.vars} className={cn("flex size-full bg-background", className)}>
-      <div className="flex w-1/5 shrink-0 flex-col gap-1.5 border-r border-border-subtle bg-sidebar p-2">
-        <div className="h-2 rounded-sm bg-element-selected" />
-        <div className={cn(bar, "w-4/5")} />
-        <div className={cn(bar, "w-3/5")} />
+    <div
+      aria-hidden
+      style={preview.vars}
+      className={cn("flex size-full flex-col bg-background", className)}
+    >
+      {/* Titlebar. */}
+      <div className="flex h-3 shrink-0 items-center gap-0.5 border-b border-border-subtle bg-sidebar px-1.5">
+        <span className="size-1 rounded-full bg-border-strong" />
+        <span className="size-1 rounded-full bg-border-strong" />
+        <span className="size-1 rounded-full bg-border-strong" />
+        <span className="ml-2 h-1 w-6 rounded-full bg-element-selected" />
       </div>
-      <div className="relative flex min-w-0 flex-1 flex-col p-2.5">
-        <div className={cn(bar, "ml-auto mb-2 h-1.5 w-1/4 bg-element-selected")} />
-        <div className={cn(bar, "mb-1.5 w-1/2")} />
-        <div className={cn(bar, "w-1/3")} />
-        <div className="absolute top-2.5 right-2.5 flex w-1/5 flex-col gap-1 rounded-sm border border-border-subtle bg-card p-1">
-          <span className="flex items-center gap-0.5">
-            <span className="size-1 rounded-full bg-success" />
-            <span className={cn(bar, "flex-1")} />
-          </span>
-          <span className="flex items-center gap-0.5">
-            <span className="size-1 rounded-full bg-primary" />
-            <span className={cn(bar, "flex-1")} />
-          </span>
-          <span className="flex items-center gap-0.5">
-            <span className="size-1 rounded-full bg-warning" />
-            <span className={cn(bar, "flex-1")} />
-          </span>
+
+      <div className="flex min-h-0 flex-1">
+        {/* Project sidebar. */}
+        <div className="flex w-1/5 shrink-0 flex-col gap-1 border-r border-border-subtle bg-sidebar p-1.5">
+          <Text className="w-3/5" />
+          <div className="flex h-2 items-center rounded-sm bg-element-selected px-1">
+            <Text className="w-4/5" strong />
+          </div>
+          <Text className="w-2/3" />
+          <Text className="w-1/2" />
         </div>
-        <div className="mt-auto flex h-4 items-center gap-1 rounded-full border border-border-subtle bg-card px-1.5">
-          <span className={cn(bar, "w-1/3")} />
-          <span className="ml-auto size-2 rounded-full bg-primary" />
+
+        {/* Chat. */}
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5 p-2">
+          <div className="ml-auto flex h-3 w-2/5 items-center rounded-sm bg-element-selected px-1">
+            <Text className="w-full" strong />
+          </div>
+          <Text className="w-4/5" strong />
+          <Text className="w-3/5" />
+          <Text className="w-2/3" />
+          <div className="mt-auto flex h-4 items-center rounded-md border border-border bg-card px-1.5">
+            <Text className="w-1/3" />
+            <span className="ml-auto size-2 rounded-full bg-primary" />
+          </div>
+        </div>
+
+        {/* Source control. */}
+        <div className="flex w-1/4 shrink-0 flex-col gap-1 border-l border-border-subtle bg-sidebar p-1.5">
+          <Text className="w-1/2" strong />
+          <FileRow dot="bg-warning" width="w-3/4" />
+          <FileRow dot="bg-success" width="w-1/2" />
+          <FileRow dot="bg-error" width="w-2/3" />
         </div>
       </div>
     </div>
+  );
+}
+
+/** A line of text, as a bar: foreground when `strong`, muted otherwise. */
+function Text({ className, strong }: { className?: string; strong?: boolean }) {
+  return (
+    <span
+      className={cn(
+        "block h-0.5 shrink-0 rounded-full",
+        strong ? "bg-muted-foreground" : "bg-border-strong",
+        className,
+      )}
+    />
+  );
+}
+
+/** A changed file: its status colour, then its name. */
+function FileRow({ dot, width }: { dot: string; width: string }) {
+  return (
+    <span className="flex items-center gap-0.5">
+      <span className={cn("size-1 shrink-0 rounded-full", dot)} />
+      <Text className={width} />
+    </span>
   );
 }
