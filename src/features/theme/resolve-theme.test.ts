@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { BUILTIN_THEMES } from "@/dev/mock-backend/fixtures/builtin-themes";
-import { contrastRatio, parseColor } from "./color";
+import { colorToCss, contrastRatio, parseColor } from "./color";
 import { resolveBase, resolveTheme } from "./resolve-theme";
 import { THEME_KEY_REGISTRY } from "./theme-key-registry";
 import type { Theme } from "./lib/theme-api";
@@ -65,6 +65,16 @@ describe("interface contrast", () => {
     // The CSS and the typed record agree, so xterm and the charts see it too.
     expect(high.cssVars["--atlas-border-strong"]).toBe(high.keys["border.strong"]);
     expect(high.cssVars["--border"]).toBe(high.base.border);
+  });
+});
+
+describe("hsl()", () => {
+  const css = (value: string) => colorToCss(parseColor(value)!);
+  it("keeps every channel for a hue past 240°, and wraps a hue outside 0–360", () => {
+    expect(css("hsl(0 100% 50%)")).toBe("#ff0000");
+    expect(css("hsl(300 100% 50%)")).toBe("#ff00ff");
+    expect(css("hsl(-60 100% 50%)")).toBe("#ff00ff");
+    expect(css("hsl(660 100% 50%)")).toBe("#ff00ff");
   });
 });
 
