@@ -760,7 +760,7 @@
      `<ChatInput minHeight={80}>` type-checks and silently does nothing against
      the hardcoded 44px below. */
   font-family:
-    var(--atlas-ui-font, system-ui),
+    var(--atlas-composer-font, var(--atlas-ui-font, system-ui)),
     system-ui,
     -apple-system,
     BlinkMacSystemFont,

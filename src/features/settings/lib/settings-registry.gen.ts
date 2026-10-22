@@ -258,10 +258,18 @@ export interface AppSettings {
    */
   uiFontFamily: string;
   /**
-   * The font for the editor, the terminal and code in chats, as a CSS font-family list such as
-   * "JetBrains Mono, monospace". Empty uses Atlas's default monospace fonts.
+   * The font for the editor, diffs and code in chats, as a CSS font-family list such as
+   * "JetBrains Mono, monospace". Empty uses Atlas's default monospace fonts. The terminal uses
+   * it too unless terminalFontFamily is set.
    */
   codeFontFamily: string;
+  /** The font for the chat composer, as a CSS font-family list. Empty uses the interface font. */
+  composerFontFamily: string;
+  /**
+   * The terminal's font, as a CSS font-family list. Empty uses the code font. A font that isn't
+   * fixed-width misaligns columns.
+   */
+  terminalFontFamily: string;
   /**
    * The code editor's font size, in pixels. The interface zoom scales it along with everything
    * else.
@@ -353,6 +361,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   timeFormat: "system",
   uiFontFamily: "",
   codeFontFamily: "",
+  composerFontFamily: "",
+  terminalFontFamily: "",
   editorFontSize: 13,
   terminalFontSize: 13,
   diffIgnoreWhitespace: false,
@@ -948,7 +958,7 @@ export const SETTINGS_REGISTRY: readonly SettingMeta[] = [
     page: "appearance",
     section: "Typography",
     title: "Interface font",
-    summary: "The font for Atlas's interface and chats. Empty uses the system font.",
+    summary: "The font for everything outside code and the terminal. Empty uses the system font.",
   },
   {
     key: "codeFontFamily",
@@ -957,7 +967,25 @@ export const SETTINGS_REGISTRY: readonly SettingMeta[] = [
     page: "appearance",
     section: "Typography",
     title: "Code font",
-    summary: "The font for the editor, the terminal and code in chats. Empty uses the default.",
+    summary: "The font for the editor, diffs and code in chats. Empty uses the default.",
+  },
+  {
+    key: "composerFontFamily",
+    type: "string",
+    status: "live",
+    page: "appearance",
+    section: "Typography",
+    title: "Composer font",
+    summary: "The font you type prompts in. Empty uses the interface font.",
+  },
+  {
+    key: "terminalFontFamily",
+    type: "string",
+    status: "live",
+    page: "appearance",
+    section: "Typography",
+    title: "Terminal font",
+    summary: "The terminal's font. Empty uses the code font.",
   },
   {
     key: "editorFontSize",

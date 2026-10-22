@@ -205,6 +205,8 @@ bookkeeping).
 | `timeFormat` | `"system"` \| `"12h"` \| `"24h"` | `"system"` | General › System › Time format | exactly one of these three strings |
 | `uiFontFamily` | string | `""` | Appearance › Typography › Interface font | a CSS font-family list, at most 200 characters, with no `{`, `}`, `;`, `<` or `>`; empty uses the system font |
 | `codeFontFamily` | string | `""` | Appearance › Typography › Code font | a CSS font-family list, at most 200 characters, with no `{`, `}`, `;`, `<` or `>`; empty uses the default |
+| `composerFontFamily` | string | `""` | Appearance › Typography › Composer font | a CSS font-family list, at most 200 characters, with no `{`, `}`, `;`, `<` or `>`; empty uses the interface font |
+| `terminalFontFamily` | string | `""` | Appearance › Typography › Terminal font | a CSS font-family list, at most 200 characters, with no `{`, `}`, `;`, `<` or `>`; empty uses the code font |
 | `editorFontSize` | integer | `13` | Appearance › Typography › Editor font size | 8 ≤ n ≤ 32 |
 | `terminalFontSize` | integer | `13` | Appearance › Typography › Terminal font size | 8 ≤ n ≤ 32 |
 | `diffIgnoreWhitespace` | boolean | `false` | Source Control › Diffs › Hide whitespace changes | — |

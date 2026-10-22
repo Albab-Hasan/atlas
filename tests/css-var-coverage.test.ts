@@ -48,6 +48,8 @@ const CSS_VAR_ALLOWLIST: Record<string, string> = {
   // own fallback.
   "--atlas-ui-font": "the user's uiFontFamily, set at runtime",
   "--atlas-code-font": "the user's codeFontFamily, set at runtime",
+  "--atlas-composer-font": "the user's composerFontFamily, set at runtime",
+  "--atlas-terminal-font": "the user's terminalFontFamily, set at runtime",
   "--atlas-editor-font-size": "the user's editorFontSize, set at runtime",
   "--atlas-terminal-font-size": "the user's terminalFontSize, set at runtime",
 };

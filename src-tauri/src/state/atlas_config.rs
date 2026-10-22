@@ -504,9 +504,18 @@ pub struct AppSettings {
     /// Interface font family (a CSS font-family list); empty uses the system font.
     #[serde(default)]
     pub ui_font_family: String,
-    /// Code font family for the editor, terminal and chat code; empty uses the default.
+    /// Code font family for the editor, diffs and chat code (and the terminal,
+    /// unless `terminal_font_family` is set); empty uses the default.
     #[serde(default)]
     pub code_font_family: String,
+    /// The chat composer's font, as a CSS font-family list. Empty follows
+    /// `ui_font_family`.
+    #[serde(default)]
+    pub composer_font_family: String,
+    /// The terminal's font, as a CSS font-family list. Empty follows
+    /// `code_font_family`.
+    #[serde(default)]
+    pub terminal_font_family: String,
     /// Editor font size in pixels.
     #[serde(default = "default_font_size")]
     pub editor_font_size: u32,
@@ -631,6 +640,8 @@ impl Default for AppSettings {
             time_format: TimeFormat::default(),
             ui_font_family: String::new(),
             code_font_family: String::new(),
+            composer_font_family: String::new(),
+            terminal_font_family: String::new(),
             editor_font_size: DEFAULT_FONT_SIZE,
             terminal_font_size: DEFAULT_FONT_SIZE,
             diff_ignore_whitespace: false,
@@ -777,6 +788,8 @@ pub fn validate(settings: &AppSettings) -> Result<(), ValidationIssue> {
     for (key, family) in [
         ("uiFontFamily", &settings.ui_font_family),
         ("codeFontFamily", &settings.code_font_family),
+        ("composerFontFamily", &settings.composer_font_family),
+        ("terminalFontFamily", &settings.terminal_font_family),
     ] {
         if family.contains(['{', '}', ';', '<', '>']) || family.len() > 200 {
             return Err(ValidationIssue {
@@ -1079,6 +1092,8 @@ pub struct SettingsPatch {
     pub time_format: Option<TimeFormat>,
     pub ui_font_family: Option<String>,
     pub code_font_family: Option<String>,
+    pub composer_font_family: Option<String>,
+    pub terminal_font_family: Option<String>,
     pub editor_font_size: Option<u32>,
     pub terminal_font_size: Option<u32>,
     pub diff_ignore_whitespace: Option<bool>,
@@ -1238,6 +1253,8 @@ impl SettingsPatch {
             time_format,
             ui_font_family,
             code_font_family,
+            composer_font_family,
+            terminal_font_family,
             editor_font_size,
             terminal_font_size,
             diff_ignore_whitespace,
@@ -1309,6 +1326,8 @@ impl SettingsPatch {
         set_str!(default_agent, "defaultAgent");
         set_str!(ui_font_family, "uiFontFamily");
         set_str!(code_font_family, "codeFontFamily");
+        set_str!(composer_font_family, "composerFontFamily");
+        set_str!(terminal_font_family, "terminalFontFamily");
         // Enums are written as the exact string serde reads back.
         macro_rules! set_enum {
             ($field:ident, $key:literal) => {
@@ -2429,6 +2448,8 @@ someFutureKey = \"left alone\"
             time_format: Some(TimeFormat::TwentyFourHour),
             ui_font_family: Some("Inter, sans-serif".to_string()),
             code_font_family: Some("JetBrains Mono".to_string()),
+            composer_font_family: Some("Georgia".to_string()),
+            terminal_font_family: Some("Menlo".to_string()),
             editor_font_size: Some(15),
             terminal_font_size: Some(14),
             diff_ignore_whitespace: Some(!defaults.diff_ignore_whitespace),

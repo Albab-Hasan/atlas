@@ -215,7 +215,15 @@ const SETTINGS_DOCS: &[(&str, &str)] = &[
     ),
     (
         "codeFontFamily",
-        "# The font for the editor, the terminal and code in chats, as a CSS\n# font-family list such as \"JetBrains Mono, monospace\". Empty uses Atlas's\n# default monospace fonts. (default: \"\")",
+        "# The font for the editor, diffs and code in chats, as a CSS font-family list\n# such as \"JetBrains Mono, monospace\". Empty uses Atlas's default monospace\n# fonts. The terminal uses it too unless terminalFontFamily is set. (default:\n# \"\")",
+    ),
+    (
+        "composerFontFamily",
+        "# The font for the chat composer, as a CSS font-family list. Empty uses the\n# interface font. (default: \"\")",
+    ),
+    (
+        "terminalFontFamily",
+        "# The terminal's font, as a CSS font-family list. Empty uses the code font. A\n# font that isn't fixed-width misaligns columns. (default: \"\")",
     ),
     (
         "editorFontSize",

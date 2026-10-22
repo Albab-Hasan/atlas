@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { timeFormat, setTimeFormat } from "@/lib/format-time";
 import { DEFAULT_SETTINGS } from "./app-settings";
 import {
-  appliedCodeFont,
+  appliedTerminalFont,
   appliedTerminalFontSize,
   applyDisplaySettings,
   displaySettingsChanged,
@@ -37,15 +37,23 @@ describe("applyDisplaySettings", () => {
       diffPalette: "blue-orange",
       timeFormat: "24h",
     });
-    expect(appliedCodeFont()).toBe("JetBrains Mono");
+    // The terminal follows the code font until it has its own.
+    expect(appliedTerminalFont()).toBe("JetBrains Mono");
     expect(appliedTerminalFontSize()).toBe(15);
     expect(root.dataset.chatWidth).toBe("full");
     expect(root.dataset.chatCodeWrap).toBe("off");
     expect(root.dataset.diffPalette).toBe("blue-orange");
     expect(timeFormat()).toBe("24h");
 
+    applyDisplaySettings({
+      ...DEFAULT_SETTINGS,
+      codeFontFamily: "Menlo",
+      terminalFontFamily: "Iosevka",
+    });
+    expect(appliedTerminalFont()).toBe("Iosevka");
+
     applyDisplaySettings(DEFAULT_SETTINGS);
-    expect(appliedCodeFont()).toBe("");
+    expect(appliedTerminalFont()).toBe("");
   });
 });
 

@@ -43,7 +43,7 @@ import { createTerminalKeymap } from "./terminal-keymap";
 import { createPathLinkProvider } from "./path-link-provider";
 import { resolveTerminalFont } from "../utils/resolve-font";
 import {
-  appliedCodeFont,
+  appliedTerminalFont,
   appliedTerminalFontSize,
   DISPLAY_SETTINGS_APPLIED,
 } from "@/features/settings/lib/display-settings";
@@ -176,11 +176,11 @@ function startGlobalListeners(): void {
   onThemeApplied(() => {
     for (const session of reg.sessions.values()) session.retheme();
   });
-  // The same for `terminalFontSize` and `codeFontFamily`: the cached cell is
+  // The same for `terminalFontSize` and the terminal font: the cached cell is
   // measured again, and each live xterm takes the new font and refits.
-  let applied = `${fontSize()}|${appliedCodeFont()}`;
+  let applied = `${fontSize()}|${appliedTerminalFont()}`;
   window.addEventListener(DISPLAY_SETTINGS_APPLIED, () => {
-    const next = `${fontSize()}|${appliedCodeFont()}`;
+    const next = `${fontSize()}|${appliedTerminalFont()}`;
     if (next === applied) return;
     applied = next;
     reg.cell = null;
@@ -203,7 +203,7 @@ function startGlobalListeners(): void {
 async function cellSize(): Promise<{ w: number; h: number }> {
   if (reg.cell) return reg.cell;
   const size = fontSize();
-  const fontFamily = await resolveTerminalFont(size, appliedCodeFont());
+  const fontFamily = await resolveTerminalFont(size, appliedTerminalFont());
   const span = document.createElement("span");
   span.textContent = "W".repeat(20);
   span.style.cssText = `position:absolute;visibility:hidden;white-space:pre;font:${size}px ${fontFamily};line-height:${LINE_HEIGHT}`;
@@ -585,7 +585,7 @@ export class TerminalSession {
   async refont(): Promise<void> {
     if (this.xterm) {
       const size = fontSize();
-      const fontFamily = await resolveTerminalFont(size, appliedCodeFont());
+      const fontFamily = await resolveTerminalFont(size, appliedTerminalFont());
       if (!this.xterm || this.closed) return;
       this.xterm.options.fontSize = size;
       this.xterm.options.fontFamily = fontFamily;
@@ -603,7 +603,7 @@ export class TerminalSession {
         import("@xterm/xterm/css/xterm.css"),
       ]);
       const size = fontSize();
-      const fontFamily = await resolveTerminalFont(size, appliedCodeFont());
+      const fontFamily = await resolveTerminalFont(size, appliedTerminalFont());
       if (this.closed || !this.host) return;
       const term = new Terminal({
         fontFamily,

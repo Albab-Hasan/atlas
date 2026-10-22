@@ -101,7 +101,8 @@ export async function resolveTerminalFont(fontSize: number, userFont = ""): Prom
   } catch {
     // Older WebViews may not expose the font-loading API — fall through.
   }
-  // The user's `codeFontFamily` leads when set; the same probe applies to it.
+  // The user's terminal font (or code font) leads when set; the same probe
+  // applies to it.
   const requested = userFont.trim() || TERMINAL_PRIMARY_FONT;
   // Probe the first concrete primary; success just means we keep it leading.
   const primary = splitFontFamilyList(requested)[0] ?? MAC_FALLBACK;

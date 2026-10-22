@@ -23,17 +23,13 @@ import {
   SettingsRow,
   SettingsSection,
 } from "../layout/settings-layout";
-import {
-  SettingSelect,
-  SettingSlider,
-  SettingStepper,
-  SettingText,
-} from "../layout/setting-controls";
+import { SettingSelect, SettingSlider } from "../layout/setting-controls";
 import { setInterfaceContrast } from "@/features/theme/apply-theme";
 import { repaintTheme } from "@/features/theme/stores/theme-store";
 import { ColourSchemeSection } from "../appearance/colour-scheme-section";
 import { ThemesSection } from "../appearance/themes-section";
 import { IconThemesSection } from "../appearance/icon-themes-section";
+import { TypographySection } from "../appearance/typography-section";
 
 const CHAT_WIDTHS = [
   { value: "normal", label: "Normal", description: "760 pixels, the easiest line length to read." },
@@ -105,26 +101,7 @@ export function AppearancePage() {
         </SettingsGroup>
       </SettingsSection>
 
-      <SettingsSection title="Typography">
-        <SettingsGroup>
-          <SettingsRow
-            setting="uiFontFamily"
-            control={<SettingText setting="uiFontFamily" placeholder="System font" />}
-          />
-          <SettingsRow
-            setting="codeFontFamily"
-            control={<SettingText setting="codeFontFamily" placeholder="SF Mono, JetBrains Mono" />}
-          />
-          <SettingsRow
-            setting="editorFontSize"
-            control={<SettingStepper setting="editorFontSize" unit="px" />}
-          />
-          <SettingsRow
-            setting="terminalFontSize"
-            control={<SettingStepper setting="terminalFontSize" unit="px" />}
-          />
-        </SettingsGroup>
-      </SettingsSection>
+      <TypographySection />
     </SettingsPage>
   );
 }

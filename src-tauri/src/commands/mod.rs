@@ -22,6 +22,7 @@ pub mod compose_prompt;
 pub mod diagnostics;
 pub mod feedback;
 pub mod fileindex;
+pub mod fonts;
 pub mod fs;
 pub mod git;
 pub mod git_autofetch;

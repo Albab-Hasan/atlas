@@ -17,6 +17,8 @@ export type DisplaySettings = Pick<
   AppSettings,
   | "uiFontFamily"
   | "codeFontFamily"
+  | "composerFontFamily"
+  | "terminalFontFamily"
   | "editorFontSize"
   | "terminalFontSize"
   | "chatWidth"
@@ -41,6 +43,8 @@ export function applyDisplaySettings(settings: DisplaySettings, root = document.
   // Unset when empty, so every site keeps the font chain it has always had.
   setFont(root, "--atlas-ui-font", "data-ui-font", settings.uiFontFamily);
   setFont(root, "--atlas-code-font", "data-code-font", settings.codeFontFamily);
+  setFont(root, "--atlas-composer-font", "data-composer-font", settings.composerFontFamily);
+  setFont(root, "--atlas-terminal-font", "data-terminal-font", settings.terminalFontFamily);
   root.style.setProperty("--atlas-editor-font-size", `${settings.editorFontSize}px`);
   root.style.setProperty("--atlas-terminal-font-size", `${settings.terminalFontSize}px`);
   root.dataset.chatWidth = settings.chatWidth;
@@ -59,15 +63,21 @@ export function appliedTerminalFontSize(root = document.documentElement): number
   return Number.isFinite(px) && px > 0 ? px : 13;
 }
 
-/** The applied code font family, or "" for the default. */
-export function appliedCodeFont(root = document.documentElement): string {
-  return root.style.getPropertyValue("--atlas-code-font").trim();
+/** The terminal's applied font family — its own, else the code font's — or
+ *  "" for the default. */
+export function appliedTerminalFont(root = document.documentElement): string {
+  return (
+    root.style.getPropertyValue("--atlas-terminal-font").trim() ||
+    root.style.getPropertyValue("--atlas-code-font").trim()
+  );
 }
 
 export function displaySettingsChanged(next: AppSettings, previous: AppSettings): boolean {
   return (
     next.uiFontFamily !== previous.uiFontFamily ||
     next.codeFontFamily !== previous.codeFontFamily ||
+    next.composerFontFamily !== previous.composerFontFamily ||
+    next.terminalFontFamily !== previous.terminalFontFamily ||
     next.editorFontSize !== previous.editorFontSize ||
     next.terminalFontSize !== previous.terminalFontSize ||
     next.chatWidth !== previous.chatWidth ||

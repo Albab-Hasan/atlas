@@ -257,10 +257,19 @@ timeFormat = "system"
 # falls through to the next one in the list. (default: "")
 uiFontFamily = ""
 
-# The font for the editor, the terminal and code in chats, as a CSS
-# font-family list such as "JetBrains Mono, monospace". Empty uses Atlas's
-# default monospace fonts. (default: "")
+# The font for the editor, diffs and code in chats, as a CSS font-family list
+# such as "JetBrains Mono, monospace". Empty uses Atlas's default monospace
+# fonts. The terminal uses it too unless terminalFontFamily is set. (default:
+# "")
 codeFontFamily = ""
+
+# The font for the chat composer, as a CSS font-family list. Empty uses the
+# interface font. (default: "")
+composerFontFamily = ""
+
+# The terminal's font, as a CSS font-family list. Empty uses the code font. A
+# font that isn't fixed-width misaligns columns. (default: "")
+terminalFontFamily = ""
 
 # The code editor's font size, in pixels. The interface zoom scales it along
 # with everything else. (default: 13)

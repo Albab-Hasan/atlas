@@ -912,7 +912,7 @@ status = "live"
 page = "appearance"
 section = "Typography"
 title = "Interface font"
-summary = "The font for Atlas's interface and chats. Empty uses the system font."
+summary = "The font for everything outside code and the terminal. Empty uses the system font."
 doc = """
 The font for Atlas's interface and chats, as a CSS font-family list such as
 "Inter, sans-serif". Empty uses the system font. A font that isn't installed
@@ -928,13 +928,43 @@ status = "live"
 page = "appearance"
 section = "Typography"
 title = "Code font"
-summary = "The font for the editor, the terminal and code in chats. Empty uses the default."
+summary = "The font for the editor, diffs and code in chats. Empty uses the default."
 doc = """
-The font for the editor, the terminal and code in chats, as a CSS font-family
-list such as "JetBrains Mono, monospace". Empty uses Atlas's default monospace
-fonts.
+The font for the editor, diffs and code in chats, as a CSS font-family list
+such as "JetBrains Mono, monospace". Empty uses Atlas's default monospace
+fonts. The terminal uses it too unless terminalFontFamily is set.
 """
 validation = "a CSS font-family list, at most 200 characters, with no `{`, `}`, `;`, `<` or `>`; empty uses the default"
+
+[[setting]]
+key = "composerFontFamily"
+type = "string"
+default = ""
+status = "live"
+page = "appearance"
+section = "Typography"
+title = "Composer font"
+summary = "The font you type prompts in. Empty uses the interface font."
+doc = """
+The font for the chat composer, as a CSS font-family list. Empty uses the
+interface font.
+"""
+validation = "a CSS font-family list, at most 200 characters, with no `{`, `}`, `;`, `<` or `>`; empty uses the interface font"
+
+[[setting]]
+key = "terminalFontFamily"
+type = "string"
+default = ""
+status = "live"
+page = "appearance"
+section = "Typography"
+title = "Terminal font"
+summary = "The terminal's font. Empty uses the code font."
+doc = """
+The terminal's font, as a CSS font-family list. Empty uses the code font. A
+font that isn't fixed-width misaligns columns.
+"""
+validation = "a CSS font-family list, at most 200 characters, with no `{`, `}`, `;`, `<` or `>`; empty uses the code font"
 
 [[setting]]
 key = "editorFontSize"

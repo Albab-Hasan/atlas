@@ -577,6 +577,7 @@ pub fn run() {
             commands::clipboard::clipboard_file_paths,
             commands::clipboard::clipboard_write_text,
             commands::clipboard::scratch_write_bytes,
+            commands::fonts::list_font_families,
             commands::window::set_window_title,
             commands::browser::browser_open_window,
             commands::browser::browser_embed_create,
