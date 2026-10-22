@@ -68,7 +68,7 @@ export function ThreadHistoryView({
   }, [open, queryClient]);
 
   // Filtering to archived when nothing is archived strands the user with an
-  // empty list and a toggle that looks broken (Zed's `update_items:274-280`).
+  // empty list and a toggle that looks broken.
   useEffect(() => {
     if (archivedOnly && threads.length === 0) setArchivedOnly(false);
   }, [archivedOnly, threads.length]);
@@ -220,12 +220,10 @@ export function ThreadHistoryView({
  * Group threads by when they started, newest bucket first.
  *
  * By `createdAt`, falling back to `updatedAt` — a conversation belongs to the
- * day it began, not the day someone last touched it (Zed's
- * `threads_archive_view.rs:289`). Rows arrive already in that order, so this
+ * day it began, not the day someone last touched it. Rows arrive already in that order, so this
  * only has to cut them.
  *
- * The cuts are **calendar** cuts, not rolling windows, exactly as Zed's
- * `TimeBucket::from_dates` (`:74-90`) makes them: something from 11pm last
+ * The cuts are **calendar** cuts, not rolling windows: something from 11pm last
  * night is "Yesterday", not "Today", because that is how people remember when
  * they did things.
  */

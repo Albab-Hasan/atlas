@@ -18,9 +18,7 @@ import { cn } from "@/lib/utils";
  * Block-level markdown renderer for the chat thread. Splits the message into
  * top-level blocks and renders each through the source-keyed `CachedMarkdown`
  * cache, so completed blocks are pure cache hits (never re-parsed) and only the
- * trailing (still-streaming) block re-parses per frame. This is the webview
- * translation of Zed's per-line layout cache / Open WebUI's per-block tokens:
- * markdown formats LIVE as it streams, with bounded re-work.
+ * trailing (still-streaming) block re-parses per frame. Markdown formats LIVE as it streams, with bounded re-work.
  *
  * Uses `display:contents` on each block wrapper so the N per-block `CachedMarkdown`
  * containers vanish from layout and their block elements remain layout-siblings

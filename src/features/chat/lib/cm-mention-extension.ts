@@ -86,7 +86,7 @@ function imageMime(path: string): string {
 
 type ChipDom = HTMLElement & { _atlasPreviewCleanup?: () => void };
 
-/** Attach a Zed-style media preview card that appears above a media `@file`
+/** Attach a media preview card that appears above a media `@file`
  *  chip on hover. Uses Tauri's `convertFileSrc` (streams the file — no base64
  *  memory blowup, works for video) after allow-listing the file's directory
  *  for the asset protocol. Returns a cleanup fn (called from `destroy`). */

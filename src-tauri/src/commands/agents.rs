@@ -1,13 +1,12 @@
-//! Tauri command surface for the ported ACP stack.
+//! Tauri command surface for the ACP stack.
 //!
 //! The Tauri host owns three things: the singleton [`AgentHost`], the
 //! [`DeltaSink`] that fans `SessionDeltaEnvelope`s out as `atlas:agents`
 //! window events, and the ordered [`OutboundPipeline`] every delta travels
 //! through on its way there.
 //!
-//! Rewritten on the new manager at Stage 3 of the Zed port. The command names
-//! and argument shapes are exactly what they were — the frontend is re-pointed
-//! in Stage 4, not here — and so is everything the checkpoint record depends
+//! Rewritten on the new manager. The command names
+//! and argument shapes are exactly what they were, and so is everything the checkpoint record depends
 //! on:
 //!
 //! - the pipeline order, with `CaptureMiddleware` a STAGE rather than a bus
@@ -63,7 +62,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use uuid::Uuid;
 
-/// Bridge the ported stack's deltas to the Tauri host's outbound concerns.
+/// Bridge the stack's deltas to the Tauri host's outbound concerns.
 ///
 /// The sink body is an ordered [`OutboundPipeline`] of small, independently
 /// testable middleware (window broadcast → analytics → capture → transcript →
@@ -1784,7 +1783,7 @@ pub async fn agents_send(
 
     // The user just sent something. `interacted_at` is the only field the
     // thread's own events cannot supply — a queued message never reaches the
-    // agent (Zed's `update_interacted_at`, `thread_metadata_store.rs:843-856`).
+    // agent.
     if let Some(history) = host.history() {
         history.note_interaction(
             &acp::SessionId::new(key.session_id.as_str()),
@@ -1972,8 +1971,8 @@ pub fn agents_respond_permission(
 //
 // Two shapes of "run this to sign in", both from the agent itself: a typed
 // `Terminal` method naming the ARGUMENTS to re-run the agent's own binary
-// with, and `_meta["terminal-auth"]` naming a whole command. Zed's
-// `terminal_auth_task` reads both; so does `terminal_auth_command_for`.
+// with, and `_meta["terminal-auth"]` naming a whole command.
+// `terminal_auth_command_for` reads both.
 //
 // The old `enrich_auth_methods` is gone with `BUILTIN_AGENTS`: it filled in a
 // login command for agents that advertised none, from a hardcoded per-agent
@@ -2102,8 +2101,7 @@ fn first_url(line: &str) -> Option<String> {
 /// Run the login command the agent named for this method.
 ///
 /// The command comes from the agent's own `_meta["terminal-auth"]`, resolved
-/// through the ported `AgentConnection::terminal_auth_command` — Zed's
-/// mechanism. An agent that named none is rejected rather than guessed at.
+/// through `AgentConnection::terminal_auth_command`. An agent that named none is rejected rather than guessed at.
 #[tauri::command]
 pub async fn agents_run_auth_method(
     agent_id: AgentId,

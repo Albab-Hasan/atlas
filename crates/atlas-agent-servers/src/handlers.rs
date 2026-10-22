@@ -1,25 +1,23 @@
-//! The agent→client handler set — ported from
-//! `zed-ref/crates/agent_servers/src/acp.rs:4551-5138`.
+//! The agent→client handler set.
 //!
 //! These are the requests an agent makes *of us* mid-turn: ask the user for
 //! permission, read and write files, run commands, elicit input.
 //!
-//! **The dispatch queue is load-bearing, and an earlier port learned that the
-//! hard way.** The RPC crate dispatches inbound messages SERIALLY and awaits
+//! **The dispatch queue is load-bearing, and awaiting handlers inline was tried
+//! and failed.** The RPC crate dispatches inbound messages SERIALLY and awaits
 //! each registered handler INLINE — the next message is not even parsed until
-//! the previous handler's future resolves. Zed's registered closures therefore
+//! the previous handler's future resolves. The registered closures therefore
 //! enqueue a work item and return immediately; the queue drains in wire order,
 //! each item does its state mutation synchronously and defers any long await
-//! (a permission prompt, a command's exit) to a spawned task. This port first
-//! dismissed that queue as "a GPUI artifact" and awaited handlers inline — so
-//! an open permission prompt blocked EVERY message behind it: no tool results,
-//! no text, no other session's work, and no way for a cancellation to ever
-//! arrive (`$/cancel` is itself an inbound message). The queue is Zed's shape
-//! again now: [`enqueue_request`]/[`enqueue_notification`] from the registered
+//! (a permission prompt, a command's exit) to a spawned task. Awaiting handlers
+//! inline meant an open permission prompt blocked EVERY message behind it: no
+//! tool results, no text, no other session's work, and no way for a
+//! cancellation to ever arrive (`$/cancel` is itself an inbound message). The
+//! shape is: [`enqueue_request`]/[`enqueue_notification`] from the registered
 //! closures, [`spawn_dispatch_queue`]'s drain running each handler's
 //! synchronous phase in order, and `tokio::spawn` for the awaits (#28).
 //!
-//! Two rules hold throughout, both ported:
+//! Two rules hold throughout:
 //!
 //! - **Every request gets exactly one response.** An unknown session is an
 //!   error response, not a dropped request — an agent blocked on a request we
@@ -63,9 +61,8 @@ fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 
 /// One inbound message's handling, queued for the ordered drain.
 ///
-/// Ported from Zed's `ForegroundWorkItem` (`acp.rs:296-360`), minus GPUI: the
-/// drain is a tokio task rather than the foreground thread, and the deferred
-/// awaits go through `tokio::spawn` rather than `cx.spawn`.
+/// The drain is a tokio task, and the deferred awaits go through
+/// `tokio::spawn`.
 pub trait DispatchWorkItem: Send {
     fn run(self: Box<Self>, ctx: &ClientContext);
     /// The queue is gone (connection closed). A request must still be
@@ -188,8 +185,7 @@ pub fn spawn_dispatch_queue(ctx: ClientContext) -> DispatchTx {
         while let Some(work) = rx.recv().await {
             // A panicking handler must not take the drain down with it: the
             // connection would look alive while every later request got
-            // "queue closed" and every update was dropped. Zed cannot reach
-            // this state (a foreground panic crashes the app); a tokio task
+            // "queue closed" and every update was dropped. A tokio task
             // dying silently is a lobotomy, so the panic is contained and the
             // queue keeps draining.
             let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -665,7 +661,7 @@ mod fs_bound_tests {
 
     #[test]
     fn a_path_under_any_granted_directory_resolves() {
-        // Mirrors `AcpThread::work_dirs()`: cwd plus `additionalDirectories`.
+        // Granted directories are cwd plus `additionalDirectories`.
         let cwd = test_root();
         let extra_dir = test_root();
         let target = extra_dir.join("readme.txt");
@@ -874,9 +870,9 @@ pub fn handle_session_notification(notification: acp::SessionNotification, ctx: 
     // Pre-handle: a `ToolCall` whose meta carries `terminal_info` announces a
     // terminal the AGENT is running itself. Registered before the update is
     // applied, so the call's own `Terminal` content resolves on first render.
-    // Ported from zed-ref `acp.rs:4869-4904`; gated purely on the meta key —
-    // the same key we advertise in `client_capabilities_for_agent`. Unlike in
-    // Zed the order is a nicety, not load-bearing: the registry parks
+    // Gated purely on the meta key — the same key we advertise in
+    // `client_capabilities_for_agent`. The order is a nicety, not
+    // load-bearing: the registry parks
     // out-of-order events and unknown terminal references, so no test pins it.
     if let acp::SessionUpdate::ToolCall(tool_call) = &notification.update {
         if let Some(info) = tool_call
@@ -906,7 +902,7 @@ pub fn handle_session_notification(notification: acp::SessionNotification, ctx: 
     // meta stream into that terminal. After the update, so a first update that
     // both names the call and carries output renders the call before the
     // output lands. Out-of-order arrivals park in the registry's side-tables,
-    // exactly as for client-created terminals. Ported from `acp.rs:4919-4969`.
+    // exactly as for client-created terminals.
     if let acp::SessionUpdate::ToolCallUpdate(update) = &notification.update {
         let meta = update.meta.as_ref();
         if let Some(output) = meta.and_then(|meta| meta.get("terminal_output")) {
@@ -1105,11 +1101,9 @@ pub fn handle_create_terminal(
 /// output pane would show only what happened to be buffered when some unrelated
 /// event last touched the entry.
 ///
-/// Zed needs no such pump: its terminal is an entity the inline terminal view
-/// holds, so `write_output` → `cx.notify()` re-renders the tool call directly
-/// (`acp_thread.rs:4679-4687`). Atlas has no inline terminal view — output
-/// reaches the UI through the tool call's own projection — so the link that
-/// GPUI gives Zed for free is made here instead.
+/// Atlas has no inline terminal view that observes the terminal — output
+/// reaches the UI only through the tool call's own projection — so the link
+/// between the two is made here explicitly.
 ///
 /// # What keeps this from leaking
 ///
@@ -1170,10 +1164,10 @@ pub fn handle_kill_terminal(
     ctx: &ClientContext,
 ) {
     match with_terminal(ctx, &args.session_id, &args.terminal_id, |terminal| {
-        // A display-only terminal has no process of ours to kill; Zed answers
-        // this with a soft no-op rather than an error, and error-for-error
-        // parity matters less than an agent not seeing a failure for a kill
-        // that is, in effect, already done from the client's side.
+        // A display-only terminal has no process of ours to kill; this is
+        // a soft no-op rather than an error, because an agent should not see a
+        // failure for a kill that is, in effect, already done from the
+        // client's side.
         if terminal.inner().is_none() {
             return Ok(());
         }

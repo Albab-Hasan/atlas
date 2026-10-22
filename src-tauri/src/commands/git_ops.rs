@@ -1,6 +1,6 @@
 //! Extended git operations for the unified Source-Control manager.
 //!
-//! Mirrors the dugite-shaped CLI calls GitHub Desktop uses, executed through
+//! Thin wrappers over the git CLI, executed through
 //! the `atlas-git` chokepoint (real git binary, so hooks run; failures come
 //! back as typed [`GitErrorPayload`]s with friendly messages instead of raw
 //! stderr). `GIT_TERMINAL_PROMPT=0` is set by the executor so a missing
@@ -342,7 +342,7 @@ pub async fn git_merge_preview(
 //
 // Network ops run `--progress` and stream through `atlas:git:op` when the
 // caller supplies an `op_id` (percent parsed by `atlas_git::progress` with
-// GitHub Desktop's weighted step tables); without one they run buffered,
+// weighted step tables); without one they run buffered,
 // keeping older call sites working.
 
 fn run_remote_op(
@@ -1338,8 +1338,8 @@ fn commit_hooks_present(path: &str) -> bool {
 /// their stdout/stderr streams to the UI instead of being swallowed.
 ///
 /// `co_authors` ("Name <email>" strings) are merged as `Co-authored-by`
-/// trailers via `git interpret-trailers`, matching GitHub Desktop's
-/// attribution format. Amending with an EMPTY summary keeps the original
+/// trailers via `git interpret-trailers`, in the
+/// conventional attribution format. Amending with an EMPTY summary keeps the original
 /// message (`--amend --no-edit`) — previously amend always demanded a new
 /// one.
 #[tauri::command]

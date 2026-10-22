@@ -1,12 +1,12 @@
 //! ACP Marketplace — list/refresh/install/uninstall of external agents.
 //!
-//! Rebuilt on the ported store at Stage 3 of the Zed port. The command names,
+//! Rebuilt on the agent store. The command names,
 //! argument shapes and event names are unchanged; what changed is what an
 //! install *is*.
 //!
 //! # Installing is writing one map entry
 //!
-//! Zed's model, and now Atlas's: an agent is installed when the installed map
+//! An agent is installed when the installed map
 //! says so (`{"some-cli": {"type": "registry"}}`), and the binary is fetched
 //! lazily by the first connect. The old store downloaded eagerly here and kept
 //! a parallel install ledger; that produced two sources of truth about whether

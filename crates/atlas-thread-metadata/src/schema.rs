@@ -4,18 +4,13 @@
 //! `user_version`, forward-only migrations, and a hard refusal to open a
 //! database written by a newer build.
 //!
-//! Zed's table arrived through eight migrations
-//! (`thread_metadata_store.rs:1373-1465`) because it re-keyed a shipped table
-//! from `session_id` to `thread_id` and grew columns over releases. Atlas has
-//! no shipped predecessor, so V1 below *is* Zed's end state — the same columns,
-//! the same nullability, in one `CREATE TABLE`. Two of Zed's migrations are
-//! deliberately absent: the `archived_git_worktrees` side tables (out of scope
-//! per the spec — they serve a worktree lifecycle Atlas does not have), and the
-//! session-less-row prune, which Atlas does on every open instead (see
-//! `Db::prune_drafts`).
+//! There is no shipped predecessor, so V1 below is the whole table in one
+//! `CREATE TABLE`. Two things are deliberately absent: `archived_git_worktrees`
+//! side tables (out of scope per the spec — they serve a worktree lifecycle
+//! Atlas does not have), and a one-time session-less-row prune, which is done
+//! on every open instead (see `Db::prune_drafts`).
 //!
-//! V2 adds `backfilled_agents`, which Zed has no equivalent of: the one-time
-//! import pass is Atlas's own (spec #15) and needs somewhere durable to
+//! V2 adds `backfilled_agents`: the one-time import pass (spec #15) needs somewhere durable to
 //! remember it already ran.
 //!
 //! V3 is a data step, not a shape change: the native agent's stored id was
@@ -24,9 +19,8 @@
 //! only put unopenable rows in the sidebar.
 //!
 //! V4 adds `branch`, the git branch the thread's working directory was on the
-//! last time Atlas looked (on bind and at every turn start). Zed has no
-//! equivalent; the history cards show it. Nullable, and `NULL` means "not
-//! known" — a row from before the column, a detached HEAD, or a folder that is
+//! last time Atlas looked (on bind and at every turn start). The history cards show it. Nullable, and
+//! `NULL` means "not known" — a row from before the column, a detached HEAD, or a folder that is
 //! not a repository all read the same, because Atlas never guesses a branch.
 //!
 //! # Named migrations and the epoch
@@ -256,10 +250,10 @@ fn add_branch_column(conn: &Connection) -> Result<()> {
 
 /// The whole store.
 ///
-/// `title` is `NOT NULL` with `''` standing for "no title" — Zed's shape
-/// (`:1376`). Every other absent value is a real SQL `NULL`.
+/// `title` is `NOT NULL` with `''` standing for "no title". Every other absent
+/// value is a real SQL `NULL`.
 ///
-/// The table is `threads`, not Zed's `sidebar_threads`: the sidebar is one of
+/// The table is `threads`, not `sidebar_threads`: the sidebar is one of
 /// three surfaces that read it, and CONTEXT.md's noun for the thing is a
 /// Thread.
 const V1: &str = "

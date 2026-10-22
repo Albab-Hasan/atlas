@@ -1,7 +1,7 @@
 /* `source("../")` = `src/`, relative to this file. Without it Tailwind v4
    auto-detects sources from the git root and scanned all ~5,000 tracked files
    for class names on every build and dev CSS rebuild — including the 50 MB
-   vendored Rust engine, which can never contain one. index.html needs no
+   Rust engine, which can never contain one. index.html needs no
    `@source`: its boot skeleton uses only its own inline `atlas-boot-*` rules. */
 @import "tailwindcss" source("../");
 @import "./tokens.css";
@@ -423,9 +423,9 @@
 
    A scrim's job is to push what is behind it away from the reader, and only
    darkening does that: over a light theme a light scrim separates nothing, so
-   every light UI worth copying — macOS sheets, VS Code light, shadcn's own
+   every light UI — macOS sheets, VS Code light, shadcn's own
    `DialogOverlay`, which is a bare `bg-black/50` in both appearances — darkens
-   too. Making it a key would offer authors a choice that has one correct
+   its scrim too. Making it a key would offer authors a choice that has one correct
    answer, and the wrong answer would silently disable the dim. The alpha is
    what carries appearance: 60% black reads as a heavy dim on cream and as a
    deepening on near-black, which is the same instruction in both.

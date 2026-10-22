@@ -169,8 +169,7 @@ function PanelBody({
 /**
  * A delegated child's own body: what it was asked, what it did, what it said.
  *
- * The Codex desktop app's subagent view, which opens the child beside the
- * thread rather than unfolding it inside one. Two shapes of child land here
+ * Opens the child beside the thread rather than unfolding it inside one. Two shapes of child land here
  * and the panel must not lie about either:
  *
  *   * a STREAMING child (Claude's) has its calls attributed to this session,
@@ -182,8 +181,7 @@ function PanelBody({
 /**
  * A delegated child's own thread — the agent chat, scoped to one child.
  *
- * The Codex desktop app's subagent view: a bar naming the child, then its
- * conversation. That shape is the point. A child IS a thread — it was given a
+ * A bar naming the child, then its conversation. That shape is the point. A child IS a thread — it was given a
  * task and it answered — so reading it as a transcript, in the transcript's
  * own idiom (the task as the prompt, the answer as prose, its calls as
  * markers between them), means a reader already knows how to read it. The

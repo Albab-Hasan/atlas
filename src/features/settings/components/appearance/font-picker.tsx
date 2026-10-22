@@ -10,7 +10,7 @@
  * as one and edited as text.
  *
  * A picker for code or the terminal lists every font but refuses one that is
- * not fixed-width, with a toast saying why (T3 Code's approach): hiding them
+ * not fixed-width, with a toast saying why: hiding them
  * would make a font you know you have look missing.
  */
 

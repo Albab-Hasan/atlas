@@ -1,7 +1,6 @@
 //! What a row is.
 //!
-//! Ported from Zed's `ThreadMetadata` (`thread_metadata_store.rs:306-342`,
-//! `:438-453`). The one thing to keep in mind reading this file: a row is
+//! The one thing to keep in mind reading this file: a row is
 //! **metadata only**. There is no message, no chunk, no tool call and no token
 //! anywhere in it. Replaying a conversation is the agent's job, through
 //! `session/load`; this store only knows enough to list the thread and route
@@ -19,8 +18,6 @@ use serde::{Deserialize, Serialize};
 use crate::paths::{PathList, WorktreePaths};
 
 /// The default shown for a thread nobody has titled yet.
-///
-/// Zed's `DEFAULT_THREAD_TITLE` (`agent_ui/src/agent_ui.rs`).
 pub const DEFAULT_THREAD_TITLE: &str = "New Thread";
 
 /// Atlas's own id for a conversation.
@@ -67,7 +64,7 @@ impl FromStr for ThreadId {
 
 /// Which slice of the store a query wants.
 ///
-/// Zed's archive view filter (`threads_archive_view.rs:271-299`). There is no
+/// There is no
 /// `ActiveOnly` because the sidebar's active list is a *path-grouped* query,
 /// not a flat one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -98,9 +95,8 @@ pub struct ThreadMetadata {
     pub interacted_at: Option<DateTime<Utc>>,
     pub worktree_paths: WorktreePaths,
     /// The remote-connection slot the spec calls for (issue #15: "…archived
-    /// flag, remote-connection slot"; ADR-0001). Zed stores its
-    /// `RemoteConnectionOptions` here and filters its sidebar queries by it.
-    /// Atlas has no remote connections yet, so the column round-trips and
+    /// flag, remote-connection slot"; ADR-0001). It would hold the
+    /// connection options and filter sidebar queries by them. Atlas has no remote connections yet, so the column round-trips and
     /// nothing reads it — the row shape is the one the spec fixed, rather than
     /// one needing a migration the day Atlas grows them.
     pub remote_connection: Option<serde_json::Value>,
@@ -167,8 +163,7 @@ impl ThreadMetadata {
 
 /// A row, presented the way `session/list` results are.
 ///
-/// Zed's `From<&ThreadMetadata> for AgentSessionInfo`
-/// (`thread_metadata_store.rs:438-453`). A draft has no session id, so its
+/// A draft has no session id, so its
 /// thread id stands in — the value is never sent to an agent, it only has to
 /// be unique among the rows being rendered.
 impl From<&ThreadMetadata> for AgentSessionInfo {

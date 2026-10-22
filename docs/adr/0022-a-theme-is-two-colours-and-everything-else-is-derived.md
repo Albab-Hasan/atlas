@@ -16,8 +16,8 @@ required. Three things have gone wrong since.
 
 - **Authoring a theme means 42 decisions.** Most of them are not decisions at all.
   `card` is the background, `popover` is the card, and `sidebar-border` is the border.
-  T3 Code builds a whole theme from a background, an accent and an optional foreground,
-  and its users cannot tell what they are missing. That is the experience a "Create
+  A whole theme can be built from a background, an accent and an optional foreground,
+  and its users would not be able to tell what they are missing. That is the experience a "Create
   theme" dialog should have.
 - **The derivation exists twice.** The TypeScript resolver derives the theme keys from
   `keys.toml`. The Rust importer derives missing base tokens with its own hand-written

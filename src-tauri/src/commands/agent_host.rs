@@ -1,13 +1,13 @@
-//! The seam between the ported ACP stack and the `agents_*` command surface.
+//! The seam between the ACP stack and the `agents_*` command surface.
 //!
-//! [`AgentHost`] is what `commands/agents.rs` talks to. It owns the ported
+//! [`AgentHost`] is what `commands/agents.rs` talks to. It owns the
 //! [`AgentManager`], the [`DeltaProjector`] that turns thread events into the
-//! session-delta wire, and the two pieces of bookkeeping the ported stack deliberately
+//! session-delta wire, and the two pieces of bookkeeping the stack deliberately
 //! does not do:
 //!
 //! 1. **Identity.** The frontend has always addressed an agent by a per-spawn
 //!    `AgentId` (a uuid) and a session by `SessionKey { agent_id, session_id }`.
-//!    The ported manager keys connections by [`Agent`] (`Native` or a stable
+//!    The manager keys connections by [`Agent`] (`Native` or a stable
 //!    string id) and sessions by `acp::SessionId`. This module holds the map
 //!    between the two, so the whole TS surface keeps working unchanged.
 //! 2. **History.** Every conversation's metadata row in the app-owned
@@ -59,7 +59,7 @@ use uuid::Uuid;
 
 // ── The IPC wire shapes ─────────────────────────────────────────────────────
 //
-// These moved out of `atlas-agents` with the port. Field names and serde
+// These moved out of `atlas-agents`. Field names and serde
 // attributes are unchanged: the frontend's `src/types/agents.ts` describes
 // exactly these, and Stage 3 does not touch the frontend.
 
@@ -400,7 +400,7 @@ pub struct AgentHost {
     config_dir: PathBuf,
     agents: Mutex<HashMap<AgentId, AgentRecord>>,
     /// One uuid per plugin id, for the life of the process. The frontend spawns
-    /// per tab and expects a stable handle back; the ported manager keeps one
+    /// per tab and expects a stable handle back; the manager keeps one
     /// connection per agent, so minting a fresh uuid per spawn would hand out
     /// several names for one thing.
     by_plugin: Mutex<HashMap<String, AgentId>>,
@@ -511,7 +511,7 @@ struct RequestElicitations {
 /// Builds the native agent.
 ///
 /// There is no longer a switch here. It existed so the previous native path could keep
-/// shipping while the ported engine was proved (#45); that path is deleted
+/// shipping while the engine was proved (#45); that path is deleted
 /// (#54), so this constructs the one implementation there is.
 ///
 /// `ATLAS_AGENT_ENGINE=dev` still points it at a provider read from the
@@ -688,7 +688,7 @@ impl AgentHost {
 
     // `native_sessions` and `native_delete_session` are gone with the previous native
     // runtime that owned those files (#54). They read a second, engine-private
-    // session store; the ported engine keeps its own under a different shape,
+    // session store; the engine keeps its own under a different shape,
     // and pointing the timeline at it would recreate exactly the scrape-reader
     // pattern ADR-0001 removed.
     //
@@ -1258,7 +1258,7 @@ impl AgentHost {
     /// Order matters: the projector is attached before anything else can touch
     /// the thread, because it drains the events buffered while `session/new`
     /// was still in flight — the replay that `session/load` produces lands
-    /// there, and dropping it is the replay-loss bug the port fixes.
+    /// there, and dropping it is the replay-loss bug this fixes.
     fn bind(
         &self,
         agent_id: AgentId,
@@ -1270,8 +1270,7 @@ impl AgentHost {
 
         // History first, then the projector. The conversation exists, so
         // history knows about it before anything has been typed into it —
-        // Zed's store writes on the same trigger (`conversation_view.rs:917-919`),
-        // and a chat that emits no thread event would otherwise never appear at
+        // a chat that emits no thread event would otherwise never appear at
         // all. Before `attach` because `attach` starts draining events: a
         // `NewEntry` that lands first would be followed by this draft write and
         // pushed back to "nothing sent yet".
@@ -1858,7 +1857,7 @@ impl AgentHost {
         Ok(())
     }
 
-    /// Reasoning effort — a native-agent-only knob, as in Zed.
+    /// Reasoning effort — a native-agent-only knob.
     ///
     /// Accepted by the engine, and **inert against the Atlas gateway**: the
     /// gateway's forwarded allowlist carries no reasoning parameter, so the
@@ -2120,13 +2119,11 @@ impl AgentHost {
 
     /// Turn a history row into a live session.
     ///
-    /// One action, as Zed makes it (`sidebar.rs:3843-3883` →
-    /// `agent_panel.rs:4371+`): the agent is started if it is not running, the
+    /// One action: the agent is started if it is not running, the
     /// session is reopened through whichever of `session/load` /
     /// `session/resume` the agent advertised, and the row is unarchived. A row
     /// whose thread never got a session id is a draft, and opens as a new
-    /// conversation — which is what Zed's `resume_session_id = None` does
-    /// (`agent_panel.rs:4464-4467`).
+    /// conversation.
     ///
     /// A failure leaves the row exactly as it was, archived flag included:
     /// nothing here runs before the session is open. Atlas never deletes a
@@ -2135,9 +2132,8 @@ impl AgentHost {
     ///
     /// An agent that rejects the reopen because the user is not signed in comes
     /// back classified as `auth`, which is what routes the frontend into the
-    /// sign-in flow — Zed's `AuthRequired` branch
-    /// (`conversation_view.rs:1150-1157`) reached through the message
-    /// classification Atlas already has, rather than a typed downcast.
+    /// sign-in flow, reached through the message
+    /// classification Atlas already has rather than a typed downcast.
     pub async fn resume_thread(&self, thread_id: ThreadId) -> Result<ResumedThread> {
         let history = self.history_or_err()?;
         let thread = history
@@ -2222,13 +2218,12 @@ impl AgentHost {
     /// never depend on an agent being reachable, let alone on Atlas touching
     /// the agent's files. The agent-side half is best effort and gated on
     /// `sessionCapabilities.delete`; an agent that cannot do it is not an
-    /// error, and the row is gone either way (Zed's
-    /// `threads_archive_view.rs:807-851`).
+    /// error, and the row is gone either way.
     ///
     /// Deleting the row of a conversation that is **still open** removes it
     /// now, and its next message puts it back under the same thread id — the
-    /// live feed keeps its binding on purpose. That is Zed's behaviour and it
-    /// is the honest one: history records conversations, and this one has not
+    /// live feed keeps its binding on purpose. That is the honest
+    /// behaviour: history records conversations, and this one has not
     /// finished. Archive is the action for "out of my way but keep it".
     ///
     /// Deleting a session that is **live elsewhere** (Rule 7 — another
@@ -2282,8 +2277,8 @@ impl AgentHost {
     /// The open project's threads — the chat history sidebar's only source.
     ///
     /// **Scoped to `cwd`.** The store is app-level and holds every project's
-    /// threads (ADR-0001), and this used to return all of them, Zed-style. That
-    /// suits Zed, where the window IS the project; Atlas switches projects
+    /// threads (ADR-0001), and this used to return all of them. That
+    /// would suit a window that IS the project; Atlas switches projects
     /// inside one window, so a list mixing every project's chats was noise the
     /// user had to read past, and a thread from another project sitting at the
     /// top read as if it belonged to the one in front. Everything is still
@@ -2398,8 +2393,7 @@ impl AgentHost {
 
     /// Which installed agents can be imported from, and how much they have.
     ///
-    /// Connecting to every installed agent is the price of the answer, and Zed
-    /// pays it too (`thread_import.rs:689-792`): whether an agent has listable
+    /// Connecting to every installed agent is the price of the answer: whether an agent has listable
     /// history is something only the agent can say, at `initialize`. The native
     /// agent is absent because its threads are already Atlas's.
     ///
@@ -2570,8 +2564,7 @@ impl AgentHost {
     /// `sessionCapabilities.list`.
     ///
     /// `cwd` narrows the listing to one directory, honoured by the agent. The
-    /// import flows pass `None` — Zed scopes its import to a workspace because
-    /// its connections are per-project; Atlas has one connection per agent and
+    /// import flows pass `None`: Atlas has one connection per agent and
     /// an app-level store whose rows carry their own paths, so "everything this
     /// agent knows" is both simpler and more useful there. The project sync
     /// passes the open project, because it runs often and wants the cheap
@@ -2865,10 +2858,8 @@ fn snapshot_of(thread: &AcpThreadHandle) -> ThreadSnapshot {
 /// history row current, and records a session's end when its agent's process
 /// exits.
 ///
-/// Zed's `ThreadMetadataStore` subscribes to each `ConversationView`
-/// (`thread_metadata_store.rs:1188-1212`); Atlas has no views, so the projector
-/// forwards the same events here and this reads the thread the way Zed's
-/// handler reads its own.
+/// The projector forwards each thread's events here, and this reads the thread
+/// to decide what the history row should say.
 ///
 /// Weak on purpose: the host owns the projector that owns this.
 struct HostObserver(std::sync::Weak<AgentHost>);
@@ -3234,7 +3225,7 @@ pub fn icon_data_url(agent: &atlas_agent_store::RegistryAgent) -> Option<String>
 ///
 /// This is not a default-agent table: nothing here makes an agent available,
 /// and an id that is not listed simply gets Atlas's own recording. It exists
-/// because checkpoint touchpoint #11 requires the port to keep reading the
+/// because checkpoint touchpoint #11 requires keeping the host reading the
 /// transcripts agents write for themselves, and knowing where those are is
 /// per-agent knowledge no protocol advertises.
 pub fn transcript_kind_for(plugin_id: &str) -> TranscriptKind {
@@ -3246,7 +3237,7 @@ pub fn transcript_kind_for(plugin_id: &str) -> TranscriptKind {
 
 /// One auth method, as the frontend reads it.
 ///
-/// Moved from `atlas-acp/src/driver.rs` with the port, still built by reading
+/// Moved from `atlas-acp/src/driver.rs`, still built by reading
 /// the method's SERIALIZED form rather than matching the typed enum: the
 /// `Terminal` / `EnvVar` variants are unstable-gated, and without the feature a
 /// wire-level `type` silently deserializes as `Agent` with its extra fields
@@ -3452,8 +3443,7 @@ fn lock_thread(thread: &AcpThreadHandle) -> std::sync::MutexGuard<'_, AcpThread>
 
 // ── The installed map on disk ───────────────────────────────────────────────
 //
-// Zed keeps this in `settings.json` under `agent_servers`. Atlas keeps the same
-// JSON in a file of its own so a hand edit is possible without touching app
+// The installed map is JSON in a file of its own, so a hand edit is possible without touching app
 // settings, and so uninstalling an agent is one atomic write.
 
 /// Where the installed map lives. Beside the agents it describes.
@@ -4349,7 +4339,7 @@ mod tests {
         let caps = host.capabilities(ATLAS_AGENT_ID);
         assert!(caps.auth_kinds.is_empty());
         assert!(!caps.supports_logout);
-        // `session/fork` has no equivalent on the ported seam, so this is
+        // `session/fork` has no equivalent on the seam, so this is
         // false for every agent rather than optimistically true.
         assert!(!caps.supports_fork);
 
@@ -4551,14 +4541,14 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// The wire shape is Zed's, verbatim — a map written by Zed reads here.
+    /// The installed map's JSON shape is a stable wire format.
     #[test]
-    fn the_installed_map_is_zeds_json() {
+    fn the_installed_map_json_shape_is_stable() {
         let settings: atlas_agent_store::AllAgentServersSettings = serde_json::from_str(
             r#"{ "my-agent": { "type": "custom", "command": "~/bin/agent", "args": ["--acp"] },
                  "some-cli": { "type": "registry" } }"#,
         )
-        .expect("Zed's shape");
+        .expect("installed-map shape");
         assert_eq!(settings.0.len(), 2);
         assert!(settings.has_registry_agents());
     }

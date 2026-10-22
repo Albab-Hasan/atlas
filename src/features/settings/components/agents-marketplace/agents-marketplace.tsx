@@ -1,4 +1,4 @@
-// Settings → Agents. The ACP Registry marketplace (modeled on Zed's): every
+// Settings → Agents. The ACP Registry marketplace: every
 // agent published to the official ACP registry, searchable, with
 // All/Installed/Not-Installed pills and per-card Install/Remove.
 //

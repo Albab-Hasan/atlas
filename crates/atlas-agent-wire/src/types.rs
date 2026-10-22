@@ -15,7 +15,7 @@
 //!
 //! They live in their own crate because the protocol crates pin their schema
 //! crate exactly, so a wire type defined in one stack was unreachable from
-//! another (the old 1.3 stack and the 2.0 port coexisted for a day). It stays
+//! another (the old 1.3 stack and the 2.0 stack coexisted for a day). It stays
 //! separate so the wire names no protocol version; `atlas-agent-delta` is where
 //! thread events are projected onto it.
 

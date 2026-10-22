@@ -1,6 +1,6 @@
 // The chat header.
 //
-// Deliberately close to ChatGPT's: a session name with a chevron on the left,
+// Deliberately minimal: a session name with a chevron on the left,
 // and everything else folded behind icon buttons. The previous header put a
 // 280px search field, a role-filter pill, and three named toggles (Bash /
 // Plans / Zen) permanently on screen — five controls competing with the

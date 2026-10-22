@@ -1,7 +1,7 @@
 /**
  * The Settings page vocabulary: page → section → group → row.
  *
- * Modelled on T3 Code's settings and drawn in the timeline's style (the
+ * Drawn in the timeline's style (the
  * standards repo's `SettingCard` / `SectionHeader` / `PageHeader`):
  *
  * - A **page** is a centred column with a page header, like the timeline.

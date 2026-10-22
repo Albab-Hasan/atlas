@@ -1,10 +1,10 @@
-//! The session model — ported from `zed-ref/crates/acp_thread/src/acp_thread.rs`.
+//! The session model.
 //!
 //! `AcpThread` is one agent session: an ordered list of entries (user messages,
 //! assistant messages, tool calls, elicitations, plans, compactions) plus the
 //! bookkeeping that keeps them correct while updates stream in out of order.
 //!
-//! What is ported here is the *mechanism*, not Zed's rendering:
+//! This is the *mechanism*, not any rendering. It covers:
 //! - chunk merging by protocol `messageId`, including the rule that a
 //!   server echoing back a user chunk must not split the optimistic prompt;
 //! - the tool-call upsert path, where a `WaitingForConfirmation` status survives
@@ -34,10 +34,8 @@ use crate::EventSink;
 
 /// One piece of renderable content.
 ///
-/// Zed holds `Entity<Markdown>` here and re-renders it reactively. Markdown
-/// entities are explicitly out of the port (the frontend already renders
-/// markdown), so text is carried as a plain `String` and the *concatenation*
-/// rules — which is the part that has to be right — are ported verbatim.
+/// Text is carried as a plain `String` because the frontend already renders
+/// markdown; the *concatenation* rules are the part that has to be right.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ContentBlock {
     Empty,
@@ -128,9 +126,8 @@ impl ContentBlock {
         }
     }
 
-    /// Zed renders this through `MentionUri`, which lives in `mention.rs` —
-    /// explicitly not ported (Atlas has its own mention system). The bare URI is
-    /// what is left of that once the mention layer is removed.
+    /// Atlas has its own mention system, so there is no mention layer here and
+    /// a resource link renders as its bare URI.
     fn resource_link_string(uri: &str) -> String {
         uri.to_string()
     }
@@ -239,8 +236,8 @@ pub struct ContextCompaction {
     pub status: ContextCompactionStatus,
 }
 
-/// A proposed or applied edit. Zed backs this with a multibuffer diff, which is
-/// out of the port; the payload the agent actually sends is these three fields.
+/// A proposed or applied edit: the payload the agent actually sends, which is
+/// these three fields. Diff rendering stays in the frontend.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Diff {
     pub path: PathBuf,
@@ -262,10 +259,9 @@ impl Diff {
     }
 }
 
-/// The size spread is a consequence of the port: Zed's variants are all GPUI
-/// entity handles (one pointer each), while these hold the payload inline
-/// because there is no entity store. Boxing would diverge from the ported shape
-/// for a `Vec` that holds a handful of items per tool call.
+/// The size spread is a consequence of holding each payload inline rather than
+/// behind a handle. Boxing would add an allocation for a `Vec` that holds a
+/// handful of items per tool call.
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 pub enum ToolCallContent {
@@ -563,10 +559,9 @@ impl ToolCall {
         })
     }
 
-    /// Zed additionally markdown-escapes an `Edit` title, because it renders the
-    /// label as markdown. Nothing renders markdown in this crate, so only the
-    /// multi-line truncation — which is real behaviour, not presentation —
-    /// is ported.
+    /// Nothing renders markdown in this crate, so no escaping happens here; only
+    /// the multi-line truncation — which is real behaviour, not presentation —
+    /// is applied.
     fn label_for(kind: acp::ToolKind, title: String) -> String {
         if kind == acp::ToolKind::Execute || kind == acp::ToolKind::Edit {
             title
@@ -965,9 +960,8 @@ pub enum AcpThreadEvent {
     WorkingDirectoriesUpdated,
 }
 
-/// The turn currently in flight, if any. Zed also holds the send task here; the
-/// task lives with the caller in this port, so only the identity remains — and
-/// the identity is the point: it is what tells a turn reporting back late
+/// The turn currently in flight, if any. The send task lives with the caller, so
+/// only the identity is held here — and the identity is the point: it is what tells a turn reporting back late
 /// whether it is still the one running.
 #[derive(Debug)]
 struct RunningTurn {
@@ -1170,8 +1164,7 @@ impl AcpThread {
 
     /// A thread is a draft until its first message is sent.
     ///
-    /// Zed's `is_draft_thread` (`acp_thread.rs:2346-2348`). Note what it is
-    /// *not*: an ACP session may already exist for a draft — Atlas opens one
+    /// Note what it is *not*: an ACP session may already exist for a draft — Atlas opens one
     /// when the tab mounts — but that session is re-created on reload, so its
     /// id is worth nothing to history until a message has gone through it.
     pub fn is_draft(&self) -> bool {
@@ -1274,7 +1267,6 @@ impl AcpThread {
 
     // ---- session/update -------------------------------------------------
 
-    /// Ported from `AcpThread::handle_session_update` (`acp_thread.rs:2549-2652`).
     pub fn handle_session_update(&mut self, update: acp::SessionUpdate) -> Result<(), acp::Error> {
         match update {
             acp::SessionUpdate::UserMessageChunk(acp::ContentChunk {
@@ -1332,11 +1324,9 @@ impl AcpThread {
             }
             acp::SessionUpdate::Plan(plan) => self.update_plan(plan),
             acp::SessionUpdate::SessionInfoUpdate(info_update) => {
-                // Zed additionally re-emits `TitleUpdated` when an unchanged
-                // title clears a *provisional* one it was showing while the
-                // agent named the session. Provisional titles are a Zed UI
-                // affordance that is not ported, so that branch has no meaning
-                // here.
+                // There are no provisional titles (shown while the agent has
+                // not yet named the session), so an unchanged title needs no
+                // re-emit.
                 if let MaybeUndefined::Value(title) = info_update.title {
                     let title: Arc<str> = title.into();
                     // Dropped, not stored-then-hidden: every consumer of
@@ -1602,7 +1592,6 @@ impl AcpThread {
         self.upsert_tool_call_inner(tool_call.into(), status)
     }
 
-    /// Ported from `upsert_tool_call_inner` (`acp_thread.rs:3200-3256`).
     pub fn upsert_tool_call_inner(
         &mut self,
         update: acp::ToolCallUpdate,
@@ -1636,8 +1625,6 @@ impl AcpThread {
         Ok(())
     }
 
-    /// Ported from `update_tool_call` (`acp_thread.rs:3115-3185`).
-    ///
     /// An update for an id that was never announced becomes a *failed* entry
     /// rather than being dropped: the agent believes it ran a tool, and silently
     /// discarding that leaves the transcript claiming it never happened.
@@ -1697,8 +1684,6 @@ impl AcpThread {
 
     // ---- permission -----------------------------------------------------
 
-    /// Ported from `request_tool_call_authorization` (`acp_thread.rs:3383-3418`).
-    ///
     /// Returns the waiter the caller answers `session/request_permission` with.
     /// A dropped sender resolves to `Cancelled`, so the agent is never left
     /// waiting on a prompt that went away with its thread.
@@ -1808,7 +1793,6 @@ impl AcpThread {
         self.emit(AcpThreadEvent::ToolAuthorizationReceived(id.clone()));
     }
 
-    /// Ported from `authorize_tool_call` (`acp_thread.rs:3433-3489`).
     pub fn authorize_tool_call(&mut self, id: acp::ToolCallId, outcome: SelectedPermissionOutcome) {
         let Some((ix, call)) = self.tool_call_mut(&id) else {
             return;
@@ -2005,9 +1989,9 @@ impl AcpThread {
 
     /// Open a context-compaction entry, or move an open one to a new status.
     ///
-    /// Zed's native agent drives these entries the same way — compaction is
-    /// something an agent *does*, not something the protocol reports, so it has
-    /// no `session/update` variant and reaches the timeline through here.
+    /// Compaction is something an agent *does*, not something the protocol
+    /// reports, so it has no `session/update` variant and reaches the timeline
+    /// through here.
     pub fn upsert_context_compaction(
         &mut self,
         id: ContextCompactionId,
@@ -2047,7 +2031,7 @@ impl AcpThread {
     /// The previous turn is cancelled with `InterruptedByFollowUp` rather than
     /// `Cancelled` — the distinction reaches any tool call still waiting on a
     /// permission answer, which is a different thing from the user pressing
-    /// stop. Ported from `run_turn` (`acp_thread.rs:3740-3752`).
+    /// stop.
     pub fn begin_turn(&mut self) -> u32 {
         self.had_error = false;
         self.cancel_inner(RequestPermissionOutcome::InterruptedByFollowUp);
@@ -2058,7 +2042,7 @@ impl AcpThread {
     }
 
     /// Closes the running turn. `stop_reason` is emitted so the UI leaves the
-    /// generating state for the same reasons Zed does.
+    /// generating state.
     ///
     /// Deliberately NOT guarded on `running_turn`. A guard would make
     /// `set_error()` followed by `end_turn()` emit nothing instead of a second
@@ -2144,7 +2128,6 @@ impl AcpThread {
         self.emit(AcpThreadEvent::StatusChanged);
     }
 
-    /// Ported from `AcpThread::cancel` (`acp_thread.rs:3901-3922`).
     pub fn cancel(&mut self) {
         self.cancel_inner(RequestPermissionOutcome::Cancelled)
     }
@@ -2226,11 +2209,9 @@ impl AcpThread {
         let terminal_id = event.terminal_id().clone();
         self.terminals.handle_event(event);
         // The terminal's state is what a referencing tool call renders, so a
-        // change to it is a change to that entry. Zed does not need this step:
-        // its terminal is an entity a view holds directly, so `cx.notify()` on
-        // the terminal re-renders the tool call for free. Atlas's terminals
-        // reach the UI only THROUGH the tool call's projection, so the link has
-        // to be made explicitly or the output never moves.
+        // change to it is a change to that entry. Atlas's terminals reach the UI only
+        // THROUGH the tool call's projection, so the link has to be made
+        // explicitly or the output never moves.
         self.note_terminal_output(&terminal_id);
     }
 
@@ -2272,9 +2253,7 @@ impl AcpThread {
     /// gets: a buffer that dropped its front otherwise reads as a command that
     /// started mid-sentence. The exit status is deliberately NOT in here — the
     /// agent reports how its own tool call ended through `tool_call_update`,
-    /// and the tool call's status is where the UI shows it. Zed's
-    /// `Terminal::to_markdown` (`terminal.rs:604-609`) is content-only for the
-    /// same reason.
+    /// and the tool call's status is where the UI shows it.
     /// How [`Self::terminal_output`]'s answer has grown past `from` bytes.
     ///
     /// `None` when the id names no terminal this thread holds, or when the

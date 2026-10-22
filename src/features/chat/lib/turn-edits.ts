@@ -34,9 +34,7 @@ export interface TurnEdits {
  *   touched, which is honest about what the record holds. (A `Write` carries
  *   whole content with an empty `old`, which is why a file the turn created
  *   renders in full.)
- * - **Diff blocks** carry the WHOLE FILE, before and after (`acp::Diff`; Zed
- *   loads `new_text` straight into a buffer and diffs it against `old_text`,
- *   `diff.rs:18-28`). Concatenating those produces nonsense: two edits to one
+ * - **Diff blocks** carry the WHOLE FILE, before and after (`acp::Diff`). Concatenating those produces nonsense: two edits to one
  *   file would give `old = v0 + v1` against `new = v1 + v2`. They fold by
  *   taking the FIRST block's before and the LAST block's after — the state the
  *   turn found the file in, and the state it left it in.

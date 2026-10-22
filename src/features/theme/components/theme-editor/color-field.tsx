@@ -1,7 +1,6 @@
 /**
  * One colour slot in the theme editor: a swatch that opens the picker, and a
- * hex field. Ported from T3 Code's `ThemeColorPicker.tsx`, plus the one thing
- * Atlas's format adds: a slot the theme does not set shows what it DERIVES
+ * hex field. Atlas's format adds one thing: a slot the theme does not set shows what it DERIVES
  * to (ADR-0022), dimmed, and a set slot can be cleared to follow again.
  */
 
@@ -69,7 +68,7 @@ function PickerPanel({
   // The thumb moves every pointer event; the commit — which re-resolves and
   // repaints the whole app — happens at most once a frame, and the last one
   // is never lost to a closing popover.
-  // T3's `useStableCallback`: the latest `onChange`, callable from a frame.
+  // A stable-callback ref: the latest `onChange`, callable from a frame.
   const onChangeRef = useRef(onChange);
   useEffect(() => {
     onChangeRef.current = onChange;

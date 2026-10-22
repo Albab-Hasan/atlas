@@ -4,7 +4,7 @@
  *
  * Every row and bound control reads through this, so the scope picker
  * (`ScopeSentence`) changes what the whole page shows and writes in one place,
- * the way T3 Code's scoped settings do:
+ * as follows:
  *
  * - **All projects.** Reads and writes `config.toml`. Reset puts the default
  *   back.

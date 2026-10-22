@@ -903,8 +903,7 @@ function CategoryIcon({ kind }: { kind: MentionKind }) {
 }
 
 /** Primary label shown big in the picker row — last path segment, title,
- *  symbol name, etc. Matches Zed/VS Code's "name first, parent second"
- *  layout (see screenshot reference). */
+ *  symbol name, etc. "Name first, parent second" layout. */
 function primaryLabel(m: MentionData): string {
   switch (m.kind) {
     case "file":

@@ -1,8 +1,8 @@
 import { BASE_RULE_REGISTRY, PALETTE_KEYS, THEME_KEY_REGISTRY } from "../theme-key-registry";
 
 /**
- * What the theme editor offers, grouped the way T3 Code's editor groups its
- * roles: by what a colour is FOR, in plain names, rather than in token order.
+ * What the theme editor offers, grouped
+ * by what a colour is FOR, in plain names, rather than in token order.
  *
  * Every entry is a real slot in the theme file — a base token, a palette hue
  * or a theme key — so the editor writes exactly what an author would write by
@@ -36,7 +36,7 @@ const base = (name: string, label: string): EditorRole => ({
   description: describeBase(name),
 });
 
-/** The simple view: T3's "two colors, rest derived". `foreground` is the
+/** The simple view: two colors, rest derived. `foreground` is the
  *  third seed and follows `background` until set, so it waits in Advanced. */
 export const SIMPLE_ROLES: readonly EditorRole[] = [
   base("background", "Background"),

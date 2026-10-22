@@ -164,7 +164,7 @@ export function FileTree() {
     openFile(path);
   }, []);
 
-  // Click handling with Finder/Zed-style multi-select:
+  // Click handling with Finder-style multi-select:
   //   • plain click → single-select + open/expand
   //   • ⌘/Ctrl-click → toggle this row in the selection (no open)
   //   • ⇧-click → range-select from the anchor to here (no open)
@@ -383,7 +383,7 @@ export function FileTree() {
     [resolveCollision, reconcileDirectory],
   );
 
-  // Pointer-based drag-and-drop (Zed/Athas style). Owns the floating
+  // Pointer-based drag-and-drop Owns the floating
   // filename preview + destination hit-testing; delegates the actual
   // move to `handleMove` and auto-expand to `ensureExpanded`.
   const { dragState, onContainerMouseDown } = useFileTreeDragDrop({

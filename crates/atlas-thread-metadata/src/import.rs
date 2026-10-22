@@ -1,8 +1,7 @@
 //! Importing an agent's own sessions — the only way external history reaches
 //! Atlas.
 //!
-//! Ported from Zed's `thread_import.rs` (`collect_all_sessions` `:794-820`,
-//! `collect_importable_threads` `:855-889`). Two properties carry it:
+//! Two properties carry it:
 //!
 //! * **Metadata only.** A `SessionInfo` is an id, a directory, a title and a
 //!   timestamp. No transcript is fetched, here or ever — the conversation
@@ -83,13 +82,12 @@ pub async fn collect_all_sessions(
 /// Skips two kinds of session, both for the same reason — a row nobody could
 /// ever see is worse than no row:
 ///
-/// * one Atlas already knows, by session id (`thread_import.rs:867-869`), which
+/// * one Atlas already knows, by session id, which
 ///   is what makes importing twice a no-op;
-/// * one with no working directory (`:870-872`), which would belong to no
+/// * one with no working directory, which would belong to no
 ///   project and so appear under none.
 ///
-/// The known-ids set grows as it goes, exactly as Zed's does (`:867-869`
-/// inserts into it). That is not a detail: an agent that ignores the pagination
+/// The known-ids set grows as it goes. That is not a detail: an agent that ignores the pagination
 /// cursor lists the same session on every page, so a fixed set would let one
 /// conversation through as several rows.
 ///

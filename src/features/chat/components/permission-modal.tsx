@@ -60,8 +60,7 @@ interface PermissionModalProps {
 /**
  * Renders the head of the pending-permission queue for whichever ACP session
  * is bound to this tab. The standard case is an inline card (numbered options,
- * keyboard-selectable, with a free-text fallback) pinned above the composer,
- * à la Claude Code / VSCode. Plan reviews keep the richer two-panel modal.
+ * keyboard-selectable, with a free-text fallback) pinned above the composer. Plan reviews keep the richer two-panel modal.
  * Cancelled requests (ESC / click outside) resolve as `cancelled` on the wire
  * so the agent backs off correctly.
  */

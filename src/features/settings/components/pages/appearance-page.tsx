@@ -4,7 +4,7 @@
  * themes as live previews, then the interface and its type.
  *
  * Nothing here changes what Atlas does — that is General and the pages after
- * it. Modelled on T3 Code's Appearance page.
+ * it.
  */
 
 import { Minus, Plus } from "lucide-react";

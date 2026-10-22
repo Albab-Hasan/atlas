@@ -306,7 +306,7 @@ function claudeModeDotClass(mode: ClaudePermissionMode): string {
 
 /**
  * The composer's grouped, animated picker — coding agent / permission mode /
- * model unified into one Skiper-style expanding menu. The pill row doubles as
+ * model unified into one expanding menu. The pill row doubles as
  * the tab strip: clicking a pill expands a shared panel above it with that
  * group's items; clicking another tab slides the content toward it
  * (direction-aware); outside click / Esc / re-click closes. While open, the
@@ -1957,8 +1957,7 @@ export function MessageInput({
               dropZoneEl,
             )}
           {/* Inner input surface — nested card with its own border + focus
-              glow, sitting proud of the muted shell (reference: the Skiper
-              double-layer composer). The send button lives INSIDE it. */}
+              glow, sitting proud of the muted shell. The send button lives INSIDE it. */}
           <div
             className={cn(
               // `min-h-[44px]`: the send button is absolutely positioned 8px
@@ -2044,7 +2043,7 @@ export function MessageInput({
                   // Reference-style squircle send: a soft rounded-square,
                   // transparent at rest, muted fill + border on hover, pinned
                   // top-right of the input surface (it does not ride down as
-                  // the field grows — same as the Skiper component).
+                  // the field grows).
                   // Geometry IN PX, not rem: Atlas's UI-scale setting shrinks
                   // the root font-size, so rem utilities (w-7/top-2 → 23px/6.5px
                   // under scale) drift against CodeMirror's hardcoded 12px/16px

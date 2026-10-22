@@ -11,8 +11,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
  * filename. Native DnD also forced a pile of WKWebView "protected mode"
  * dataTransfer workarounds.
  *
- * Instead we track mousedown → mousemove → mouseup ourselves (Zed/Athas
- * style): a 5px movement threshold starts the drag, a custom floating
+ * Instead we track mousedown → mousemove → mouseup ourselves: a 5px movement threshold starts the drag, a custom floating
  * label follows the cursor, and `document.elementFromPoint` + the row's
  * `data-tree-path` / `data-tree-is-dir` attributes resolve the hovered
  * destination. `dragOverPath` is always a real directory path (or the

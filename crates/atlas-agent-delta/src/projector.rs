@@ -83,9 +83,7 @@ pub fn elicitation_wire(elicitation: &atlas_acp_thread::Elicitation) -> Elicitat
 /// Something that wants to see thread events besides the wire projection.
 ///
 /// One observer, set once at startup: Atlas's history store, which keeps a
-/// metadata row per conversation current from the same events (Zed's
-/// `ThreadMetadataStore` subscribes to its `ConversationView`s the same way,
-/// `thread_metadata_store.rs:1188-1212`).
+/// metadata row per conversation current from the same events.
 ///
 /// It is handed the thread as well as the event because the row records what
 /// the thread *is* — its title, its working directories, whether anything has
@@ -920,7 +918,7 @@ impl SessionProjection {
                     vec![delta],
                 )
             }
-            // Nothing in the ported stack constructs `CompletedPlan`, so this
+            // Nothing in the stack constructs `CompletedPlan`, so this
             // arm and its counterpart in `update_entry` are unreachable rather
             // than merely rare. Kept for exhaustiveness, and because the
             // variant is the shape a finished plan would arrive in.

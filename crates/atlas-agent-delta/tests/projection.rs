@@ -942,8 +942,7 @@ async fn terminal_output_still_names_its_block_on_the_wire() {
 async fn growing_terminal_output_re_projects_the_tool_call() {
     // Live streaming. A terminal's output grows on its own, long after the
     // tool call that references it was announced — nothing else about the
-    // thread changes. Zed gets this free: its terminal is an entity the view
-    // holds, so notifying it re-renders the tool call. Atlas's terminals reach
+    // thread changes. Atlas's terminals reach
     // the UI only through the tool call's projection, so without an explicit
     // link the output pane shows whatever happened to be buffered when some
     // unrelated event last re-projected the entry.
@@ -951,7 +950,7 @@ async fn growing_terminal_output_re_projects_the_tool_call() {
 
     // The terminal must exist before the agent can reference it: the id comes
     // from `terminal/create`, and the thread rejects a block naming an unknown
-    // one (as Zed's `ToolCallContent::from_acp` does).
+    // one.
     create_terminal(&harness, "term-3", &["first"]).await;
     harness.update(terminal_tool_call("call-3", "term-3"));
     harness.expect(1);

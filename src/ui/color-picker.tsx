@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * The two controls a colour picker is made of: a saturation/brightness plane
- * and a hue slider, both in HSV. Ported from T3 Code's `ui/color-picker.tsx`.
+ * and a hue slider, both in HSV.
  *
  * Both are pointer-draggable and keyboard-operable: the plane is two hidden
  * range inputs (Tab moves between saturation and brightness), the slider is a

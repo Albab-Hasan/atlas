@@ -25,7 +25,7 @@
  *      when one is not declared here.
  *   3. A file inside a cargo package marks that package.
  *   4. A file under `vendor/` outside every package (LICENSE, NOTICE, shared
- *      fixtures) marks every vendored package.
+ *      fixtures) marks every engine package.
  *   5. NON_RUST paths mark nothing.
  *   6. Anything else is unknown, and an unknown file means everything runs.
  *      The planner fails closed: a new top-level file costs one full run until

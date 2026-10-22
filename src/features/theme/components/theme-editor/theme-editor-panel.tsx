@@ -1,6 +1,6 @@
 /**
  * The theme editor: a panel floating over the live app, which IS the preview.
- * Modelled on T3 Code's `ThemeEditorPanel` — two colours and the rest derived,
+ * Two colours and the rest derived,
  * an Advanced switch for every slot, a light/dark toggle, draggable and
  * minimisable so the part of the app being judged can be uncovered.
  *
@@ -214,7 +214,7 @@ export function ThemeEditorPanel({
 
   // Set by hand and so deaf to the seeds: what a duplicated built-in starts
   // with, since built-ins pin every colour. Simple mode says so, and offers
-  // to let them follow — the one decision T3's "managed" flag made for you.
+  // to let them follow.
   const pinned = Object.keys(written?.base ?? {}).filter(
     (token) => COLOR_BASE_ROLES.has(token) && !(SEED_TOKENS as readonly string[]).includes(token),
   );

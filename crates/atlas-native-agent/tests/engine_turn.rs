@@ -52,7 +52,7 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 //
 // The app dispatches only the `argv[1]` helpers (`run_engine_helper_if_asked`),
 // not this arg0 alias, so it has no Linux helper to offer (see
-// `EngineSettings::linux_sandbox_exe`). The tests do: upstream's own
+// `EngineSettings::linux_sandbox_exe`). The tests do: the engine's own
 // suites make the *test binary* the helper, and this is that same construction
 // — `vendor/atlas-engine/core/tests/suite/mod.rs`. The `#[ctor]` runs before any test
 // thread exists, which is what makes the `set_var`/PATH work inside it sound.
@@ -1831,7 +1831,7 @@ async fn the_native_agent_answers_to_its_stored_agent_id() {
 
 #[tokio::test]
 async fn a_turn_emits_the_events_the_live_thread_feed_records_on() {
-    // Bar item 3, at the seam. The recorder is not changed by the port — it
+    // Bar item 3, at the seam. The recorder is not changed by the engine cutover — it
     // observes `AcpThreadEvent`s, and both engines produce them through the
     // same `AcpThread`. What has to hold is that an engine turn still emits
     // events the feed acts on; if it did not, rows would silently stop

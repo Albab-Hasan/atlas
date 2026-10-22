@@ -1,7 +1,6 @@
 //! The store: an in-memory index of every thread, a queued writer behind it.
 //!
-//! Ported from Zed's `ThreadMetadataStore`
-//! (`thread_metadata_store.rs:497-1360`). Two properties are worth stating
+//! Two properties are worth stating
 //! because everything else follows from them:
 //!
 //! * **Reads never touch SQLite.** The whole table is loaded at open and kept
@@ -10,19 +9,16 @@
 //!   it must cost nothing.
 //! * **Writes are queued, batched and deduped to the last operation per
 //!   thread.** A streaming turn updates one row dozens of times a second; only
-//!   the last one is worth a disk write (`:1214-1263`).
+//!   the last one is worth a disk write.
 //!
-//! Divergence from Zed, deliberately: Zed stores the native agent's id as SQL
-//! `NULL` and decodes it back (`:1499-1503`, `:1725-1727`). Atlas writes every
-//! `agent_id` literally. Special-casing one agent in the storage layer is
+//! Every `agent_id` is written literally, never as SQL `NULL` for the native
+//! agent. Special-casing one agent in the storage layer is
 //! exactly the shape the "no ACP agent gets special treatment" rule forbids,
 //! and the column costs the same either way.
 //!
-//! Divergence from Zed, structural: Zed's queue drains on a GPUI background
-//! task and its callers are async. Atlas has no such ambient runtime here, so
-//! the queue drains on a plain thread and [`ThreadMetadataStore::flush`] exists
-//! to wait for it — at shutdown, and in tests. That is the whole of the
-//! difference; the batching and dedup rules are Zed's.
+//! There is no ambient async runtime here, so the queue drains on a plain
+//! thread and [`ThreadMetadataStore::flush`] exists to wait for it — at
+//! shutdown, and in tests.
 
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
@@ -70,7 +66,7 @@ pub enum ThreadStoreEvent {
     Changed,
     /// A thread was archived. Emitted in addition to [`ThreadStoreEvent::Changed`]
     /// because archiving is the one mutation with a user-visible consequence
-    /// beyond the list contents (Zed's `ThreadArchived`, `:858-871`).
+    /// beyond the list contents.
     ThreadArchived(ThreadId),
 }
 
@@ -85,8 +81,7 @@ pub struct ThreadProject {
 
 /// The live update behind one row, as the conversation produces it.
 ///
-/// This is the store-side half of Zed's `handle_conversation_event`
-/// (`thread_metadata_store.rs:1265-1356`): the caller supplies what the thread
+/// The caller supplies what the thread
 /// currently is, and the store decides both what to preserve from the row that
 /// is already there and what not to persist at all. Keeping those rules here
 /// rather than at the call site is what makes them testable, and what stops a
@@ -332,7 +327,7 @@ impl ThreadMetadataStore {
 
     /// The history/archive view's list: newest **created** first, because the
     /// view buckets threads by when they started rather than by when they last
-    /// moved (Zed's `update_items`, `threads_archive_view.rs:271-299`).
+    /// moved.
     pub fn history(&self, filter: ThreadFilter) -> Vec<ThreadMetadata> {
         let mut out: Vec<ThreadMetadata> = read(&self.inner.cache)
             .threads
@@ -436,8 +431,7 @@ impl ThreadMetadataStore {
     /// precisely so that work in another worktree is visible and resumable
     /// without switching to it first (ADR-0001).
     ///
-    /// Drafts are absent. Zed lists them, because in Zed a draft is a thread
-    /// you can navigate back to; in Atlas a draft *is* the chat tab already on
+    /// Drafts are absent: a draft *is* the chat tab already on
     /// screen, and it is deleted when that tab closes — so a row for it would
     /// be a second copy of the thing the user is looking at.
     pub fn projects(&self) -> Vec<ThreadProject> {
@@ -469,11 +463,10 @@ impl ThreadMetadataStore {
     }
 
     /// The unarchived threads whose folder paths are exactly `path_list` —
-    /// the sidebar's per-project query (`sidebar.rs:1604-1618`).
+    /// the sidebar's per-project query.
     ///
-    /// Zed additionally filters on the row's remote connection
-    /// (`:621-660`). Atlas has no remote connections, so there is nothing to
-    /// filter by and the slot stays write-only until it does.
+    /// Atlas has no remote connections, so there is nothing to filter by on the
+    /// row's remote-connection slot and it stays write-only until there is.
     pub fn threads_for_path(&self, path_list: &PathList) -> Vec<ThreadMetadata> {
         self.grouped(path_list, |cache| &cache.by_paths)
     }
@@ -654,9 +647,8 @@ impl ThreadMetadataStore {
     ///
     /// This is **not** how an agent's ordinary titles arrive — those come
     /// through [`ThreadMetadataStore::record_live_update`], which preserves the
-    /// rename. Zed's only two callers are the user's own "regenerate title"
-    /// action (`sidebar.rs:3809`, `agent_panel.rs:4060`), so the generated
-    /// title is the user's latest word on the name and replaces the older one.
+    /// rename. Its only callers are the user's own "regenerate title"
+    /// action, so the generated title is the user's latest word on the name and replaces the older one.
     pub fn set_generated_title(&self, thread_id: ThreadId, title: impl Into<Arc<str>>) {
         let title = title.into();
         self.update(thread_id, |thread| {
@@ -763,9 +755,9 @@ impl ThreadMetadataStore {
     ///
     /// Archived threads are skipped for the same reason as
     /// [`ThreadMetadataStore::update_worktree_paths`]: their paths are a record
-    /// of where the thread lived, not a reading of the current project. Zed
-    /// asserts this case away in debug builds (`:790-793`); refusing it outright
-    /// is the same rule without a release-build hole.
+    /// of where the thread lived, not a reading of the current project. Refusing it
+    /// outright, rather than asserting it away in debug builds, leaves no
+    /// release-build hole.
     pub fn update_working_directories(&self, thread_id: ThreadId, work_dirs: PathList) {
         self.update(thread_id, |thread| {
             if thread.archived {
@@ -976,8 +968,7 @@ impl ThreadMetadataStore {
 }
 
 /// Which of a burst of queued writes actually reach the disk: the last one per
-/// thread, in no particular order across threads. Zed's `dedup_db_operations`
-/// (`:1254-1263`).
+/// thread, in no particular order across threads.
 fn dedup_operations(operations: Vec<DbOperation>) -> Vec<DbOperation> {
     let mut seen: HashMap<OpKey, DbOperation> = HashMap::new();
     for operation in operations.into_iter().rev() {
@@ -1124,9 +1115,8 @@ fn remove_from(
     }
 }
 
-/// When a thread started, for the history view's ordering: Zed falls back to
-/// `updated_at` for rows written before `created_at` existed
-/// (`threads_archive_view.rs:289`).
+/// When a thread started, for the history view's ordering: falls back to
+/// `updated_at` for rows written before `created_at` existed.
 fn started(thread: &ThreadMetadata) -> DateTime<Utc> {
     thread.created_at.unwrap_or(thread.updated_at)
 }

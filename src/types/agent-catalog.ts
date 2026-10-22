@@ -5,7 +5,7 @@
 
 /** How a spawn of this agent would launch it right now.
  *
- *  The spawn ladder is gone (Zed port, ADR-0002): an agent is the native one, it
+ *  The spawn ladder is gone (ADR-0002): an agent is the native one, it
  *  is in the installed map, or it is not runnable. `system-path`,
  *  `managed-binary`, `auto-acquire` and `uvx` were rungs of that ladder and are
  *  never emitted any more. */

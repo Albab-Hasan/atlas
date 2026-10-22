@@ -1,6 +1,5 @@
 //! The SQLite layer: list, upsert, delete. Nothing else.
 //!
-//! Ported from Zed's `ThreadMetadataDb` (`thread_metadata_store.rs:1468-1581`).
 //! Every thread statement here is one of those three, because the store keeps the
 //! whole table in memory and answers reads from there — the database is the
 //! durable copy, not the query engine.
@@ -122,9 +121,8 @@ impl Db {
     /// A draft row is only reachable through the in-memory binding its process
     /// held: with no session id there is nothing to re-find it by, so one left
     /// behind by a crash is an empty row the user can never open and never
-    /// clear. Zed prunes session-less rows in a migration for the same reason
-    /// (`thread_metadata_store.rs:1446-1458`); Atlas does it on every open,
-    /// because Atlas mints a fresh session per chat tab and so produces them
+    /// clear. Pruning them once in a migration would not be enough: this runs on every
+    /// open, because Atlas mints a fresh session per chat tab and so produces them
     /// routinely rather than once.
     fn prune_drafts(&self) -> Result<()> {
         self.conn
@@ -225,8 +223,7 @@ impl Db {
     }
 }
 
-/// An empty path list is stored as `NULL`, not as two empty strings — Zed's
-/// shape (`:1512-1524`), and the difference matters because `NULL` is what a
+/// An empty path list is stored as `NULL`, not as two empty strings — and the difference matters because `NULL` is what a
 /// row written before the column existed also reads as.
 fn optional(list: &PathList) -> Option<SerializedPathList> {
     if list.is_empty() {
@@ -290,7 +287,7 @@ fn decode(row: &rusqlite::Row<'_>) -> rusqlite::Result<ThreadMetadata> {
     let folder_paths = path_list(serialized(folder_paths, folder_paths_order));
     let main_paths = path_list(serialized(main_paths, main_paths_order));
     // A row written before `main_worktree_paths` existed — or by a build that
-    // never set it — has folder paths only. Zed's fallback (`:1745-1760`).
+    // never set it — has folder paths only.
     let worktree_paths = if main_paths.is_empty() {
         WorktreePaths::from_folder_paths(&folder_paths)
     } else {
@@ -304,7 +301,7 @@ fn decode(row: &rusqlite::Row<'_>) -> rusqlite::Result<ThreadMetadata> {
         agent_id: agent_id.into(),
         // `''` is how "no title" is stored, and a persisted default title is
         // not a title either — it is what the row already renders as when it
-        // has none (Zed's decode, `:1776`, `:1782`).
+        // has none.
         title: name(Some(title)),
         title_override: name(title_override),
         updated_at: timestamp(Some(updated_at)).unwrap_or_else(Utc::now),

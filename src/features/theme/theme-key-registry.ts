@@ -380,7 +380,7 @@ export const THEME_KEY_REGISTRY = [
 
   /**
    * A small step below `muted-foreground`, not a large one. Every built-in used to
-   * set this key explicitly to a SURFACE colour — the port mapped a background role
+   * set this key explicitly to a SURFACE colour — an early mapping put a background role
    * onto a text role — which rendered disabled text and comms timestamps at 1.06:1
    * to 1.66:1 against their own background, i.e. invisible. With the explicit values
    * gone and a 0.2 mix (OKLab since ADR-0022), the 28 shipped variants land between
@@ -398,7 +398,7 @@ export const THEME_KEY_REGISTRY = [
    * `mirage`, Atlas's own designs — it was fixed upstream at `muted-foreground`
    * instead, which also lifts `syntax.comment`, `editor.gutter.foreground` and
    * `terminal.ansi.bright_black` in the same themes. The remaining floor (`one-dark`
-   * at 1.98:1) comes from a ported third-party palette, and restating someone else's
+   * at 1.98:1) comes from a palette Atlas did not author, and restating someone else's
    * secondary text colour is exactly what a theme key must not do.
    */
   define("text.disabled", {

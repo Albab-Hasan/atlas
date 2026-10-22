@@ -1,6 +1,5 @@
 /**
- * Terminal font resolution, ported (and trimmed) from Athas's
- * `resolve-font.ts`. xterm.js measures the character cell from the *first*
+ * Terminal font resolution. xterm.js measures the character cell from the *first*
  * resolvable font, so a broken/un-loaded primary font silently corrupts the
  * whole grid — and which fonts are "available" differs between the Vite dev
  * server (warm font cache, dev machine has the nice fonts installed) and a

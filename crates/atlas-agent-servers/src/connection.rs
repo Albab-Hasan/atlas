@@ -1,5 +1,4 @@
-//! The live connection to one external ACP agent — ported from
-//! `zed-ref/crates/agent_servers/src/acp.rs`.
+//! The live connection to one external ACP agent.
 //!
 //! This is where the reliability mechanics live. Each one exists because of a
 //! specific failure, and the reason is recorded at the code rather than here.
@@ -34,7 +33,7 @@ use crate::session::{
 use crate::session_list::AcpSessionList;
 use crate::session_mcp::{self, SessionMcpRequest, SessionMcpServers};
 
-/// Zed rejects anything below v1 outright rather than trying to degrade.
+/// Anything below v1 is rejected outright rather than degraded to.
 const MINIMUM_SUPPORTED_VERSION: ProtocolVersion = ProtocolVersion::V1;
 
 /// How long to wait for the child's exit status after `initialize` fails.
@@ -105,8 +104,7 @@ impl Default for ConnectionDeadlines {
 
 /// What a session's `AcpThread` events are sent to.
 ///
-/// Zed's threads are GPUI entities that the UI subscribes to directly. Here the
-/// host supplies a sink per session, so routing deltas onto the outbound
+/// The host supplies a sink per session, so routing deltas onto the outbound
 /// pipeline stays the host's business and this crate stays leaf-level.
 pub type ThreadEventSink = Arc<dyn Fn(&acp::SessionId) -> EventSink<AcpThreadEvent> + Send + Sync>;
 
@@ -117,9 +115,8 @@ pub type RequestElicitationSink =
 
 /// Defaults applied to every new session on this connection.
 ///
-/// Zed reads these from its `SettingsStore` and re-reads them on every settings
-/// change. Atlas's settings live above this crate, so they are passed in at
-/// connect time instead.
+/// Atlas's settings live above this crate, so they are passed in at connect
+/// time.
 #[derive(Clone, Default)]
 pub struct AcpConnectionDefaults {
     pub mode: Option<acp::SessionModeId>,
@@ -156,7 +153,7 @@ pub struct AcpConnection {
     _wait_task: tokio::task::JoinHandle<()>,
 }
 
-/// What to run, and how. Ported from Zed's `AgentServerCommand`.
+/// What to run, and how.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AgentServerCommand {
     pub path: PathBuf,
@@ -521,8 +518,7 @@ impl AcpConnection {
         Arc::new(Mutex::new(thread))
     }
 
-    /// The load/resume path. Ported from `open_or_create_session`
-    /// (`acp.rs:1166-1294`).
+    /// The load/resume path.
     ///
     /// Two things here are load-bearing:
     ///
@@ -621,8 +617,7 @@ struct SessionConfigResponse {
 
 /// The agent process, owned so that dropping it kills the whole tree.
 ///
-/// Ported from the shape of Zed's `util::process::Child`
-/// (`crates/util/src/process.rs`). The child is started in a session of its
+/// The child is started in a session of its
 /// own (`setsid` in `pre_exec`), so its pid is also its process-group id, and
 /// the kill is `killpg(SIGKILL)` rather than `kill`: `codex-acp` is `node` →
 /// `codex.js app-server` → a native `codex app-server`, and killing only
@@ -770,7 +765,7 @@ async fn wait_for_exit(
 /// The registered closures ENQUEUE AND RETURN — they never await handler work.
 /// The RPC crate dispatches inbound messages serially and awaits each
 /// registered closure inline, so anything a closure waits on blocks every
-/// message behind it: Zed's dispatch queue is not a GPUI artifact but the
+/// message behind it: the dispatch queue is the
 /// mechanism that keeps an open permission prompt (or a running command's
 /// `wait_for_exit`) from freezing the whole inbound side of the connection.
 /// See the module docs on [`handlers`] and #28.
@@ -859,8 +854,6 @@ fn connect_client_future(
         )
 }
 
-/// Ported from `client_capabilities_for_agent` (`acp.rs:767-795`).
-///
 /// Only what we actually serve is advertised — an agent that is told we can do
 /// something we cannot will call it and get an error mid-turn.
 pub fn client_capabilities_for_agent(_agent_id: &AgentId) -> acp::ClientCapabilities {
@@ -901,8 +894,6 @@ pub fn client_capabilities_for_agent(_agent_id: &AgentId) -> acp::ClientCapabili
         .meta(meta)
 }
 
-/// Ported from `map_acp_error` (`acp.rs:2074-2086`).
-///
 /// `AuthRequired` has to survive as a typed error: the host matches on it to
 /// route the user into sign-in, and a stringified version would just be another
 /// failed turn.
@@ -919,7 +910,7 @@ pub fn map_acp_error(err: acp::Error) -> anyhow::Error {
 }
 
 /// The `data` the TypeScript ACP SDK attaches to an `InternalError`: a thrown
-/// `Error`'s message, verbatim. Shared by `prompt` and `authenticate`, which
+/// `Error`'s message, unmodified. Shared by `prompt` and `authenticate`, which
 /// both want the words rather than `Internal error: { "details": … }`.
 #[derive(serde::Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -974,7 +965,7 @@ pub fn authenticate_outcome(err: acp::Error, method_is_terminal: bool) -> Result
 
 impl Drop for AcpConnection {
     fn drop(&mut self) {
-        // Zed kills the child here (`acp.rs:1528-1534`). The child is owned by
+        // Kill the child here. The child is owned by
         // the wait task, so aborting that task drops it — and `AgentChild`'s
         // `Drop` kills its process group, with `kill_on_drop` as the backstop.
         // Without this the agent outlives the connection that started it:
@@ -1165,8 +1156,6 @@ impl AgentConnection for AcpConnection {
         self.agent_capabilities.session_capabilities.close.is_some()
     }
 
-    /// Ported from `close_session` (`acp.rs:1817-1881`).
-    ///
     /// Ref-counted, and the pending table is consulted first: during a load the
     /// pending entry is the source of truth for how many handles exist, because
     /// the `sessions` entry was pre-registered to catch history replay and would
@@ -1217,7 +1206,7 @@ impl AgentConnection for AcpConnection {
 
     /// The login command to run for an auth method, if the agent named one.
     ///
-    /// Both of Zed's shapes — see [`terminal_auth_command_for`].
+    /// Both shapes (typed and `_meta`) — see [`terminal_auth_command_for`].
     fn terminal_auth_command(
         &self,
         method_id: &acp::AuthMethodId,
@@ -1234,7 +1223,8 @@ impl AgentConnection for AcpConnection {
         let conn = self.connection.clone();
         let agent_id = self.id.clone();
         let debug_log = self.debug_log.clone();
-        // Both of Zed's terminal shapes count — see `terminal_auth_command_for`.
+        // Both terminal shapes (typed and `_meta`) count — see
+        // `terminal_auth_command_for`.
         let method_is_terminal = self
             .auth_methods
             .iter()
@@ -1274,7 +1264,6 @@ impl AgentConnection for AcpConnection {
         .boxed()
     }
 
-    /// Ported from `prompt` (`acp.rs:1952-2010`).
     fn prompt(
         &self,
         params: acp::PromptRequest,
@@ -1625,11 +1614,11 @@ pub(crate) fn mode_select_of(
 /// a model says so with a `category: "model"` SELECT among its session config
 /// options (schema 1.5.0, `SessionConfigOptionCategory::Model`). Atlas gives
 /// that one option its own composer pill instead of rendering it as a generic
-/// knob, which is why it is lifted out here into the port's model-selector
+/// knob, which is why it is lifted out here into the model-selector
 /// shape rather than left to `session_config_options`.
 ///
-/// The old stack normalised this during `session/new`; the port dropped that
-/// step, and with the frontend still filtering `category: "model"` out of the
+/// The old stack normalised this during `session/new`; that step is gone, and
+/// with the frontend still filtering `category: "model"` out of the
 /// generic knobs as "owned elsewhere", model selection disappeared from both
 /// surfaces at once.
 struct ModelSelect {
@@ -1834,9 +1823,9 @@ impl AgentSessionConfigOptions for AcpSessionConfigOptions {
 }
 
 /// The login command for an auth method, from whichever of the two shapes the
-/// agent used. Ported from Zed's `terminal_auth_task` (`acp.rs:1887-1921`).
+/// agent used.
 ///
-/// A typed `Terminal` method first, as Zed orders it: it names only the
+/// A typed `Terminal` method is tried first: it names only the
 /// ARGUMENTS that sign this agent in, because the program is the agent's own.
 /// Atlas re-runs the binary it already spawned — same path, launch args then
 /// auth args, and the SAME ENVIRONMENT with the method's own vars layered on
@@ -1890,8 +1879,7 @@ fn terminal_auth_id(agent_id: &AgentId, method_id: &acp::AuthMethodId) -> String
 }
 
 /// `_meta["terminal-auth"]` — the pre-stabilization way an adapter says how to
-/// run its login CLI. Ported from Zed's `meta_terminal_auth_task`
-/// (`acp.rs:1555-1586`).
+/// run its login CLI.
 fn meta_terminal_auth_command(
     agent_id: &AgentId,
     method_id: &acp::AuthMethodId,
@@ -1995,7 +1983,7 @@ mod terminal_auth_tests {
         }
     }
 
-    /// Zed's other branch (`acp.rs:1897-1918`): a typed `Terminal` method says
+    /// The typed branch: a typed `Terminal` method says
     /// only WHICH ARGUMENTS sign this agent in. The binary is the agent's own,
     /// so the host runs the same program it already launched — the agent never
     /// has to know or repeat its own path.
@@ -2023,7 +2011,7 @@ mod terminal_auth_tests {
         assert_eq!(cmd.env, [("NO_COLOR".to_string(), "1".to_string())]);
     }
 
-    /// The typed variant wins, as it does in Zed (`acp.rs:1897-1920`): an
+    /// The typed variant wins: an
     /// agent that advertises the stabilized shape should not be pinned to the
     /// pre-stabilization one forever just because it also ships `_meta` for
     /// older clients.

@@ -746,7 +746,7 @@ function AgentOrb({ running, failed }: { running: boolean; failed: boolean }) {
 
 // ── Work header ────────────────────────────────────────────────────────────
 
-/** "17s", "1m 29s", "7m 37s", "1h 3m" — the Codex desktop app's format. */
+/** "17s", "1m 29s", "7m 37s", "1h 3m" — compact elapsed-time format. */
 export function formatWorked(ms: number): string {
   const s = Math.max(0, Math.floor(ms / 1000));
   if (s < 60) return `${s}s`;

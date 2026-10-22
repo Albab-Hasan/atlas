@@ -184,7 +184,7 @@ export function lighten(value: string, amount: number): string {
 }
 
 // ─── HSV, for the colour picker's plane and hue slider ──────────────────────
-// Ported from T3 Code's `lib/color.ts`. HSV is what a saturation/brightness
+// HSV is what a saturation/brightness
 // square is drawn in; nothing derives in it.
 
 export interface HsvColor {

@@ -858,7 +858,7 @@ async fn a_chained_connect_failure_keeps_its_cause() {
     );
 }
 
-/// The `sessions` map is the state this crate added on top of Zed's store, and
+/// The `sessions` map is the state this crate added on top of the connection table, and
 /// nothing observed it through a whole session lifecycle.
 #[tokio::test(flavor = "multi_thread")]
 async fn closing_a_session_forgets_it_without_touching_the_connection() {

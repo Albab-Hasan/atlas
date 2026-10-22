@@ -4,8 +4,7 @@ import { createSelectors } from "@/lib/create-selectors";
 import type { ThemeAppearance } from "../lib/theme-api";
 
 /**
- * Whether the theme editor is open, and on what. After T3 Code's
- * `themeEditorStore`: the panel is mounted once at the app root and floats
+ * Whether the theme editor is open, and on what. The panel is mounted once at the app root and floats
  * over the live app, so the session lives here rather than in the settings
  * page that opened it — closing Settings must not close the editor.
  *

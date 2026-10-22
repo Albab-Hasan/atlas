@@ -1,22 +1,17 @@
 //! The live feed: a running conversation keeping its store row current.
 //!
-//! Ported from Zed's `ThreadMetadataStore::handle_conversation_event`
-//! (`thread_metadata_store.rs:1265-1356`) and the subscription that drives it
-//! (`:1188-1212`). Zed subscribes to every `ConversationView` it ever creates
-//! and upserts on the events that could have changed what the sidebar shows.
-//! Atlas has no views, so the host forwards its thread events here instead;
-//! everything downstream of that is Zed's.
+//! The host forwards its thread events here, and the recorder upserts on the
+//! events that could have changed what the sidebar shows.
 //!
-//! The one piece that is Atlas's own is the thread-id resolution below, and it
-//! exists because of a difference in when a session is created. Zed mints a
-//! `ThreadId` up front and attaches a session later, so its drafts are
-//! addressable and it keeps them. Atlas's chat panel opens an ACP session the
-//! moment a tab mounts, so a draft here already *has* a session — one that is
-//! thrown away and re-created on reload, which is exactly why its id must not
-//! be persisted (`:1286-1290`), and therefore why a draft row is unreachable
-//! the moment its process forgets it. Atlas consequently deletes a draft rather
-//! than keeping it: see [`ThreadRecorder::forget`]. CONTEXT.md records the
-//! divergence under *Draft*.
+//! The subtle piece is the thread-id resolution below, and it exists because
+//! of when a session is created. A design that mints a `ThreadId` up front and
+//! attaches a session later has addressable drafts it can keep. Atlas's chat
+//! panel opens an ACP session the moment a tab mounts, so a draft here already
+//! *has* a session — one that is thrown away and re-created on reload, which is
+//! exactly why its id must not be persisted, and therefore why a draft row is
+//! unreachable the moment its process forgets it. Atlas consequently deletes a
+//! draft rather than keeping it: see [`ThreadRecorder::forget`]. CONTEXT.md
+//! records this under *Draft*.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -46,8 +41,7 @@ pub struct ThreadSnapshot {
 
 /// Whether this event could have changed anything the store keeps.
 ///
-/// Zed's `affects_thread_metadata` (`agent_ui/src/conversation_view.rs:557-582`),
-/// which lives with its store rather than with the thread — as this does, so
+/// This lives with the store rather than with the thread, so
 /// `atlas-acp-thread` stays free of history vocabulary.
 ///
 /// The excluded half is not "unimportant": a streamed chunk, a token-usage tick
@@ -118,9 +112,7 @@ impl ThreadRecorder {
 
     /// The conversation is connected and has a session.
     ///
-    /// Zed's other write trigger: its store upserts when a `ConversationView`'s
-    /// server state becomes `Connected` (`conversation_view.rs:917-919`), not
-    /// only on thread events. Without it a chat nobody has typed into yet emits
+    /// A second write trigger besides thread events. Without it a chat nobody has typed into yet emits
     /// nothing, and so would never appear in history at all.
     pub fn record_connected(
         &self,
@@ -152,8 +144,7 @@ impl ThreadRecorder {
         self.upsert(agent_id, session_id, snapshot);
     }
 
-    /// The user sent or queued a message (Zed's `update_interacted_at`,
-    /// `:843-856`). Separate from [`ThreadRecorder::record`] because the send
+    /// The user sent or queued a message Separate from [`ThreadRecorder::record`] because the send
     /// path knows this and the thread's own events do not.
     pub fn note_interaction(&self, session_id: &acp::SessionId, at: DateTime<Utc>) {
         let thread_id = self.lock().get(session_id).copied();
@@ -177,9 +168,7 @@ impl ThreadRecorder {
     ///
     /// A thread that was ever sent to keeps its row — history outliving the
     /// process is the point. A thread that was **not** loses it: an abandoned
-    /// empty chat is litter, and Atlas cannot re-find it anyway. Zed can keep
-    /// its drafts because it mints the thread id before the session and stores
-    /// the unsent prompt with it; Atlas mints a fresh ACP session per tab
+    /// empty chat is litter, and Atlas cannot re-find it anyway. Atlas mints a fresh ACP session per tab
     /// mount, so a persisted draft row is unreachable the moment its session
     /// is gone. (Spec #15: "abandoned empty chats don't litter my history".)
     pub fn forget(&self, session_id: &acp::SessionId) {

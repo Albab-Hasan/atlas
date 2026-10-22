@@ -36,7 +36,7 @@ interface ExplorerState {
   /** Cut/Copy clipboard for paste. Holds one or more paths so a
    *  multi-selection can be cut/copied at once. `null` when empty. */
   clipboard: { paths: string[]; isCut: boolean } | null;
-  /** Multi-selection (Finder/Zed-style). The set of rows the user has
+  /** Multi-selection (Finder-style). The set of rows the user has
    *  selected via plain / ⌘-click / ⇧-click. Context-menu actions
    *  (cut/copy/delete/copy-path) operate on this set when the
    *  right-clicked row is part of it. */
@@ -362,8 +362,7 @@ function reconcileChildren(existing: TreeNode[], fresh: FileEntry[], depth: numb
  *
  * Immer gives the store structural sharing: `tree` only gets a new reference
  * when something actually mutated, so a hit here means "nothing changed" and the
- * previous flatten is still exactly right. This is the frontend version of what
- * Zed's project panel does with `visible_entries` — keep one derived list and
+ * previous flatten is still exactly right. Keep one derived list and
  * rebuild it on change, never per render or per mount.
  *
  * Weak, so a discarded tree (project switch) is collected with its flatten.

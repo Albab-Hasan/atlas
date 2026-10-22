@@ -1,8 +1,7 @@
 //! The store's contract: an agent exists because it is in the installed map,
 //! and for no other reason.
 //!
-//! The version-notification cases are ported from
-//! `zed-ref/crates/project/src/agent_server_store.rs:2187-2338`.
+//! Includes the version-notification cases.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -624,7 +623,7 @@ async fn agents_are_notified_independently() {
     assert_eq!(*b.borrow_and_update(), None);
 }
 
-/// Nobody watching is not a special case — Zed has the same test because the
+/// Nobody watching is not a special case — the
 /// version-comparison path used to assume a channel was there.
 #[tokio::test]
 async fn a_version_change_with_no_watcher_is_harmless() {

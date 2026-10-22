@@ -1,5 +1,4 @@
-//! `UNUserNotificationCenter` backend, modelled on Zed's
-//! `gpui_macos/src/system_notifications.rs`.
+//! `UNUserNotificationCenter` backend.
 //!
 //! Threading: the center and its delegate live in a main-thread thread-local;
 //! every operation hops there with `run_on_main_thread`, so no non-`Send`

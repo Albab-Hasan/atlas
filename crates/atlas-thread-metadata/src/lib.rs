@@ -7,8 +7,8 @@
 //! merged with a live ACP `session/list` query. That coupled Atlas to formats
 //! it does not own, needed a bespoke reader per agent (special treatment by
 //! construction), and made history impossible for any agent nobody had written
-//! a reader for. Zed, whose ACP stack Atlas is porting, never reads another
-//! program's storage: it owns its history. So does Atlas now. See ADR-0001.
+//! a reader for. Atlas now owns its history and never reads another program's
+//! storage. See ADR-0001.
 //!
 //! # The shape
 //!
@@ -28,19 +28,16 @@
 //! ([`ThreadMetadataStore::save_all`]). Nothing else feeds it, and in
 //! particular nothing reads anyone's files.
 //!
-//! # Provenance
+//! # Design choices
 //!
-//! This is a port of Zed's `ThreadMetadataStore`
-//! (`zed-ref/crates/agent_ui/src/thread_metadata_store.rs`), mechanism for
-//! mechanism, with the Zed file:line cited at every ported decision.
-//! Divergences are stated where they are made; there are three, all documented
-//! at their site: no GPUI reactivity (a broadcast channel replaces `cx.notify`),
-//! no `archived_git_worktrees` side tables (out of scope), and no `NULL`
-//! encoding of the native agent's id (it would be an agent-identity branch).
+//! Three are documented at their site: change notification is a broadcast
+//! channel, there are no archived-git-worktree side tables (out of scope), and
+//! the native agent's id has no `NULL` encoding (it would be an agent-identity
+//! branch).
 //!
 //! # Testing
 //!
-//! The crate is Tauri-free and GPUI-free on purpose. Its tests drive the public
+//! The crate is Tauri-free and UI-framework-free on purpose. Its tests drive the public
 //! API against a real temporary SQLite database, and assert persistence by
 //! reopening the store — never by reading a row.
 

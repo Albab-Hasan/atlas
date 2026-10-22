@@ -552,7 +552,7 @@ pub fn snapshot_messages(
             // a compaction is a status, not conversation; a completed plan is
             // carried by the snapshot's `plan` field, not as a message.
             //
-            // `CompletedPlan` has no constructor anywhere in the ported stack
+            // `CompletedPlan` has no constructor anywhere in the stack
             // today, so this arm is unreachable rather than merely unused; it
             // stays because the match must be exhaustive, and because the
             // variant is the shape a compacted plan would arrive in.

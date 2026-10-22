@@ -1,6 +1,5 @@
 /**
- * Mounts the theme editor at the app root while a session is open, after
- * T3 Code's `ThemeEditorHost`. It sits outside Settings so that closing
+ * Mounts the theme editor at the app root while a session is open. It sits outside Settings so that closing
  * Settings — to see the editor, sidebar or terminal in the new colours —
  * leaves the editor open; the panel itself only loads once it is first used.
  */

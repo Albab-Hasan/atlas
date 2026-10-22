@@ -106,9 +106,9 @@ pub fn run() {
     // connection.
     //
     // rustls 0.23 refuses to guess when more than one provider is compiled in,
-    // and this graph has two: `ring` (via sqlx, through the vendored engine
+    // and this graph has two: `ring` (via sqlx, through the engine
     // state store) and `aws-lc-rs` (via rama-tls / aws-smithy, through the
-    // vendored network proxy). Neither is removable, and cargo's feature
+    // engine's network proxy). Neither is removable, and cargo's feature
     // unification turns "two dependencies each chose one" into "rustls sees
     // both and panics at the first handshake" — on a background worker, far
     // from anything that looks related.

@@ -1,8 +1,6 @@
 //! The installed map — the only source of external agents.
 //!
-//! Ported from Zed's `AllAgentServersSettings` / `CustomAgentServerSettings`
-//! (`agent_server_store.rs:1508-1596`, wire shape
-//! `settings_content/src/agent.rs:734-796`). The JSON is Zed's, verbatim:
+//! The JSON shape:
 //!
 //! ```json
 //! {
@@ -45,8 +43,8 @@ pub enum AgentServerSettings {
     /// distribution, version and command all come from the registry index, so
     /// the only thing worth storing is what the user configured.
     ///
-    /// `extension` is accepted as an alias the way Zed accepts it, so a map
-    /// written by its ACP-extension migration still reads.
+    /// `extension` is accepted as an alias, so a map
+    /// written by an ACP-extension migration still reads.
     #[serde(alias = "extension")]
     Registry {
         #[serde(default, skip_serializing_if = "HashMap::is_empty")]
@@ -62,7 +60,7 @@ pub enum AgentServerSettings {
 
 impl AgentServerSettings {
     /// A registry install, with nothing configured — what the marketplace's
-    /// "Install" button writes (Zed's `agent_registry_ui.rs:507-538`).
+    /// "Install" button writes.
     pub fn registry() -> Self {
         Self::Registry {
             env: HashMap::new(),
@@ -126,8 +124,7 @@ impl AgentServerSettings {
         }
     }
 
-    /// The command a `Custom` entry runs, with `~` expanded (Zed does the same
-    /// at `agent_server_store.rs:1637`). `None` for a registry entry, whose
+    /// The command a `Custom` entry runs, with `~` expanded. `None` for a registry entry, whose
     /// command is resolved from its distribution instead.
     pub fn command(&self) -> Option<AgentServerCommand> {
         match self {
@@ -149,9 +146,8 @@ impl AgentServerSettings {
 pub struct AllAgentServersSettings(pub HashMap<String, AgentServerSettings>);
 
 impl AllAgentServersSettings {
-    /// Whether anything here needs the registry index to resolve. Zed uses this
-    /// to decide whether a settings change is worth a registry refresh
-    /// (`agent_server_store.rs:316-322`) — an install map of only `Custom`
+    /// Whether anything here needs the registry index to resolve. This decides
+    /// whether a settings change is worth a registry refresh — an install map of only `Custom`
     /// entries never touches the network.
     pub fn has_registry_agents(&self) -> bool {
         self.0
@@ -180,7 +176,7 @@ impl FromIterator<(String, AgentServerSettings)> for AllAgentServersSettings {
     }
 }
 
-/// Zed calls `shellexpand::tilde`. This is the one case of it that matters — a
+/// Tilde expansion. This is the one case that matters — a
 /// leading `~/` in a hand-written command path — done without the dependency.
 fn expand_tilde(path: &std::path::Path) -> PathBuf {
     let Some(text) = path.to_str() else {

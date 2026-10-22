@@ -28,7 +28,7 @@ import {
 import type { MarkerTool } from "../lib/turn-rows";
 
 /**
- * One icon per `MarkerTool` key, in the Codex desktop app's vocabulary: the
+ * One icon per `MarkerTool` key, in a small fixed vocabulary: the
  * wrench for a loaded tool, the book for a read, the boxed prompt for a
  * command, the folder for a listing, the magnifier for a search.
  *
@@ -56,7 +56,7 @@ const TOOL_ICON: Record<MarkerTool, LucideIcon> = {
   tool: Wrench,
 };
 
-/** Near the height of the 13px row text, drawn at the thin stroke Codex uses. */
+/** Near the height of the 13px row text, drawn at a thin stroke. */
 export const ICON_PX = 14;
 export const ICON_STROKE = 1.5;
 

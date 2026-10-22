@@ -1,6 +1,5 @@
 //! Host environment fix-ups applied once at startup.
 //!
-//! Moved from `atlas-acp/src/spawn.rs` at Stage 3 of the Zed port, unchanged.
 //! It belongs with the transport because it exists entirely for the benefit of
 //! the child process an [`AcpConnection`](crate::AcpConnection) spawns.
 

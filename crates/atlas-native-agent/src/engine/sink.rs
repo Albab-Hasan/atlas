@@ -1225,7 +1225,7 @@ pub fn apply_notification(
                 // The wait the engine is actually about to take, so the pill
                 // counts *down* to the attempt rather than up from the notice.
                 //
-                // D8 recorded this as an accepted loss because upstream
+                // D8 recorded this as an accepted loss because the engine
                 // computed the delay and then dropped it on the floor; the
                 // gateway made it worth fixing, since a `429` carries a
                 // `Retry-After` the contract instructs clients to honour and a
@@ -1649,7 +1649,7 @@ mod command_output {
     use atlas_engine_app_server_protocol::{ItemCompletedNotification, ItemStartedNotification};
 
     /// Built through the protocol's own serde shape rather than the struct
-    /// literal: `cwd` is a `LegacyAppPathString` from a vendored crate this one
+    /// literal: `cwd` is a `LegacyAppPathString` from an engine crate this one
     /// does not depend on directly, and deserializing is also closer to what
     /// the engine actually sends.
     fn command_item(id: &str, status: &str, output: Option<&str>, exit: Option<i32>) -> ThreadItem {

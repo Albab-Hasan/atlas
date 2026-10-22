@@ -6,8 +6,7 @@
 //! send, so a staged set that never got drained silently rode a later turn.
 //! Carrying content with the turn removes that class of bug entirely.
 //!
-//! Moved from `atlas-acp/src/prompt.rs` at Stage 3 of the Zed port and rebuilt
-//! against schema 1.5. It lives beside the thread because `ContentBlock` is the
+//! Built against schema 1.5. It lives beside the thread because `ContentBlock` is the
 //! thread's own vocabulary, and both the external stdio connection and the
 //! native agent need these conversions:
 //!

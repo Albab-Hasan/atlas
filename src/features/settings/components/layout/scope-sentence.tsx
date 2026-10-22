@@ -1,5 +1,5 @@
 /**
- * "Applying settings for [All projects ▾]" — T3 Code's scope picker, as a
+ * "Applying settings for [All projects ▾]" — the scope picker, as a
  * sentence under the page title rather than a toggle off to one side, so the
  * page says in words what a change will touch.
  *

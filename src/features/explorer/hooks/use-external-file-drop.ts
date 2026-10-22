@@ -4,7 +4,7 @@ import { dragPositionToCss } from "@/lib/drag-position";
 import { ROOT_DROP } from "./use-file-tree-drag-drop";
 
 /* Receive OS-level file drops (Finder/Explorer → file tree) and copy
- * them in, à la Zed/VSCode.
+ * them in.
  *
  * Tauri v2 windows have `dragDropEnabled: true` by default, so the OS
  * drag-drop is handled by the native webview and HTML5 `dataTransfer`

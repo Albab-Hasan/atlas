@@ -487,12 +487,10 @@ export function toolIconFor(kind: string | null | undefined, toolName: string): 
 // ── Folded-block summary ───────────────────────────────────────────────────
 //
 // "Loaded a tool, read files, ran commands" — the whole of a folded turn as one
-// sentence, the way the Codex desktop app writes it.
+// sentence.
 //
-// That app is not open source and its UI was not part of the engine port, so
-// unlike `parse-shell-command.ts` this is RECONSTRUCTED from screenshots rather
-// than ported. Three things the screenshots actually prove, and which the code
-// below is shaped by — change them only against new evidence:
+// Three observations shape the code below — change them only against new
+// evidence:
 //
 //  1. The buckets are coarser than the row glyphs. A turn whose rows were
 //     `run ×6, tool ×1, read ×1, search ×1` summarised as exactly three

@@ -1,8 +1,7 @@
 //! The store: the installed map, turned into agents.
 //!
-//! Ported from `AgentServerStore` (`agent_server_store.rs:176-489`), and in
-//! particular from `reregister_agents`, which is the whole design in one
-//! function: drain the table, rebuild it from the settings map, notify.
+//! `reregister` is the whole design in one function: drain the table, rebuild
+//! it from the settings map, notify.
 //!
 //! What makes it the *only* source is the shape of that loop — it iterates the
 //! settings map, not the registry. A registry agent nobody installed is looked
@@ -153,7 +152,7 @@ impl AgentServerStore {
     }
 
     /// The catalogue changed — rebuild, because a registry entry's version,
-    /// distribution or icon may have moved. This is the path Zed's version-bump
+    /// distribution or icon may have moved. This is the path the version-bump
     /// notification runs through.
     ///
     /// Unconditional, unlike [`AgentServerStore::set_settings`] and
@@ -311,16 +310,13 @@ impl AgentServerStore {
             .map(|channels| channels.loading_status.subscribe())
     }
 
-    /// Bumps on every rebuild. Stands in for Zed's `cx.emit(AgentServersUpdated)`
-    /// — a `watch` rather than a broadcast because a listener that missed two
+    /// Bumps on every rebuild. A `watch` rather than a broadcast because a listener that missed two
     /// rebuilds only needs to know the table changed, not how often.
     pub fn updates(&self) -> watch::Receiver<u64> {
         self.updates.subscribe()
     }
 
     /// Rebuild `external_agents` from the installed map.
-    ///
-    /// Ported from `reregister_agents` (`agent_server_store.rs:294-489`).
     fn reregister(&self) {
         let registry_agents = self
             .registry
@@ -405,9 +401,8 @@ impl AgentServerStore {
             }
 
             // A version that moved *forward* means the running connection is
-            // on the wrong binary. Ported from
-            // `agent_server_store.rs:441-467`, which compares for inequality —
-            // the direction is Atlas's own, and `is_upgrade` says why.
+            // on the wrong binary. Only the forward direction
+            // counts, and `is_upgrade` says why.
             for (id, entry) in external_agents.iter() {
                 let (Some(previous), Some(current)) = (
                     previous_versions.get(id).cloned().flatten(),
@@ -504,7 +499,7 @@ impl AgentServerStore {
 /// whatever the registry now calls current. There is no confirmation step
 /// between a registry publish and that reinstall.
 ///
-/// So a plain `previous != current` — which is what Zed does, and what this
+/// So a plain `previous != current` — which is what this
 /// was — hands a third-party registry two things it should not have:
 ///
 /// - **A downgrade.** Republishing an older version reads as an upgrade, and

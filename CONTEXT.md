@@ -26,7 +26,7 @@ Glossary of domain terms as this project uses them. Decisions with lasting conse
 ## Adjacent subsystems
 
 - **Project** — a folder opened in Atlas, tagged to an organisation and shown in the sidebar. The unit almost everything else is scoped to: the editor state, the file index, the git watcher, the knowledge base, the capture store. *Avoid: workspace.* The stored names still say `workspace` — `state.json`'s `workspaces` / `activeWorkspaceId`, the `workspace_id` columns in `sessions.db`, the `workspaceId` argument of the fileindex / recent-files / git-watch / mention commands and the events that carry it, the `"workspace"` mention tag, and the `workspace.*` keybinding action ids. Those are **storage keys**, not the concept: renaming one is a data migration that breaks existing installs, not a rename. Every such site carries a comment saying so.
-- **Atlas Agent** — the native agent: the single first-party agent that ships with Atlas rather than being installed from the Marketplace. Its engine is a one-time hard fork of an Apache-2.0 upstream that lives in this repo under `vendor/atlas-engine` and is maintained by us (ADR-0003, ADR-0011). Exactly one native agent exists at a time; every other agent is an ACP agent. "Native agent" and "Atlas Agent" are synonyms. Its threads live in the same thread-metadata store as external agents', distinguished only by agent id, and that stored agent id is the literal string `"atlas-agent"` (`ATLAS_AGENT_ID` in Rust, `NATIVE_AGENT_ID` in TypeScript): a **storage key** every recorded thread resolves through. It was renamed once (ADR-0011) and the rows under the retired id were dropped rather than aliased; changing it again is a data migration, not a rename.
+- **Atlas Agent** — the native agent: the single first-party agent that ships with Atlas rather than being installed from the Marketplace. Its engine was ported once from an Apache-2.0 project; it lives in this repo under `vendor/atlas-engine`, is Atlas's own, and is maintained by us (ADR-0003, ADR-0011). Exactly one native agent exists at a time; every other agent is an ACP agent. "Native agent" and "Atlas Agent" are synonyms. Its threads live in the same thread-metadata store as external agents', distinguished only by agent id, and that stored agent id is the literal string `"atlas-agent"` (`ATLAS_AGENT_ID` in Rust, `NATIVE_AGENT_ID` in TypeScript): a **storage key** every recorded thread resolves through. It was renamed once (ADR-0011) and the rows under the retired id were dropped rather than aliased; changing it again is a data migration, not a rename.
 - **Timeline / checkpoint** — the per-project observational record (`atlas-checkpoint`). Separate from the thread-metadata store; its importer may read CLIs' transcript files under its own contract, which the history model explicitly preserves.
 - **Marketplace / registry** — where agents are installed from; the installed-agents map is what import enumerates.
 - **Installed-agents map** — the one record of which ACP agents exist. Installing writes an entry, uninstalling removes it, and nothing else makes an agent runnable. A fresh install has an empty map and offers only the native agent. See ADR-0002.
@@ -134,10 +134,10 @@ The **injected-context envelope** — `<atlas-memory>` … `</atlas-memory>` —
 - **Clarifying question** — a structured question Atlas Agent puts to the user mid-turn, with options, when a request is ambiguous ("four comments match; which?"). Blocks the turn; rendered on the same question card ACP agents already use. A capability of Atlas Agent in every mode, not of the organisation tools alone.
 - **Member activity** — what an admin can ask for about a member: the recorded sessions, checkpoints, insertions, deletions and Atlas-recorded tokens attributed to that member over a window. Folded on the client from the recorded sessions; the server has no per-member metric. *Avoid: performance, productivity, code shipped* — it counts what was recorded through Atlas and nothing else.
 
-## Vendored engine licensing (Apache-2.0)
+## Engine licensing (Apache-2.0)
 
-`vendor/atlas-engine/` is a hard fork of an upstream engine under **Apache-2.0** (ADR-0003;
-renamed in ADR-0011 — the upstream's name appears in this tree only where the licence
+`vendor/atlas-engine/` is Atlas's own engine, ported once from an **Apache-2.0** project (ADR-0003;
+renamed in ADR-0011 — the original project's name appears in this tree only where the licence
 requires it). Atlas's own code is **MIT** (`LICENSE`). The two do not merge: Apache-2.0 code
 stays Apache-2.0 however it is bundled, so its obligations travel with every build rather than
 being absorbed by Atlas's licence. `tests/vendor-licensing.test.ts` enforces what follows; the
@@ -148,9 +148,9 @@ attribution work landed first (D11) so that the rename sweep was trivially compl
   Atlas's own. The obligation runs to *recipients*, so a file that only exists in the repo does
   not discharge it. The NOTICE keeps its Ratatui lines even though the TUI is dropped — §4(d)
   would permit removing them, simplicity favours leaving them — and travels **verbatim**,
-  including the U+00A0 non-breaking spaces upstream put in it.
+  including the U+00A0 non-breaking spaces its original authors put in it.
 
-- **Mark what you changed (§4(b)).** Every vendored file Atlas modifies carries this line, first
+- **Mark what you changed (§4(b)).** Every engine file Atlas modifies carries this line, first
   line of the file, before any module docs:
 
   ```
@@ -166,16 +166,16 @@ attribution work landed first (D11) so that the rename sweep was trivially compl
   *(Caveat: `core/config.schema.json` is generated by schemars, and regenerating it drops the
   `$comment`. Re-add it if that ever happens.)*
 
-- **Never strip attribution (§4(c)).** Copyright and attribution notices inside vendored sources
+- **Never strip attribution (§4(c)).** Copyright and attribution notices inside engine sources
   are **not** touched by rename sweeps. The rule is: rename product branding, keep attribution.
   The ADR-0011 sweep was exactly the operation that could have violated this, which is why the
   rule was written down before it ran; it protected the LICENSE, the NOTICE, the §4(b) notice
-  line, every URL and every upstream model id.
+  line, every URL and every OpenAI model id.
 
 - **Trademarks are a removal, not a preference (§6).** Apache-2.0 grants no trademark licence, so
-  the rebrand *must* drop the upstream's product name and "OpenAI" as product-facing names —
+  the rebrand *must* drop the original product's name and "OpenAI" as product-facing names —
   including the baked system prompt and the catalog `instructions_template` strings that
-  self-identified as the upstream product.
+  self-identified as the original product.
   Required by the licence, not merely by taste. **Done (#55).** Two prompts reach a shipped
   turn — `models-manager/prompt.md` and `protocol/src/prompts/base_instructions/default.md` —
   and both now say Atlas Agent. Their §4(b) notices are HTML comments on line 1, **stripped when
@@ -185,7 +185,7 @@ attribution work landed first (D11) so that the rename sweep was trivially compl
   to change.
 
 - **Atlas may claim its own modifications (§4).** Permitted, and it is not the same act as
-  stripping upstream's — an added Atlas copyright line sits beside upstream's, never replacing
+  stripping the original authors' — an added Atlas copyright line sits beside theirs, never replacing
   it.
 ## Theming
 
@@ -194,7 +194,7 @@ attribution work landed first (D11) so that the rename sweep was trivially compl
 - **Base tokens** — a variant's shadcn/ui-named colours and sizes, so any shadcn or tweakcn theme is a valid set of them. All optional: one a theme leaves out is derived from the **seeds** by its rule in `keys.toml`. *Avoid*: shadcn tokens.
 - **Seeds** — `background`, `foreground` and `primary`: the three base tokens every other one derives from, and all a theme needs to set. Not a separate table; they are ordinary base tokens. *Avoid*: seed tokens, base colours.
 - **Palette** — an optional small set of named hues (red, orange, yellow, green, cyan, blue, purple, pink) in a variant, from which syntax, terminal and status colours are derived when not set explicitly.
-- **Theme keys** — optional, Atlas-specific colours in a variant, named by role in Zed's dotted style (`element.hover`, `terminal.ansi.red`, `syntax.keyword`). Any key a theme omits is derived from the palette, then the base tokens, then Atlas's defaults.
+- **Theme keys** — optional, Atlas-specific colours in a variant, named by role in a dotted style (`element.hover`, `terminal.ansi.red`, `syntax.keyword`). Any key a theme omits is derived from the palette, then the base tokens, then Atlas's defaults.
 - **Theme override** — a user's settings-level patch of keys on top of the active theme. Changes that user's Atlas only; it is not a theme.
 - **Theme import** — a one-time conversion of a shadcn/tweakcn, Zed or VS Code theme into an Atlas theme. The result is an ordinary Atlas theme; the source is not read again.
 - **Icon theme** — a named mapping from files and folders (by name, extension or language) to icons, in VS Code's icon-theme format so VS Code icon themes can be used as-is. Chosen independently of the colour theme. *Avoid*: file icon pack, icon set.

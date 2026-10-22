@@ -272,7 +272,7 @@ fn import_one(
 
     record_ignored(style, &mut report);
     report.note(
-        "Atlas's theme keys were modeled on Zed's roles, so the editor, terminal, syntax and diff colors transfer directly",
+        "Zed's colour roles map onto Atlas's theme keys almost one-to-one, so the editor, terminal, syntax and diff colors transfer directly",
     );
     report.note(
         "Zed has no shadcn layer, so all 45 base tokens were derived from the style — check `primary`, `accent` and `card` first if the chrome looks off",

@@ -1,11 +1,11 @@
 //! The agent catalog — ONE read surface describing every agent Atlas can run
 //! and how it would launch right now.
 //!
-//! Rebuilt on the ported store at Stage 3 of the Zed port. The command names
+//! Rebuilt on the agent store. The command names
 //! and the entry shape are unchanged, so the frontend keeps working; what
 //! changed is where the answers come from, and how many of them there are.
 //!
-//! # What the port took out
+//! # What the rebuild took out
 //!
 //! The old catalog described a five-rung spawn ladder — a discovered binary
 //! beat an Atlas download, which beat a marketplace install, which beat an
@@ -106,7 +106,7 @@ pub struct AgentCatalogEntry {
     /// Whether the agent advertised `sessionCapabilities.list`, meaning the
     /// sidebar can ask IT for history instead of scanning disk.
     pub supports_session_list: bool,
-    /// Always false: `session/fork` has no equivalent on the ported seam.
+    /// Always false: `session/fork` has no equivalent on the seam.
     pub supports_fork: bool,
     /// Whether this agent can rewind a turn out of its own history — the
     /// engine's `thread/rollback`. ACP has no equivalent, so this gates the

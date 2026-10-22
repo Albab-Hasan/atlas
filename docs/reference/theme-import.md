@@ -14,7 +14,7 @@ edits; nothing keeps a link back to the source and nothing re-reads it.
 | format           | fidelity          | why                                                                                       |
 | ---------------- | ----------------- | ----------------------------------------------------------------------------------------- |
 | shadcn / tweakcn | **native**        | Atlas's base tokens _are_ shadcn's names (decision 9), so the chrome crosses verbatim     |
-| Zed              | **near-lossless** | Atlas's theme keys were modelled on Zed's roles; only the shadcn layer has to be invented |
+| Zed              | **near-lossless** | Zed's colour roles map onto Atlas's theme keys almost one-to-one; only the shadcn layer has to be invented |
 | VS Code          | **lossy**         | a workbench theme and an app theme are different things                                   |
 
 Every import returns a report — keys **mapped** (the source said this), **derived**

@@ -1,6 +1,6 @@
 /**
  * Writes the Atlas theme's syntax colours from `@pierre/theme`, the palette
- * T3 Code and Pierre's diffs use.
+ * Pierre's diffs use.
  *
  * Each of Pierre's two VS Code themes goes through Atlas's own VS Code
  * importer (the `syntax_from_vscode` example in `crates/atlas-theme`), so the

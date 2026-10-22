@@ -1,4 +1,4 @@
-//! The `AgentConnection` the app plugs into, over the ported engine.
+//! The `AgentConnection` the app plugs into, over the engine.
 //!
 //! This was the counterpart of the previous native connection, now deleted (#54), and it
 //! implements the same trait, because that is the whole point of the seam: the
@@ -16,7 +16,7 @@
 //! # Why a turn needs both a response and a notification
 //!
 //! `turn/start` returns as soon as the turn is *accepted*, carrying a turn id
-//! and `status: InProgress` — the permission-request test upstream proves it,
+//! and `status: InProgress` — the engine's permission-request test proves it,
 //! since it reads a server request only after the response has landed. The
 //! turn's outcome arrives later, as a `TurnCompleted` notification.
 //!
@@ -645,7 +645,7 @@ impl EngineConnection {
     /// Discover the cwd's skills and re-publish the command list with them.
     ///
     /// User- and repo-scope only: the engine's bundled system skills lean on
-    /// upstream services the gateway does not serve, and a row that errors on
+    /// OpenAI services the gateway does not serve, and a row that errors on
     /// click is worse than no row. Best-effort by design — a session without
     /// skills is a session with the static commands, not a failed session.
     async fn discover_skills(&self, session_id: &acp::SessionId, cwd: &std::path::Path) {
@@ -1852,7 +1852,7 @@ impl AgentConnection for EngineConnection {
                 text = crate::engine::commands::INIT_PROMPT.to_string();
             }
             // `/diff` and `/status` are answered from this side, exactly as the
-            // upstream TUI answered them — they were always frontend features.
+            // original TUI answered them — they were always frontend features.
             // The reply is pushed into the thread as an assistant message and
             // the turn ends; no model is consulted and nothing is billed.
             Some(crate::engine::commands::Command::Diff) => {
