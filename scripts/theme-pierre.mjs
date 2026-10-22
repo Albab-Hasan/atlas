@@ -6,9 +6,12 @@
  * importer (the `syntax_from_vscode` example in `crates/atlas-theme`), so the
  * scopes map onto Atlas's fifteen syntax roles exactly as they would for a
  * theme a user imports. The result replaces the marked block in each variant
- * of `crates/atlas-theme/themes/atlas.toml`; the two files derived from that
- * theme (the mock's built-in snapshot and the `tokens.css` floor) are
- * regenerated, and Pierre's LICENSE and NOTICE are copied beside it.
+ * of `crates/atlas-theme/themes/atlas.toml`, and becomes the last-resort
+ * `dark`/`light` default of each `syntax.*` key in `keys.toml` — what a theme
+ * that sets neither the key nor its palette or base source gets. The files
+ * derived from those two (the mock's built-in snapshot, the `tokens.css`
+ * floor, and everything `theme:keys` writes) are regenerated, and Pierre's
+ * LICENSE and NOTICE are copied beside them.
  *
  * To take a new Pierre release: `bun update @pierre/theme`, then
  * `bun run theme:pierre`. `tests/pierre-syntax.test.ts` fails while the
@@ -23,6 +26,7 @@ import { fileURLToPath } from "node:url";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const pierre = join(root, "node_modules", "@pierre", "theme");
 const target = join(root, "crates", "atlas-theme", "themes", "atlas.toml");
+const keysToml = join(root, "crates", "atlas-theme", "keys.toml");
 const thirdParty = join(root, "crates", "atlas-theme", "third-party", "pierre-theme");
 
 const { version } = JSON.parse(readFileSync(join(pierre, "package.json"), "utf8"));
@@ -50,14 +54,30 @@ function syntaxLines(variant) {
 }
 
 let toml = readFileSync(target, "utf8");
+let keys = readFileSync(keysToml, "utf8");
 for (const variant of ["dark", "light"]) {
+  const lines = syntaxLines(variant);
   const block = new RegExp(
     `# BEGIN syntax from @pierre/theme [^\\n]*\\(pierre-${variant}\\)[^\\n]*\\n[\\s\\S]*?${END}`,
   );
   if (!block.test(toml)) throw new Error(`atlas.toml has no Pierre block for ${variant}`);
-  toml = toml.replace(block, `${begin(variant)}\n${syntaxLines(variant)}\n${END}`);
+  toml = toml.replace(block, `${begin(variant)}\n${lines}\n${END}`);
+
+  // `"syntax.keyword" = "#ff678d"` → that key's `dark = …` / `light = …`.
+  for (const [, key, value] of lines.matchAll(/^"(syntax\.[a-z_]+)" = "([^"]+)"$/gm)) {
+    const entry = new RegExp(
+      `(name = "${key.replace(".", "\\.")}"\\n(?:(?!\\[\\[)[^\\n]*\\n)*?${variant} = )"[^"]*"`,
+    );
+    if (!entry.test(keys)) throw new Error(`keys.toml has no ${variant} default for ${key}`);
+    keys = keys.replace(entry, `$1"${value}"`);
+  }
 }
 writeFileSync(target, toml);
+writeFileSync(keysToml, keys);
+execFileSync("node", [join(root, "scripts", "generate-theme-keys.mjs")], {
+  cwd: root,
+  stdio: "inherit",
+});
 
 // The two copies derived from atlas.toml: the browser mock's snapshot of the
 // built-in themes, and the Atlas-dark floor in `tokens.css`.

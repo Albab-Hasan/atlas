@@ -172,21 +172,21 @@ CodeMirror and Markdown highlighting.
 
 | Key | Source | Transform | D (dark / light) | What it colours |
 |---|---|---|---|---|
-| `syntax.comment` | B:muted-foreground → D | — | `#8f8f8f` / `#9893a5` | Comments and prose quotes. |
-| `syntax.keyword` | P:purple → D | — | `#c9a2f5` / `#286983` | Keywords and control flow. |
-| `syntax.string` | P:green → D | — | `#9ecf8a` / `#ea9d34` | Strings. |
-| `syntax.number` | P:orange → D | — | `#e0b070` / `#ea9d34` | Numbers. |
-| `syntax.type` | P:cyan → D | — | `#7fd1e8` / `#56949f` | Types, classes, and namespaces. |
-| `syntax.function` | P:blue → B:primary → D | — | `#61afef` / `#286983` | Functions and headings. |
-| `syntax.variable` | B:foreground → D | — | `#eaeaea` / `#575279` | Variables. |
-| `syntax.operator` | P:cyan → D | — | `#9a9a9a` / `#797593` | Operators. |
-| `syntax.tag` | P:red → D | — | `#f44747` / `#b4637a` | Markup tags. |
-| `syntax.attribute` | P:yellow → D | — | `#d9b47a` / `#ea9d34` | Markup attributes. |
-| `syntax.constant` | P:orange → D | — | `#e0b070` / `#d7827e` | Constants and atoms. |
-| `syntax.regexp` | P:red → D | — | `#e59a72` / `#b4637a` | Regular expressions. |
-| `syntax.escape` | P:pink → D | — | `#e59a72` / `#d7827e` | Escape sequences. |
-| `syntax.definition` | B:foreground → D | — | `#ffffff` / `#464261` | Definitions and strong prose. |
-| `syntax.property` | P:cyan → D | — | `#c8c8c8` / `#56949f` | Properties and object keys. |
+| `syntax.comment` | B:muted-foreground → D | — | `#737373` | Comments and prose quotes. |
+| `syntax.keyword` | P:purple → D | — | `#ff678d` / `#d32a61` | Keywords and control flow. |
+| `syntax.string` | P:green → D | — | `#5ecc71` / `#199f43` | Strings. |
+| `syntax.number` | P:orange → D | — | `#68cdf2` / `#1ca1c7` | Numbers. |
+| `syntax.type` | P:cyan → D | — | `#d568ea` / `#a631be` | Types, classes, and namespaces. |
+| `syntax.function` | P:blue → B:primary → D | — | `#9d6afb` / `#693acf` | Functions and headings. |
+| `syntax.variable` | B:foreground → D | — | `#a3a3a3` / `#636363` | Variables. |
+| `syntax.operator` | P:cyan → D | — | `#636363` | Operators. |
+| `syntax.tag` | P:red → D | — | `#ff855e` / `#d5512f` | Markup tags. |
+| `syntax.attribute` | P:yellow → D | — | `#60d199` / `#18a46c` | Markup attributes. |
+| `syntax.constant` | P:orange → D | — | `#08c0ef` | Constants and atoms. |
+| `syntax.regexp` | P:red → D | — | `#64d1db` / `#17a5af` | Regular expressions. |
+| `syntax.escape` | P:pink → D | — | `#61d5c0` / `#16a994` | Escape sequences. |
+| `syntax.definition` | B:foreground → D | — | `#9d6afb` / `#693acf` | Definitions and strong prose. |
+| `syntax.property` | P:cyan → D | — | `#ffa359` / `#d47628` | Properties and object keys. |
 
 ### Editor
 

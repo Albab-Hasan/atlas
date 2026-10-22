@@ -471,46 +471,49 @@ light = "#464261"
 
 
 # ── Syntax ────────────────────────────────────────────────────────────────────
+#
+# Every `dark`/`light` here is Pierre's colour for that role (@pierre/theme, the
+# Atlas theme's syntax), written by `bun run theme:pierre`. Edit them there.
 
 [[key]]
 name = "syntax.comment"
 group = "Syntax"
 description = "Comments and prose quotes."
 base = "muted-foreground"
-dark = "#8f8f8f"
-light = "#9893a5"
+dark = "#737373"
+light = "#737373"
 
 [[key]]
 name = "syntax.keyword"
 group = "Syntax"
 description = "Keywords and control flow."
 palette = "purple"
-dark = "#c9a2f5"
-light = "#286983"
+dark = "#ff678d"
+light = "#d32a61"
 
 [[key]]
 name = "syntax.string"
 group = "Syntax"
 description = "Strings."
 palette = "green"
-dark = "#9ecf8a"
-light = "#ea9d34"
+dark = "#5ecc71"
+light = "#199f43"
 
 [[key]]
 name = "syntax.number"
 group = "Syntax"
 description = "Numbers."
 palette = "orange"
-dark = "#e0b070"
-light = "#ea9d34"
+dark = "#68cdf2"
+light = "#1ca1c7"
 
 [[key]]
 name = "syntax.type"
 group = "Syntax"
 description = "Types, classes, and namespaces."
 palette = "cyan"
-dark = "#7fd1e8"
-light = "#56949f"
+dark = "#d568ea"
+light = "#a631be"
 
 [[key]]
 name = "syntax.function"
@@ -518,80 +521,80 @@ group = "Syntax"
 description = "Functions and headings."
 palette = "blue"
 base = "primary"
-dark = "#61afef"
-light = "#286983"
+dark = "#9d6afb"
+light = "#693acf"
 
 [[key]]
 name = "syntax.variable"
 group = "Syntax"
 description = "Variables."
 base = "foreground"
-dark = "#eaeaea"
-light = "#575279"
+dark = "#a3a3a3"
+light = "#636363"
 
 [[key]]
 name = "syntax.operator"
 group = "Syntax"
 description = "Operators."
 palette = "cyan"
-dark = "#9a9a9a"
-light = "#797593"
+dark = "#636363"
+light = "#636363"
 
 [[key]]
 name = "syntax.tag"
 group = "Syntax"
 description = "Markup tags."
 palette = "red"
-dark = "#f44747"
-light = "#b4637a"
+dark = "#ff855e"
+light = "#d5512f"
 
 [[key]]
 name = "syntax.attribute"
 group = "Syntax"
 description = "Markup attributes."
 palette = "yellow"
-dark = "#d9b47a"
-light = "#ea9d34"
+dark = "#60d199"
+light = "#18a46c"
 
 [[key]]
 name = "syntax.constant"
 group = "Syntax"
 description = "Constants and atoms."
 palette = "orange"
-dark = "#e0b070"
-light = "#d7827e"
+dark = "#08c0ef"
+light = "#08c0ef"
 
 [[key]]
 name = "syntax.regexp"
 group = "Syntax"
 description = "Regular expressions."
 palette = "red"
-dark = "#e59a72"
-light = "#b4637a"
+dark = "#64d1db"
+light = "#17a5af"
 
 [[key]]
 name = "syntax.escape"
 group = "Syntax"
 description = "Escape sequences."
 palette = "pink"
-dark = "#e59a72"
-light = "#d7827e"
+dark = "#61d5c0"
+light = "#16a994"
 
 [[key]]
 name = "syntax.definition"
 group = "Syntax"
 description = "Definitions and strong prose."
 base = "foreground"
-dark = "#ffffff"
-light = "#464261"
+dark = "#9d6afb"
+light = "#693acf"
 
 [[key]]
 name = "syntax.property"
 group = "Syntax"
 description = "Properties and object keys."
 palette = "cyan"
-dark = "#c8c8c8"
-light = "#56949f"
+dark = "#ffa359"
+light = "#d47628"
 
 
 # ── Editor ────────────────────────────────────────────────────────────────────
