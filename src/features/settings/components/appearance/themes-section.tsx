@@ -4,8 +4,8 @@
  *
  * Atlas wears two themes, one while it is light and one while it is dark
  * (`themeLight`, `themeDark`). Picking a card uses that theme for both; the
- * sun and moon on a card set just one half, so a light theme from one family
- * can sit beside a dark one from another. A ring on a swatch marks the half a
+ * light and dark orbs on a card set just one half, so a light theme from one family
+ * can sit beside a dark one from another. A ring on an orb marks the half a
  * theme is filling. Importing opens in a dialog over the page — a shadcn, Zed
  * or VS Code theme converted by Rust, with the report of what mapped shown
  * before anything is written (`theme-import-panel.tsx`).
@@ -20,9 +20,7 @@ import { Dialog, DialogContent } from "@/ui/dialog";
 import { Icon } from "@/ui/icon";
 import { Hint } from "@/ui/tooltip";
 import { themeIdFor, useThemeStore } from "@/features/theme/stores/theme-store";
-import { appearanceForMode } from "@/features/theme/apply-theme";
 import { previewTheme, type ThemePreview } from "@/features/theme/preview-theme";
-import { ThemeMiniature } from "@/features/theme/components/theme-miniature";
 import type { Theme, ThemeAppearance, ThemeSummary } from "@/features/theme/lib/theme-api";
 import type { AppSettings } from "../../lib/app-settings";
 import { useSettingsStore } from "../../stores/settings-store";
@@ -41,8 +39,6 @@ export function ThemesSection() {
   const error = useThemeStore.use.error();
   const { load, loadAll, reapply } = useThemeStore.use.actions();
   const [importing, setImporting] = useState(false);
-  /** The variant a card's miniature shows while a swatch is hovered. */
-  const [previewing, setPreviewing] = useState<Record<string, ThemeAppearance>>({});
 
   useEffect(() => {
     void load();
@@ -55,15 +51,7 @@ export function ThemesSection() {
     void loadAll();
   }, [loadAll, themes]);
 
-  /** The appearance Atlas is in, so each miniature shows what you would see. */
-  const appearance = appearanceForMode(themeMode);
   const showing = themeIdFor({ light: themeLight, dark: themeDark }, themeMode);
-
-  // Stable, because `ThemeCard` is memoised: a card whose props did not change
-  // must not re-render.
-  const onPreview = useCallback((id: string, next: ThemeAppearance | null) => {
-    setPreviewing(({ [id]: _previous, ...rest }) => (next ? { ...rest, [id]: next } : rest));
-  }, []);
 
   const onPick = useCallback(
     (id: string, name: string, half: ThemeAppearance | "both") => {
@@ -91,7 +79,7 @@ export function ThemesSection() {
     <SettingsSection
       title="Themes"
       anchor="themeLight"
-      description="Pick a card to use it in both light and dark, or the sun or moon to set just one."
+      description="Pick a theme for both light and dark, or one of its orbs to set just that half."
       action={
         <Hint label="Convert a shadcn, Zed or VS Code theme">
           <Button size="sm" variant="ghost" onClick={() => setImporting(true)}>
@@ -135,8 +123,6 @@ export function ThemesSection() {
             showing={theme.id === showing}
             isLight={theme.id === themeLight}
             isDark={theme.id === themeDark}
-            appearance={previewing[theme.id] ?? appearance}
-            onPreview={onPreview}
             onPick={onPick}
           />
         ))}
@@ -169,18 +155,16 @@ export function ThemesSection() {
 }
 
 /**
- * One theme in the grid: a live preview of it, its name, and a swatch for each
- * variant it has.
+ * One theme in the grid: an orb for each variant it has, and its name.
  *
- * The card's OWN chrome — the border, the surface, the name — stays on the
- * active theme; only `ThemeMiniature` and the swatches carry the previewed
- * theme's colours, so nothing here has to be applied to be seen.
+ * An orb is the variant's background lit by its brand colour — the two
+ * colours a theme is recognised by, and all a choice between themes needs.
+ * (The full window miniature this replaced showed every role at once and
+ * read as noise at grid size.) Clicking the card uses the theme for both
+ * halves; clicking an orb sets just that one, and a ring marks the halves
+ * this theme fills.
  *
- * Memoised, because a miniature is ~40 elements and 124 inline custom
- * properties: resolving a theme is free once cached, but reconciling every
- * card whenever one swatch is hovered is not. Every prop is stable — the
- * summaries come from the store, the documents from its `loaded` map, and the
- * two callbacks are `useCallback`ed above.
+ * Memoised: every prop is stable, so hovering one card re-renders no other.
  */
 const ThemeCard = memo(function ThemeCard({
   summary,
@@ -188,8 +172,6 @@ const ThemeCard = memo(function ThemeCard({
   showing,
   isLight,
   isDark,
-  appearance,
-  onPreview,
   onPick,
 }: {
   summary: ThemeSummary;
@@ -199,11 +181,8 @@ const ThemeCard = memo(function ThemeCard({
   showing: boolean;
   isLight: boolean;
   isDark: boolean;
-  appearance: ThemeAppearance;
-  onPreview: (id: string, appearance: ThemeAppearance | null) => void;
   onPick: (id: string, name: string, half: ThemeAppearance | "both") => void;
 }) {
-  const preview = full ? previewTheme(full, appearance) : null;
   const light = full && summary.hasLight ? previewTheme(full, "light") : null;
   const dark = full && summary.hasDark ? previewTheme(full, "dark") : null;
 
@@ -212,105 +191,82 @@ const ThemeCard = memo(function ThemeCard({
       type="button"
       onClick={() => onPick(summary.id, summary.name, "both")}
       className={cn(
-        "flex min-w-0 cursor-pointer flex-col overflow-hidden rounded-lg border bg-card text-left",
-        "transition-colors duration-fast ease-out-strong",
-        showing
-          ? "border-primary"
-          : isLight || isDark
-            ? "border-border-strong"
-            : "border-border hover:border-border-strong",
+        "flex min-w-0 cursor-pointer flex-col gap-3 rounded-lg border bg-card px-3 pt-4 pb-2.5 text-left outline-none",
+        "transition-colors duration-fast ease-out-strong focus-visible:ring-1 focus-visible:ring-ring",
+        showing ? "border-primary" : "border-border hover:border-border-strong",
       )}
     >
-      {preview ? (
-        <ThemeMiniature preview={preview} />
-      ) : (
-        // The document is one `get_theme` away, not a failure state. A flat
-        // block of the right height keeps the grid from reflowing when it lands.
-        <div className="h-28 w-full shrink-0 bg-element-selected" />
-      )}
+      <div className="flex h-11 items-center justify-center gap-4">
+        {full ? (
+          <>
+            <Orb half="light" theme={summary} preview={light} chosen={isLight} onPick={onPick} />
+            <Orb half="dark" theme={summary} preview={dark} chosen={isDark} onPick={onPick} />
+          </>
+        ) : (
+          // The document is one `get_theme` away; hold the orbs' place.
+          <>
+            <span className="size-11 rounded-full bg-element-selected" />
+            <span className="size-11 rounded-full bg-element-selected" />
+          </>
+        )}
+      </div>
 
-      <div className="flex w-full items-center gap-2 border-t border-border-subtle px-2.5 py-2">
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-xs font-medium text-foreground">{summary.name}</p>
-          <p className="flex items-center gap-1.5 text-2xs text-muted-foreground">
-            <span className="truncate">{summary.author}</span>
-            {/* A theme that loaded but carries keys Atlas does not know. Those
-                keys are preserved, not applied, so the author sees the name
-                they typed do nothing until they are told. */}
-            {summary.warnings.length > 0 && (
-              <Hint
-                label={
-                  <span className="block max-w-64 whitespace-pre-line text-left">
-                    {summary.warnings
-                      .map((warning) => `${warning.key}: ${warning.message}`)
-                      .join("\n")}
-                  </span>
-                }
-              >
-                <span
-                  aria-label={`${summary.warnings.length} unknown theme key(s)`}
-                  className="flex shrink-0 items-center gap-0.5 text-warning"
-                >
-                  <Icon icon={AlertTriangle} size="xs" />
-                  {summary.warnings.length}
-                </span>
-              </Hint>
-            )}
-          </p>
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          <HalfSwatch
-            half="light"
-            theme={summary}
-            preview={light}
-            chosen={isLight}
-            onPreview={onPreview}
-            onPick={onPick}
-          />
-          <HalfSwatch
-            half="dark"
-            theme={summary}
-            preview={dark}
-            chosen={isDark}
-            onPreview={onPreview}
-            onPick={onPick}
-          />
-        </div>
+      <div className="flex min-w-0 items-center gap-1.5">
+        <span className="truncate text-xs font-medium text-foreground">{summary.name}</span>
+        {/* A theme that loaded but carries keys Atlas does not know. Those
+            keys are preserved, not applied, so the author sees the name
+            they typed do nothing until they are told. */}
+        {summary.warnings.length > 0 && (
+          <Hint
+            label={
+              <span className="block max-w-64 whitespace-pre-line text-left">
+                {summary.warnings.map((warning) => `${warning.key}: ${warning.message}`).join("\n")}
+              </span>
+            }
+          >
+            <span
+              aria-label={`${summary.warnings.length} unknown theme key(s)`}
+              className="flex shrink-0 items-center gap-0.5 text-2xs text-warning"
+            >
+              <Icon icon={AlertTriangle} size="xs" />
+              {summary.warnings.length}
+            </span>
+          </Hint>
+        )}
       </div>
     </button>
   );
 });
 
 /**
- * A theme's light or dark variant as a small disc in that variant's own
- * colours: its background, its foreground drawing the sun or moon, and a ring
- * in its brand colour when it is the half you have chosen. Clicking sets that
- * half to this theme; hovering swaps the card's miniature to it.
+ * A theme's light or dark variant as an orb: its background, lit from below
+ * by its brand colour. Chosen, it wears a ring and a sun or moon badge saying
+ * which half it fills.
  *
  * A `<span role="button">` rather than a `<button>`: the whole card is already
  * the pick-both control, and a nested `<button>` is invalid inside it. The
  * `stopPropagation` keeps setting one half from also setting both.
  */
-function HalfSwatch({
+function Orb({
   half,
   theme,
   preview,
   chosen,
-  onPreview,
   onPick,
 }: {
   half: ThemeAppearance;
   theme: ThemeSummary;
-  /** `null` when this theme has no such variant, or is not loaded yet. */
+  /** `null` when this theme has no such variant. */
   preview: ThemePreview | null;
   chosen: boolean;
-  onPreview: (id: string, appearance: ThemeAppearance | null) => void;
   onPick: (id: string, name: string, half: ThemeAppearance | "both") => void;
 }) {
   if (!preview) return null;
+  const { background, primary } = preview.swatch;
   const label = chosen
     ? `${theme.name} is your ${half} theme`
     : `Use ${theme.name} as your ${half} theme`;
+  const pick = () => onPick(theme.id, theme.name, half);
   return (
     <Hint label={label}>
       <span
@@ -320,32 +276,34 @@ function HalfSwatch({
         aria-label={label}
         onClick={(event) => {
           event.stopPropagation();
-          onPick(theme.id, theme.name, half);
+          pick();
         }}
         onKeyDown={(event) => {
           if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
             event.stopPropagation();
-            onPick(theme.id, theme.name, half);
+            pick();
           }
         }}
-        onMouseEnter={() => onPreview(theme.id, half)}
-        onMouseLeave={() => onPreview(theme.id, null)}
-        style={{
-          backgroundColor: preview.swatch.background,
-          color: preview.swatch.foreground,
-          // A dark disc on a dark card has no edge of its own; its foreground
-          // always contrasts with its background, so it draws one. Chosen, the
-          // ring is the variant's brand colour instead.
-          borderColor: chosen ? preview.swatch.primary : preview.swatch.foreground,
-        }}
         className={cn(
-          "flex size-6 cursor-pointer items-center justify-center rounded-full border outline-none",
-          "transition-opacity duration-fast ease-out-strong focus-visible:ring-1 focus-visible:ring-ring",
-          chosen ? "border-2 opacity-100" : "opacity-50 hover:opacity-100",
+          "relative flex size-11 cursor-pointer rounded-full outline-none",
+          "ring-offset-2 ring-offset-card transition-shadow duration-fast ease-out-strong",
+          "focus-visible:ring-1 focus-visible:ring-ring",
+          chosen ? "ring-2 ring-primary" : "hover:ring-1 hover:ring-border-strong",
         )}
       >
-        <Icon icon={half === "light" ? Sun : Moon} size="xs" />
+        <span
+          aria-hidden
+          className="size-full rounded-full border border-border-subtle"
+          style={{
+            background: `radial-gradient(circle at 50% 30%, ${background} 25%, color-mix(in oklab, ${primary} 70%, ${background}) 120%)`,
+          }}
+        />
+        {chosen && (
+          <span className="absolute -right-1 -bottom-1 flex size-4 items-center justify-center rounded-full bg-card text-foreground">
+            <Icon icon={half === "light" ? Sun : Moon} size="xs" />
+          </span>
+        )}
       </span>
     </Hint>
   );

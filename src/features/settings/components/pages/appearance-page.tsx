@@ -9,6 +9,7 @@
 
 import { Minus, Plus } from "lucide-react";
 import { isMac } from "@/lib/platform";
+import { cn } from "@/lib/utils";
 import { Button } from "@/ui/button";
 import { IconButton } from "@/ui/icon-button";
 import { Select } from "@/ui/select";
@@ -37,12 +38,30 @@ const CHAT_WIDTHS = [
   { value: "full", label: "Full", description: "The whole panel." },
 ] as const;
 
+/** A removal and an addition dot, in the status colours each palette draws
+ *  diffs with (`globals.css`, `data-diff-palette`). Not the diff variables
+ *  themselves: those are already overridden by whichever palette is on. */
+function DiffDots({ removed, added }: { removed: string; added: string }) {
+  return (
+    <span aria-hidden className="flex items-center gap-0.5">
+      <span className={cn("size-2 rounded-full", removed)} />
+      <span className={cn("size-2 rounded-full", added)} />
+    </span>
+  );
+}
+
 const DIFF_PALETTES = [
-  { value: "theme", label: "Green and red", description: "The theme's own colours." },
+  {
+    value: "theme",
+    label: "Red and green",
+    description: "The theme's own colours.",
+    icon: <DiffDots removed="bg-error" added="bg-success" />,
+  },
   {
     value: "blue-orange",
-    label: "Blue and orange",
+    label: "Orange and blue",
     description: "Stays distinct with red-green colour blindness.",
+    icon: <DiffDots removed="bg-warning" added="bg-info" />,
   },
 ] as const;
 
