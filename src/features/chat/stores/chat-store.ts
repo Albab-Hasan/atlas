@@ -2327,7 +2327,22 @@ function applyDeltaToDraft(s: ChatDraft, env: AgentDelta): void {
           session.sleptMidTurn = undefined;
           return;
         }
-        recordInterruption(session, session.status === "error" ? "failed" : "finished");
+        if (session.status !== "error") {
+          recordInterruption(session, "finished");
+          return;
+        }
+        // The failure already pushed its bare "Error:" line; the record takes
+        // its place and carries the error, as it would have on time.
+        const tail = session.messages[session.messages.length - 1];
+        const errorLine =
+          tail?.role === "assistant" &&
+          !tail.interruption &&
+          tail.toolCalls.length === 0 &&
+          tail.content.startsWith("Error: ")
+            ? tail
+            : undefined;
+        if (errorLine) session.messages.pop();
+        recordInterruption(session, "failed", errorLine?.content.slice("Error: ".length));
       }
       return;
     }

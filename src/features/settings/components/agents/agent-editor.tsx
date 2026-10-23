@@ -23,6 +23,7 @@ import { GithubIcon } from "@/components/github-icon";
 import { useAgentRegistryStore } from "@/features/agents/stores/agent-registry-store";
 import { updatePhaseLabel } from "@/features/agents/lib/agent-update";
 import { SettingsGroup, SettingsRow, SettingsSection } from "../layout/settings-layout";
+import { usePageScope } from "../../lib/use-scoped-setting";
 import {
   configureAgent,
   installAgent,
@@ -50,42 +51,69 @@ export function versionOf(item: AgentItem): string | null {
 export function AgentEditor({ item }: { item: AgentItem }) {
   const version = versionOf(item);
   const removable = item.state === "installed";
+  // An agent's own settings are the same in every project, so in a project
+  // scope they are shown but can't be changed, as a global-only row would be.
+  // Atlas Agent's permissions are ordinary settings a project may tighten, and
+  // stay live; their rows lock what a project can't override.
+  const projectScope = usePageScope() !== null;
+  const lock = (children: ReactNode) =>
+    projectScope ? (
+      <div inert className="disabled-look flex flex-col gap-6">
+        {children}
+      </div>
+    ) : (
+      children
+    );
   return (
     <div className="flex flex-col gap-6 p-4">
-      <section className="flex flex-col gap-2">
-        <header className="flex min-h-7 items-center gap-2.5 px-1">
-          <span className="flex shrink-0 items-center text-foreground">
-            <AgentMark agentType={item.agentType} />
-          </span>
-          <h2 className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
-            {item.catalog?.displayName ?? item.name}
-          </h2>
-          {version && <code className="font-mono text-xs text-muted-foreground">v{version}</code>}
-          <LinksMenu item={item} />
-          {removable && (
-            <Hint label={`Remove ${item.name}`}>
-              <IconButton
-                icon={Trash2}
-                size="sm"
-                label={`Remove ${item.name}`}
-                onClick={() => void removeAgent(item)}
-              />
-            </Hint>
-          )}
-        </header>
-        <SettingsGroup>
-          <IdentityRow item={item} />
-          <StatusRow item={item} />
-        </SettingsGroup>
-      </section>
-
-      <SetupSection item={item} />
+      {projectScope && (
+        <p className="px-1 text-xs text-muted-foreground">
+          Agents apply to all projects. Pick All projects above to change them.
+        </p>
+      )}
+      {lock(
+        <>
+          <section className="flex flex-col gap-2">
+            <header className="flex min-h-7 items-center gap-2.5 px-1">
+              <span className="flex shrink-0 items-center text-foreground">
+                <AgentMark agentType={item.agentType} />
+              </span>
+              <h2 className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+                {item.catalog?.displayName ?? item.name}
+              </h2>
+              {version && (
+                <code className="font-mono text-xs text-muted-foreground">v{version}</code>
+              )}
+              <LinksMenu item={item} />
+              {removable && (
+                <Hint label={`Remove ${item.name}`}>
+                  <IconButton
+                    icon={Trash2}
+                    size="sm"
+                    label={`Remove ${item.name}`}
+                    onClick={() => void removeAgent(item)}
+                  />
+                </Hint>
+              )}
+            </header>
+            <SettingsGroup>
+              <IdentityRow item={item} />
+              <StatusRow item={item} />
+            </SettingsGroup>
+          </section>
+          <SetupSection item={item} />
+        </>,
+      )}
       {item.state === "native" && <AtlasAgentPermissions />}
-      <AgentDefaultsSection key={item.id} item={item} />
-      <RuntimeSection item={item} />
-      <EnvironmentSection item={item} />
-      <AgentModelsSection item={item} />
-      <AboutSection item={item} />
+      {lock(
+        <>
+          <AgentDefaultsSection key={item.id} item={item} />
+          <RuntimeSection item={item} />
+          <EnvironmentSection item={item} />
+          <AgentModelsSection item={item} />
+          <AboutSection item={item} />
+        </>,
+      )}
     </div>
   );
 }

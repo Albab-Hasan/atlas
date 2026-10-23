@@ -80,10 +80,18 @@ struct SinkInner {
     /// delta, BEFORE it travels, so the notice reaches every stage ahead of
     /// the failure it explains; and on a tick, for a turn that wakes silent.
     sleep: Arc<crate::sleep_watch::SleepWatch>,
+    /// Held across "observe, then deliver" on both the emit path and the
+    /// tick. Without it a tick could compute a turn's sleep notice, lose the
+    /// race to an emit that ends the turn, and deliver the notice after the
+    /// turn's terminal delta. Every stage of the pipeline is in-memory work
+    /// or an enqueue, and none emits back into the sink, so this is cheap
+    /// and cannot deadlock.
+    delivery: parking_lot::Mutex<()>,
 }
 
 impl SinkInner {
     fn run(&self, envelope: &SessionDeltaEnvelope) {
+        let _order = self.delivery.lock();
         for notice in self.sleep.observe(envelope) {
             self.pipeline.run(&notice);
         }
@@ -114,7 +122,11 @@ impl TauriDeltaSink {
                 app,
                 queue: super::memory_delta::IngestQueue::new("atlas-memory-ingest"),
             }));
-        let inner = Arc::new(SinkInner { pipeline, sleep });
+        let inner = Arc::new(SinkInner {
+            pipeline,
+            sleep,
+            delivery: parking_lot::Mutex::new(()),
+        });
         // The tick holds only a weak reference, so it ends with the sink.
         let weak = Arc::downgrade(&inner);
         if let Err(e) = std::thread::Builder::new()
@@ -122,6 +134,7 @@ impl TauriDeltaSink {
             .spawn(move || loop {
                 std::thread::sleep(crate::sleep_watch::TICK_INTERVAL);
                 let Some(inner) = weak.upgrade() else { return };
+                let _order = inner.delivery.lock();
                 for notice in inner.sleep.tick() {
                     inner.pipeline.run(&notice);
                 }
