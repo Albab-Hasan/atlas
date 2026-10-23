@@ -1,6 +1,10 @@
 //! What the user sets per agent in Settings → Agents: whether it is on, the
-//! name it goes by, how it launches, its environment, and which of its models
-//! the picker hides.
+//! name it goes by, how it launches, its environment, and how its models show
+//! in the picker (hidden, ordered, and any the user added by id).
+//!
+//! A variable marked sensitive keeps only its name in the installed map; its
+//! value goes to the OS keychain ([`super::agent_secrets`]) and never comes
+//! back to the webview.
 //!
 //! An external agent keeps these in its installed-map entry, beside the rest
 //! of what the user configured about it, so a hand edit of `installed.json`
@@ -32,6 +36,8 @@ pub struct NativeAgentPrefs {
     pub display_name: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub hidden_models: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub model_order: Vec<String>,
 }
 
 fn native_prefs_path(config_dir: &Path) -> PathBuf {
@@ -69,7 +75,53 @@ pub struct AgentLaunch {
     /// command the registry names.
     pub command: Option<String>,
     pub args: Vec<String>,
-    pub env: HashMap<String, String>,
+    /// Plain variables, then sensitive ones, each sorted by name.
+    pub variables: Vec<AgentVariable>,
+}
+
+/// One environment variable, as the catalog reports it and a patch sets it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentVariable {
+    pub name: String,
+    /// Always `None` for a sensitive variable in the catalog. In a patch,
+    /// `None` on a sensitive variable keeps the value already stored.
+    #[serde(default)]
+    pub value: Option<String>,
+    #[serde(default)]
+    pub sensitive: bool,
+}
+
+impl AgentLaunch {
+    /// The launch settings of an installed-map entry, without a secret value.
+    pub fn of(entry: &atlas_agent_store::AgentServerSettings) -> Self {
+        let mut plain = entry
+            .env()
+            .iter()
+            .map(|(name, value)| AgentVariable {
+                name: name.clone(),
+                value: Some(value.clone()),
+                sensitive: false,
+            })
+            .collect::<Vec<_>>();
+        plain.sort_by(|a, b| a.name.cmp(&b.name));
+        let mut secret = entry
+            .secret_env()
+            .iter()
+            .map(|name| AgentVariable {
+                name: name.clone(),
+                value: None,
+                sensitive: true,
+            })
+            .collect::<Vec<_>>();
+        secret.sort_by(|a, b| a.name.cmp(&b.name));
+        plain.extend(secret);
+        Self {
+            command: entry.command().map(|c| c.path.display().to_string()),
+            args: entry.args().to_vec(),
+            variables: plain,
+        }
+    }
 }
 
 /// One `agents_configure` call: only what changes.
@@ -82,6 +134,8 @@ pub struct AgentConfigPatch {
     #[serde(default, deserialize_with = "explicit_null")]
     pub display_name: Option<Option<String>>,
     pub hidden_models: Option<Vec<String>>,
+    pub model_order: Option<Vec<String>>,
+    pub custom_models: Option<Vec<atlas_agent_store::CustomModel>>,
     pub launch: Option<LaunchPatch>,
 }
 
@@ -90,7 +144,16 @@ pub struct AgentConfigPatch {
 pub struct LaunchPatch {
     pub command: Option<String>,
     pub args: Option<Vec<String>>,
-    pub env: Option<HashMap<String, String>>,
+    /// The whole list: a variable left out is removed.
+    pub variables: Option<Vec<AgentVariable>>,
+}
+
+/// What a patch asks of the keychain, done by the caller after the pure
+/// [`apply_to_entry`].
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct KeychainWrites {
+    pub set: Vec<(String, String)>,
+    pub delete: Vec<String>,
 }
 
 /// Tell "absent" (keep it) from `null` (clear it): serde reads both as `None`
@@ -121,7 +184,8 @@ fn valid_env_name(name: &str) -> bool {
 pub fn apply_to_entry(
     entry: &mut atlas_agent_store::AgentServerSettings,
     patch: AgentConfigPatch,
-) -> Result<(), String> {
+) -> Result<KeychainWrites, String> {
+    let mut keychain = KeychainWrites::default();
     let user = entry.user_settings_mut();
     if let Some(enabled) = patch.enabled {
         *user.enabled = enabled;
@@ -131,6 +195,26 @@ pub fn apply_to_entry(
     }
     if let Some(hidden) = patch.hidden_models {
         *user.hidden_models = hidden;
+    }
+    if let Some(order) = patch.model_order {
+        *user.model_order = order;
+    }
+    if let Some(custom) = patch.custom_models {
+        let mut seen = std::collections::HashSet::new();
+        let mut cleaned = Vec::with_capacity(custom.len());
+        for model in custom {
+            let id = model.id.trim().to_string();
+            if id.is_empty() {
+                return Err("a custom model needs an id".into());
+            }
+            if seen.insert(id.clone()) {
+                cleaned.push(atlas_agent_store::CustomModel {
+                    id,
+                    name: clean_name(model.name),
+                });
+            }
+        }
+        *user.custom_models = cleaned;
     }
     if let Some(launch) = patch.launch {
         if let Some(command) = launch.command {
@@ -146,14 +230,40 @@ pub fn apply_to_entry(
         if let Some(args) = launch.args {
             *user.args = args;
         }
-        if let Some(env) = launch.env {
-            if let Some(bad) = env.keys().find(|name| !valid_env_name(name)) {
-                return Err(format!("`{bad}` isn't a valid variable name"));
+        if let Some(variables) = launch.variables {
+            let mut env = HashMap::new();
+            let mut secret = Vec::new();
+            for variable in variables {
+                let name = variable.name.trim().to_string();
+                if !valid_env_name(&name) {
+                    return Err(format!("`{name}` isn't a valid variable name"));
+                }
+                if env.contains_key(&name) || secret.contains(&name) {
+                    return Err(format!("{name} is set twice"));
+                }
+                if variable.sensitive {
+                    match variable.value {
+                        Some(value) => keychain.set.push((name.clone(), value)),
+                        None if user.secret_env.contains(&name) => {}
+                        None => return Err(format!("{name} needs a value")),
+                    }
+                    secret.push(name);
+                } else {
+                    env.insert(name, variable.value.unwrap_or_default());
+                }
             }
+            keychain.delete = user
+                .secret_env
+                .iter()
+                .filter(|name| !secret.contains(name))
+                .cloned()
+                .collect();
+            secret.sort();
             *user.env = env;
+            *user.secret_env = secret;
         }
     }
-    Ok(())
+    Ok(keychain)
 }
 
 /// Apply a patch to the native agent's settings.
@@ -167,11 +277,17 @@ pub fn apply_to_native(
     if patch.launch.is_some() {
         return Err("Atlas Agent runs inside Atlas; it has no launch settings".into());
     }
+    if patch.custom_models.is_some() {
+        return Err("Atlas Agent's models come from its gateway; it takes no custom ones".into());
+    }
     if let Some(name) = patch.display_name {
         prefs.display_name = clean_name(name);
     }
     if let Some(hidden) = patch.hidden_models {
         prefs.hidden_models = hidden;
+    }
+    if let Some(order) = patch.model_order {
+        prefs.model_order = order;
     }
     Ok(())
 }
@@ -201,7 +317,21 @@ pub async fn agents_configure(
             .0
             .get_mut(&agent_id)
             .ok_or_else(|| format!("{agent_id} is not installed"))?;
-        apply_to_entry(entry, patch)?;
+        let keychain = apply_to_entry(entry, patch)?;
+        // The keychain first: a name the map lists with no stored value would
+        // launch the agent without it.
+        let agent = agent_id.clone();
+        tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
+            for (name, value) in &keychain.set {
+                super::agent_secrets::write(&agent, name, value)?;
+            }
+            for name in &keychain.delete {
+                super::agent_secrets::delete(&agent, name)?;
+            }
+            Ok(())
+        })
+        .await
+        .map_err(|e| e.to_string())??;
         let data_dir = app
             .path()
             .app_data_dir()
@@ -230,7 +360,7 @@ mod tests {
 
         apply_to_entry(
             &mut entry,
-            patch(serde_json::json!({ "launch": { "env": { "REGION": "eu" } } })),
+            patch(serde_json::json!({ "launch": { "variables": [{ "name": "REGION", "value": "eu" }] } })),
         )
         .unwrap();
         assert_eq!(entry.env().get("REGION").map(String::as_str), Some("eu"));
@@ -299,11 +429,119 @@ mod tests {
         let mut entry = AgentServerSettings::registry();
         let err = apply_to_entry(
             &mut entry,
-            patch(serde_json::json!({ "launch": { "env": { "1BAD": "x" } } })),
+            patch(serde_json::json!({ "launch": { "variables": [{ "name": "1BAD", "value": "x" }] } })),
         )
         .unwrap_err();
         assert!(err.contains("1BAD"), "{err}");
         assert!(entry.env().is_empty(), "nothing is half-written");
+    }
+
+    /// A sensitive value goes to the keychain and only its name to the map;
+    /// sending it back without a value keeps what is stored, and making it
+    /// plain again or dropping it deletes the stored one.
+    #[test]
+    fn sensitive_variables_keep_only_their_name_in_the_map() {
+        let mut entry = AgentServerSettings::registry();
+        let writes = apply_to_entry(
+            &mut entry,
+            patch(serde_json::json!({ "launch": { "variables": [
+                { "name": "REGION", "value": "eu" },
+                { "name": "API_TOKEN", "value": "s3cret", "sensitive": true },
+            ] } })),
+        )
+        .unwrap();
+        assert_eq!(
+            writes.set,
+            [("API_TOKEN".to_string(), "s3cret".to_string())]
+        );
+        assert!(writes.delete.is_empty());
+        assert_eq!(entry.secret_env(), ["API_TOKEN"]);
+        assert!(!entry.env().contains_key("API_TOKEN"));
+        let json = serde_json::to_string(&entry).unwrap();
+        assert!(
+            !json.contains("s3cret"),
+            "the value never reaches the file: {json}"
+        );
+
+        let launch = AgentLaunch::of(&entry);
+        assert_eq!(launch.variables[1].name, "API_TOKEN");
+        assert_eq!(launch.variables[1].value, None, "nor the webview");
+
+        let writes = apply_to_entry(
+            &mut entry,
+            patch(serde_json::json!({ "launch": { "variables": [
+                { "name": "REGION", "value": "eu" },
+                { "name": "API_TOKEN", "sensitive": true },
+            ] } })),
+        )
+        .unwrap();
+        assert_eq!(
+            writes,
+            KeychainWrites::default(),
+            "an unchanged secret is left alone"
+        );
+
+        let writes = apply_to_entry(
+            &mut entry,
+            patch(serde_json::json!({ "launch": { "variables": [
+                { "name": "REGION", "value": "eu" },
+            ] } })),
+        )
+        .unwrap();
+        assert_eq!(writes.delete, ["API_TOKEN"]);
+        assert!(entry.secret_env().is_empty());
+    }
+
+    #[test]
+    fn a_new_sensitive_variable_needs_a_value_and_names_are_unique() {
+        let mut entry = AgentServerSettings::registry();
+        assert!(apply_to_entry(
+            &mut entry,
+            patch(serde_json::json!({ "launch": { "variables": [
+                { "name": "TOKEN", "sensitive": true },
+            ] } })),
+        )
+        .is_err());
+        assert!(apply_to_entry(
+            &mut entry,
+            patch(serde_json::json!({ "launch": { "variables": [
+                { "name": "A", "value": "1" },
+                { "name": "A", "value": "2", "sensitive": true },
+            ] } })),
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn custom_models_are_trimmed_and_deduplicated() {
+        let mut entry = AgentServerSettings::registry();
+        apply_to_entry(
+            &mut entry,
+            patch(serde_json::json!({
+                "customModels": [{ "id": " m1 " }, { "id": "m1", "name": "Again" }, { "id": "m2", "name": " " }],
+                "modelOrder": ["m2", "m1"],
+            })),
+        )
+        .unwrap();
+        assert_eq!(
+            entry.custom_models(),
+            [
+                atlas_agent_store::CustomModel {
+                    id: "m1".into(),
+                    name: None
+                },
+                atlas_agent_store::CustomModel {
+                    id: "m2".into(),
+                    name: None
+                },
+            ]
+        );
+        assert_eq!(entry.model_order(), ["m2", "m1"]);
+        assert!(apply_to_entry(
+            &mut entry,
+            patch(serde_json::json!({ "customModels": [{ "id": "  " }] })),
+        )
+        .is_err());
     }
 
     #[test]
@@ -333,6 +571,7 @@ mod tests {
         let prefs = NativeAgentPrefs {
             display_name: Some("Atlas".into()),
             hidden_models: vec!["m".into()],
+            model_order: vec!["b".into(), "a".into()],
         };
         save_native_prefs(&dir, &prefs).unwrap();
         assert_eq!(load_native_prefs(&dir), prefs);

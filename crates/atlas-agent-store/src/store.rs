@@ -22,6 +22,7 @@ use tokio::sync::watch;
 use crate::http::HttpClient;
 use crate::node::NodeRuntime;
 use crate::registry::{AgentRegistryStore, RegistryAgent};
+use crate::secrets::{SecretEnv, SecretSource};
 use crate::servers::{
     npx_install_dir, LocalCustomAgent, LocalRegistryArchiveAgent, LocalRegistryNpxAgent,
     ProjectEnvironment,
@@ -72,6 +73,7 @@ impl Default for AgentChannels {
 struct State {
     settings: AllAgentServersSettings,
     byok_env: HashMap<String, String>,
+    secret_source: Option<Arc<dyn SecretSource>>,
     external_agents: HashMap<AgentId, ExternalAgentEntry>,
     channels: HashMap<AgentId, AgentChannels>,
     generation: u64,
@@ -179,6 +181,13 @@ impl AgentServerStore {
             }
             state.byok_env = env;
         }
+        self.reregister();
+    }
+
+    /// Where sensitive variables are read from at launch: the OS keychain.
+    /// Without one, a variable marked sensitive is simply absent.
+    pub fn set_secret_source(&self, source: Arc<dyn SecretSource>) {
+        self.state.lock().unwrap().secret_source = Some(source);
         self.reregister();
     }
 
@@ -335,6 +344,7 @@ impl AgentServerStore {
             let State {
                 settings,
                 byok_env,
+                secret_source,
                 external_agents,
                 channels,
                 generation,
@@ -363,6 +373,11 @@ impl AgentServerStore {
                                 command,
                                 project_env: self.project_env.clone(),
                                 byok_env: byok_env.clone(),
+                                secret_env: SecretEnv::new(
+                                    name,
+                                    entry_settings.secret_env(),
+                                    secret_source.clone(),
+                                ),
                             }),
                             source: ExternalAgentSource::Custom,
                             icon_path: None,
@@ -388,6 +403,7 @@ impl AgentServerStore {
                             agent,
                             entry_settings,
                             byok_env,
+                            secret_source.clone(),
                             agent_channels,
                         ) {
                             Some(entry) => entry,
@@ -436,6 +452,7 @@ impl AgentServerStore {
         agent: &RegistryAgent,
         settings: &AgentServerSettings,
         byok_env: &HashMap<String, String>,
+        secret_source: Option<Arc<dyn SecretSource>>,
         channels: &AgentChannels,
     ) -> Option<ExternalAgentEntry> {
         let metadata = agent.metadata();
@@ -460,6 +477,7 @@ impl AgentServerStore {
                     targets: binary.targets.clone(),
                     settings_args: settings.args().to_vec(),
                     settings_env: settings.env().clone(),
+                    secret_env: SecretEnv::new(name, settings.secret_env(), secret_source.clone()),
                     byok_env: byok_env.clone(),
                     loading_status: Some(channels.loading_status.clone()),
                 })
@@ -474,6 +492,7 @@ impl AgentServerStore {
                 distribution_env: npx.env.clone(),
                 settings_args: settings.args().to_vec(),
                 settings_env: settings.env().clone(),
+                secret_env: SecretEnv::new(name, settings.secret_env(), secret_source),
                 byok_env: byok_env.clone(),
                 loading_status: Some(channels.loading_status.clone()),
             }),

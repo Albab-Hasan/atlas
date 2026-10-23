@@ -722,6 +722,7 @@ dependencies = [
  "dunce",
  "futures",
  "ignore",
+ "keyring",
  "mimalloc",
  "notify",
  "notify-debouncer-full",

@@ -263,6 +263,9 @@ async fn env_layers_from_least_to_most_specific() {
                 enabled: true,
                 display_name: None,
                 hidden_models: Vec::new(),
+                model_order: Vec::new(),
+                custom_models: Vec::new(),
+                secret_env: Vec::new(),
             },
         )]))
         .await;

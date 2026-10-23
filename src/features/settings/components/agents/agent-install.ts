@@ -347,3 +347,18 @@ export function formatArgs(args: string[]): string {
     )
     .join(" ");
 }
+
+/** The line under an agent's name, in the list and the editor: how it stands. */
+export function agentStatus(
+  item: AgentItem,
+  installing: boolean,
+): { text: string; tone?: "warning" } {
+  if (installing) return { text: "Adding…" };
+  if (item.state === "native") return { text: "Built in" };
+  if (item.state === "detected") return { text: "On your PATH · not added" };
+  if (item.catalog && !item.catalog.enabled) return { text: "Disabled" };
+  if (item.catalog?.source === "unavailable") return { text: "Can't start", tone: "warning" };
+  if (item.entry?.updateAvailable) return { text: `Update available · v${item.entry.version}` };
+  if (item.catalog?.source === "npx") return { text: "Installed · runs through npx" };
+  return { text: "Installed" };
+}

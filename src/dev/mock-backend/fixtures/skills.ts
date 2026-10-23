@@ -1034,6 +1034,8 @@ let catalog: AgentCatalogEntry[] = [
     displayName: null,
     launch: null,
     hiddenModels: [],
+    modelOrder: [],
+    customModels: [],
     login: null,
     authKinds: ["env_var"],
     supportsLogout: false,
@@ -1065,8 +1067,17 @@ let catalog: AgentCatalogEntry[] = [
     transcript: "none",
     enabled: true,
     displayName: null,
-    launch: { command: null, args: ["--verbose"], env: { CLAUDE_CODE_MAX_OUTPUT_TOKENS: "32000" } },
+    launch: {
+      command: null,
+      args: ["--verbose"],
+      variables: [
+        { name: "CLAUDE_CODE_MAX_OUTPUT_TOKENS", value: "32000", sensitive: false },
+        { name: "ANTHROPIC_API_KEY", value: null, sensitive: true },
+      ],
+    },
     hiddenModels: [],
+    modelOrder: [],
+    customModels: [],
     login: { program: "claude", args: ["setup-token"] },
     authKinds: ["agent", "terminal"],
     supportsLogout: true,
@@ -1098,8 +1109,10 @@ let catalog: AgentCatalogEntry[] = [
     transcript: "none",
     enabled: true,
     displayName: null,
-    launch: { command: null, args: [], env: {} },
+    launch: { command: null, args: [], variables: [] },
     hiddenModels: [],
+    modelOrder: [],
+    customModels: [],
     login: null,
     authKinds: [],
     supportsLogout: false,
@@ -1131,8 +1144,10 @@ let catalog: AgentCatalogEntry[] = [
     transcript: "none",
     enabled: true,
     displayName: null,
-    launch: { command: "/opt/homebrew/bin/codex-acp", args: [], env: {} },
+    launch: { command: "/opt/homebrew/bin/codex-acp", args: [], variables: [] },
     hiddenModels: [],
+    modelOrder: [],
+    customModels: [],
     login: null,
     authKinds: [],
     supportsLogout: false,
@@ -1167,9 +1182,11 @@ let catalog: AgentCatalogEntry[] = [
     launch: {
       command: "/usr/local/bin/acme-agent",
       args: ["--acp"],
-      env: { ACME_REGION: "eu-west-1" },
+      variables: [{ name: "ACME_REGION", value: "eu-west-1", sensitive: false }],
     },
     hiddenModels: [],
+    modelOrder: [],
+    customModels: [],
     login: null,
     authKinds: ["env_var"],
     supportsLogout: false,
@@ -1201,8 +1218,10 @@ let catalog: AgentCatalogEntry[] = [
     transcript: "none",
     enabled: true,
     displayName: null,
-    launch: { command: null, args: [], env: {} },
+    launch: { command: null, args: [], variables: [] },
     hiddenModels: [],
+    modelOrder: [],
+    customModels: [],
     login: null,
     authKinds: [],
     supportsLogout: false,
@@ -1257,8 +1276,10 @@ function catalogFromRegistry(
     transcript: "none",
     enabled: true,
     displayName: null,
-    launch: { command: null, args: [], env: {} },
+    launch: { command: null, args: [], variables: [] },
     hiddenModels: [],
+    modelOrder: [],
+    customModels: [],
     login: null,
     // Empty until the agent has connected once: capabilities only exist after
     // the handshake, and a fresh install has never handshaken.
@@ -1286,12 +1307,27 @@ export function applyAgentConfig(entry: AgentCatalogEntry, p: AgentConfigPatch):
   }
   if (p.displayName !== undefined) entry.displayName = p.displayName?.trim() || null;
   if (p.hiddenModels !== undefined) entry.hiddenModels = p.hiddenModels;
+  if (p.modelOrder !== undefined) entry.modelOrder = p.modelOrder;
+  if (p.customModels !== undefined) {
+    if (entry.kind === "native") throw new Error("Atlas Agent takes no custom models");
+    entry.customModels = p.customModels;
+  }
   if (p.launch !== undefined) {
     if (!entry.launch) throw new Error(`${entry.name} runs in-process; it has no launch settings`);
     if (p.launch.command !== undefined && entry.launch.command === null && p.launch.command) {
       throw new Error(`${entry.name}'s command comes from the registry`);
     }
-    entry.launch = { ...entry.launch, ...p.launch };
+    const { variables, ...rest } = p.launch;
+    entry.launch = { ...entry.launch, ...rest };
+    if (variables) {
+      // Like the keychain: a sensitive value goes in and never comes back.
+      const named = (sensitive: boolean) =>
+        variables
+          .filter((v) => v.sensitive === sensitive)
+          .map((v) => ({ name: v.name, value: sensitive ? null : (v.value ?? ""), sensitive }))
+          .sort((a, b) => a.name.localeCompare(b.name));
+      entry.launch.variables = [...named(false), ...named(true)];
+    }
     if (p.launch.command) entry.resolvedPath = p.launch.command;
   }
   return entry;
@@ -1673,7 +1709,7 @@ export const skillsHandlers: TypedHandlers<SkillsResponses> = {
       existing.installed = true;
       existing.source = "installed";
       existing.resolvedPath = found;
-      existing.launch = { command: found, args: [], env: {} };
+      existing.launch = { command: found, args: [], variables: [] };
     }
     return null;
   },

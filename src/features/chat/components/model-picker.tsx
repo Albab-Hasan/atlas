@@ -45,6 +45,7 @@ import {
 import { useKeybindingsStore } from "@/features/keybindings/stores/keybindings-store";
 import { cn } from "@/lib/utils";
 import { catalogEntry } from "@/features/agents/lib/agent-meta";
+import { arrangeModels } from "@/features/agents/lib/agent-models";
 import { Button } from "@/ui/button";
 import { Kbd } from "@/ui/kbd";
 import { Hint } from "@/ui/tooltip";
@@ -196,7 +197,7 @@ function agentEntries(
 }
 
 export function ModelPicker({
-  agents,
+  agents: advertised,
   currentAgent,
   currentModel,
   onPick,
@@ -221,6 +222,16 @@ export function ModelPicker({
   addView?: ReactNode;
 }) {
   const { favorites, toggle } = useModelFavorites();
+  // Each agent's models as arranged in Settings → Agents: its own order and
+  // the models the user added by id.
+  const agents = useMemo(
+    () =>
+      advertised.map((a) => ({
+        ...a,
+        models: arrangeModels(catalogEntry(a.agentType), a.models),
+      })),
+    [advertised],
+  );
   const agentOf = useMemo(() => new Map(agents.map((a) => [a.agentType, a])), [agents]);
   const homeView = agentOf.has(currentAgent) ? currentAgent : (agents[0]?.agentType ?? FAVORITES);
 

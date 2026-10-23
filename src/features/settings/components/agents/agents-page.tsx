@@ -16,6 +16,7 @@ import { AgentMark } from "@/components/agent-mark";
 import { useAgentRegistryStore } from "@/features/agents/stores/agent-registry-store";
 import { SettingsPage, SettingsSection } from "../layout/settings-layout";
 import {
+  agentStatus,
   configureAgent,
   libraryItems,
   refreshListing,
@@ -64,7 +65,7 @@ export function AgentsPage() {
         }
       >
         <RegistryNote />
-        <div className="flex flex-col overflow-hidden rounded-lg border border-border bg-card @min-[40rem]:grid @min-[40rem]:h-150 @min-[40rem]:grid-cols-[15rem_minmax(0,1fr)]">
+        <div className="flex flex-col overflow-hidden rounded-lg border border-border bg-card @min-[40rem]:grid @min-[40rem]:h-150 @min-[40rem]:grid-cols-[17rem_minmax(0,1fr)]">
           <div className="flex min-h-0 flex-col border-b border-border bg-panel @min-[40rem]:border-r @min-[40rem]:border-b-0">
             <ul
               aria-label="Agents"
@@ -163,7 +164,7 @@ function AgentListRow({
 }) {
   const installs = useInstalls();
   const version = versionOf(item);
-  const status = listStatus(item, installs.installing(item.id));
+  const status = agentStatus(item, installs.installing(item.id));
   const enabled = item.catalog?.enabled ?? true;
   const label = item.catalog?.displayName ?? item.name;
   // Only an agent the user installed can be turned off: the native one is
@@ -172,7 +173,7 @@ function AgentListRow({
   return (
     <div
       className={cn(
-        "flex items-center gap-2 pr-3 transition-colors duration-fast",
+        "group flex min-h-16 items-center gap-3 pr-3 transition-colors duration-fast",
         selected ? "bg-element-selected" : "hover:bg-element-hover",
       )}
     >
@@ -180,30 +181,26 @@ function AgentListRow({
         type="button"
         aria-current={selected || undefined}
         onClick={onSelect}
-        className="flex min-w-0 flex-1 items-start gap-2.5 py-2.5 pl-3 text-left"
+        className={cn(
+          "flex min-w-0 flex-1 items-start gap-3 py-3 pl-3 text-left transition-opacity duration-fast",
+          !enabled && !selected && "opacity-60 group-hover:opacity-100",
+        )}
       >
-        <span
-          className={cn("flex h-5 shrink-0 items-center text-foreground", !enabled && "opacity-50")}
-        >
+        <span className="flex h-5 shrink-0 items-center text-foreground">
           <AgentMark agentType={item.agentType} />
         </span>
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <span className="flex min-w-0 items-baseline gap-1.5">
-            <span
-              className={cn(
-                "truncate text-sm font-medium",
-                enabled ? "text-foreground" : "text-muted-foreground",
-              )}
-            >
-              {label}
-            </span>
+          <span className="flex min-w-0 items-center gap-2">
+            <span className="truncate text-sm font-medium text-foreground">{label}</span>
             {version && (
-              <span className="shrink-0 font-mono text-2xs text-muted-foreground">v{version}</span>
+              <code className="max-w-24 shrink-0 truncate font-mono text-xs text-muted-foreground">
+                v{version}
+              </code>
             )}
           </span>
           <span
             className={cn(
-              "text-2xs",
+              "line-clamp-2 text-xs",
               status.tone === "warning" ? "text-warning" : "text-muted-foreground",
             )}
           >
@@ -213,23 +210,11 @@ function AgentListRow({
       </button>
       {switchable && (
         <Switch
-          size="sm"
           checked={enabled}
-          aria-label={`${enabled ? "Turn off" : "Turn on"} ${label}`}
+          aria-label={`Enable ${label}`}
           onCheckedChange={(next) => void configureAgent(item, { enabled: next })}
         />
       )}
     </div>
   );
-}
-
-function listStatus(item: AgentItem, installing: boolean): { text: string; tone?: "warning" } {
-  if (installing) return { text: "Adding…" };
-  if (item.state === "native") return { text: "Built in" };
-  if (item.state === "detected") return { text: "On your PATH · not added" };
-  if (item.catalog && !item.catalog.enabled) return { text: "Off" };
-  if (item.catalog?.source === "unavailable") return { text: "Can't start", tone: "warning" };
-  if (item.entry?.updateAvailable) return { text: `Update available · v${item.entry.version}` };
-  if (item.catalog?.source === "npx") return { text: "Installed · runs through npx" };
-  return { text: "Installed" };
 }

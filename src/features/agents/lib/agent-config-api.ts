@@ -5,7 +5,7 @@
 // stands, and the backend also broadcasts `atlas:agent-catalog:changed`.
 
 import { invoke } from "@tauri-apps/api/core";
-import type { AgentCatalogEntry, AgentLaunch } from "@/types/agent-catalog";
+import type { AgentCatalogEntry, AgentVariable, CustomModel } from "@/types/agent-catalog";
 
 /** Only what changes; a field left out is kept. */
 export interface AgentConfigPatch {
@@ -13,9 +13,18 @@ export interface AgentConfigPatch {
   /** `null` or blank goes back to the agent's own name. */
   displayName?: string | null;
   hiddenModels?: string[];
-  /** `command` only for an agent with a command of its own (added by hand or
-   *  from the PATH); a registry install's comes from the registry. */
-  launch?: Partial<AgentLaunch>;
+  modelOrder?: string[];
+  /** Not for the native agent, whose models come from its gateway. */
+  customModels?: CustomModel[];
+  launch?: {
+    /** Only for an agent with a command of its own (added by hand or from
+     *  the PATH); a registry install's comes from the registry. */
+    command?: string;
+    args?: string[];
+    /** The whole list; one left out is removed. A sensitive variable sent
+     *  with `value: null` keeps the value already in the keychain. */
+    variables?: AgentVariable[];
+  };
 }
 
 export const agentConfig = {

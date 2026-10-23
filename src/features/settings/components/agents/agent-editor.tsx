@@ -1,11 +1,11 @@
-// The right pane of Settings → Agents: one agent's settings. A header with
-// its name and version and the actions that change what is installed, then
-// one section per concern, like T3 Code's provider editor.
+// The right pane of Settings → Agents: one agent's settings, laid out as T3
+// Code's provider editor. A header with its name, version and Remove; its
+// display name over how it stands; then Setup, Runtime, Environment and
+// Models, and Atlas's own About at the end.
 
 import type { ReactNode } from "react";
 import { ArrowUpCircle, Globe, MoreHorizontal, Trash2 } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { tildePath } from "@/lib/paths";
 import { Badge } from "@/ui/badge";
 import { Button } from "@/ui/button";
 import { Icon } from "@/ui/icon";
@@ -35,10 +35,11 @@ import {
 import { AtlasAgentPermissions } from "./agent-settings-sections";
 import {
   EnvironmentSection,
-  GeneralSection,
-  LaunchSection,
-  ModelsSection,
+  IdentityRow,
+  RuntimeSection,
+  SetupSection,
 } from "./agent-config-sections";
+import { AgentModelsSection } from "./agent-models-section";
 
 /** The version on this machine: what is installed, else what would install. */
 export function versionOf(item: AgentItem): string | null {
@@ -47,41 +48,51 @@ export function versionOf(item: AgentItem): string | null {
 
 export function AgentEditor({ item }: { item: AgentItem }) {
   const version = versionOf(item);
-  const description = item.catalog?.description ?? item.entry?.description;
+  const removable = item.state === "installed";
   return (
     <div className="flex flex-col gap-6 p-4">
-      <header className="flex flex-col gap-1.5">
-        <div className="flex items-center gap-2.5">
+      <section className="flex flex-col gap-2">
+        <header className="flex min-h-7 items-center gap-2.5 px-1">
           <span className="flex shrink-0 items-center text-foreground">
-            <AgentMark agentType={item.agentType} size="lg" />
+            <AgentMark agentType={item.agentType} />
           </span>
-          <h2 className="min-w-0 truncate text-base font-medium text-foreground">
+          <h2 className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
             {item.catalog?.displayName ?? item.name}
           </h2>
-          {version && <span className="font-mono text-2xs text-muted-foreground">v{version}</span>}
-          <span className="flex-1" />
-          <HeaderActions item={item} />
-        </div>
-        {description && <p className="caption">{description}</p>}
-      </header>
+          {version && <code className="font-mono text-xs text-muted-foreground">v{version}</code>}
+          <LinksMenu item={item} />
+          {removable && (
+            <Hint label={`Remove ${item.name}`}>
+              <IconButton
+                icon={Trash2}
+                size="sm"
+                label={`Remove ${item.name}`}
+                onClick={() => void removeAgent(item)}
+              />
+            </Hint>
+          )}
+        </header>
+        <SettingsGroup>
+          <IdentityRow item={item} />
+          <StatusRow item={item} />
+        </SettingsGroup>
+      </section>
 
-      <StatusSection item={item} />
-      <GeneralSection item={item} />
+      <SetupSection item={item} />
       {item.state === "native" && <AtlasAgentPermissions />}
-      <ModelsSection item={item} />
-      <LaunchSection item={item} />
-      <EnvironmentSection item={item} />
       <RuntimeSection item={item} />
-      <CapabilitiesSection item={item} />
+      <EnvironmentSection item={item} />
+      <AgentModelsSection item={item} />
+      <AboutSection item={item} />
     </div>
   );
 }
 
-function HeaderActions({ item }: { item: AgentItem }) {
+/** Where to read more about it. */
+function LinksMenu({ item }: { item: AgentItem }) {
   const repository = item.catalog?.repository ?? item.entry?.repository;
   const website = item.catalog?.website ?? item.entry?.website;
-  const removable = item.state === "installed";
-  if (!repository && !website && !removable) return null;
+  if (!repository && !website) return null;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -100,20 +111,14 @@ function HeaderActions({ item }: { item: AgentItem }) {
             Open website
           </DropdownMenuItem>
         )}
-        {removable && (
-          <DropdownMenuItem variant="destructive" onClick={() => void removeAgent(item)}>
-            <Icon icon={Trash2} size="sm" />
-            Remove {item.name}
-          </DropdownMenuItem>
-        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
 }
 
-/** The one thing to do about this agent right now, when there is one: add a
- *  detection, update, or say why it can't start. */
-function StatusSection({ item }: { item: AgentItem }) {
+/** The one thing to do about this agent right now, when there is one: turn
+ *  it back on, add a detection, update, or say why it can't start. */
+function StatusRow({ item }: { item: AgentItem }) {
   const installs = useInstalls();
   const phase = useAgentRegistryStore((s) => s.updatePhases[item.id] ?? null);
   const entry = item.entry;
@@ -193,60 +198,56 @@ function StatusSection({ item }: { item: AgentItem }) {
     );
   }
 
-  if (!row) return null;
-  return <SettingsGroup>{row}</SettingsGroup>;
+  return row;
 }
 
-/** How Atlas starts it. */
-function RuntimeSection({ item }: { item: AgentItem }) {
-  if (item.state === "native") {
-    return (
-      <SettingsSection title="Runtime">
-        <SettingsGroup>
-          <SettingsRow
-            title="Runs inside Atlas"
-            description="In-process, so there is nothing to install, update or remove. It updates with Atlas."
-          />
-        </SettingsGroup>
-      </SettingsSection>
-    );
-  }
+/** Where it came from and what it said it can do. */
+function AboutSection({ item }: { item: AgentItem }) {
   const catalog = item.catalog;
   const kind = catalog?.distributionKind || item.entry?.distributionKind;
-  // An installed agent's Launch section already says how it starts.
-  const editable = item.state === "installed" && !!catalog?.launch;
-  const launches =
-    catalog?.source === "npx"
-      ? "Through npx. npm fetches it the first time a chat starts it."
-      : catalog?.resolvedPath
-        ? undefined
-        : "Nothing resolved yet.";
+  const caps = catalog
+    ? [
+        catalog.supportsModels && "Models",
+        catalog.supportsModes && "Modes",
+        catalog.supportsFork && "Fork",
+        catalog.supportsRewind && "Rewind",
+        catalog.supportsLogout && "Sign out",
+      ].filter((cap): cap is string => !!cap)
+    : [];
+  const description = catalog?.description ?? item.entry?.description;
   return (
-    <SettingsSection title={editable ? "About" : "Runtime"}>
+    <SettingsSection title="About">
       <SettingsGroup>
-        {!editable && (
+        {description && <SettingsRow title="Description" description={description} />}
+        {item.state !== "native" && (
           <SettingsRow
-            title={item.state === "detected" ? "Found at" : "Launches"}
-            description={
-              catalog?.resolvedPath ? (
-                <span className="font-mono break-all">{tildePath(catalog.resolvedPath)}</span>
-              ) : (
-                launches
-              )
+            title="Distribution"
+            description={distributionText(kind, item)}
+            control={
+              item.entry?.unverified && kind === "binary" ? (
+                <Hint label="This agent's binary download publishes no checksum.">
+                  <Badge variant="warning" tabIndex={0}>
+                    Unverified
+                  </Badge>
+                </Hint>
+              ) : undefined
             }
           />
         )}
         <SettingsRow
-          title="Distribution"
-          description={distributionText(kind, item)}
-          control={
-            item.entry?.unverified && kind === "binary" ? (
-              <Hint label="This agent's binary download publishes no checksum.">
-                <Badge variant="warning" tabIndex={0}>
-                  Unverified
-                </Badge>
-              </Hint>
-            ) : undefined
+          title="Capabilities"
+          description={
+            caps.length > 0 ? (
+              <span className="flex flex-wrap gap-1 pt-0.5">
+                {caps.map((cap) => (
+                  <Badge key={cap} variant="outline">
+                    {cap}
+                  </Badge>
+                ))}
+              </span>
+            ) : (
+              "What it advertises when it connects. Nothing yet."
+            )
           }
         />
         <SettingsRow title="Agent ID" description={<span className="font-mono">{item.id}</span>} />
@@ -261,42 +262,4 @@ function distributionText(kind: string | undefined, item: AgentItem): string {
     return "A binary from the ACP registry, downloaded into Atlas's agents folder.";
   if (kind === "npx") return "An npm package from the ACP registry.";
   return "Installed by hand. The ACP registry doesn't list it.";
-}
-
-/** What the agent said it can do when it last connected. */
-function CapabilitiesSection({ item }: { item: AgentItem }) {
-  const c = item.catalog;
-  if (!c) return null;
-  const caps = [
-    c.supportsModels && "Models",
-    c.supportsModes && "Modes",
-    c.supportsFork && "Fork",
-    c.supportsRewind && "Rewind",
-    c.supportsLogout && "Sign out",
-  ].filter((cap): cap is string => !!cap);
-  return (
-    <SettingsSection
-      title="Capabilities"
-      description="What it advertised the last time it connected. An agent that hasn't run yet advertises nothing."
-    >
-      <SettingsGroup>
-        <SettingsRow
-          title="Supports"
-          description={
-            caps.length > 0 ? (
-              <span className="flex flex-wrap gap-1 pt-0.5">
-                {caps.map((cap) => (
-                  <Badge key={cap} variant="outline">
-                    {cap}
-                  </Badge>
-                ))}
-              </span>
-            ) : (
-              "Nothing advertised yet."
-            )
-          }
-        />
-      </SettingsGroup>
-    </SettingsSection>
-  );
 }

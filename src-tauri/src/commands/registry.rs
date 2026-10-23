@@ -352,10 +352,26 @@ pub async fn acp_registry_uninstall(
 ) -> Result<(), String> {
     let host = app.state::<Arc<AgentHost>>().inner().clone();
     let mut settings = host.store().settings();
-    if settings.0.remove(&agent_id).is_none() {
+    let Some(removed) = settings.0.remove(&agent_id) else {
         return Ok(());
-    }
+    };
     persist(&host, &app_data_dir(&app), settings).await?;
+
+    // Its sensitive variables go with it: a reinstall starts clean, and the
+    // keychain keeps nothing for an agent that is gone.
+    let secrets = removed.secret_env().to_vec();
+    let agent = agent_id.clone();
+    let forgotten = tauri::async_runtime::spawn_blocking(move || {
+        secrets
+            .iter()
+            .try_for_each(|name| super::agent_secrets::delete(&agent, name))
+    })
+    .await
+    .map_err(|e| e.to_string())
+    .and_then(|done| done);
+    if let Err(e) = forgotten {
+        tracing::warn!(target: "atlas::agents", agent = %agent_id, "{e}");
+    }
 
     // A connection to an agent that is no longer installed must not survive the
     // uninstall — the next spawn would otherwise reach a process the user

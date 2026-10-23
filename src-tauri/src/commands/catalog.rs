@@ -132,6 +132,10 @@ pub struct AgentCatalogEntry {
     pub launch: Option<AgentLaunch>,
     /// Model ids the user hid from the model picker.
     pub hidden_models: Vec<String>,
+    /// The order the user put its models in; others follow in the agent's.
+    pub model_order: Vec<String>,
+    /// Models the user added by id. Always empty for the native agent.
+    pub custom_models: Vec<atlas_agent_store::CustomModel>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -272,15 +276,11 @@ fn build(host: &AgentHost) -> AgentCatalog {
                 launch: (!is_native).then(|| {
                     installed_map
                         .get(&id)
-                        .map(|e| AgentLaunch {
-                            command: e.command().map(|c| c.path.to_string_lossy().into_owned()),
-                            args: e.args().to_vec(),
-                            env: e.env().clone(),
-                        })
+                        .map(AgentLaunch::of)
                         .unwrap_or(AgentLaunch {
                             command: None,
                             args: Vec::new(),
-                            env: std::collections::HashMap::new(),
+                            variables: Vec::new(),
                         })
                 }),
                 hidden_models: if is_native {
@@ -291,6 +291,18 @@ fn build(host: &AgentHost) -> AgentCatalog {
                         .map(|e| e.hidden_models().to_vec())
                         .unwrap_or_default()
                 },
+                model_order: if is_native {
+                    native_prefs.model_order.clone()
+                } else {
+                    installed_map
+                        .get(&id)
+                        .map(|e| e.model_order().to_vec())
+                        .unwrap_or_default()
+                },
+                custom_models: installed_map
+                    .get(&id)
+                    .map(|e| e.custom_models().to_vec())
+                    .unwrap_or_default(),
                 id,
             }
         })
@@ -349,9 +361,11 @@ fn build(host: &AgentHost) -> AgentCatalog {
             launch: Some(AgentLaunch {
                 command: Some(found.program.to_string_lossy().into_owned()),
                 args: found.args.clone(),
-                env: std::collections::HashMap::new(),
+                variables: Vec::new(),
             }),
             hidden_models: Vec::new(),
+            model_order: Vec::new(),
+            custom_models: Vec::new(),
             id: found.id,
         });
     }
@@ -492,7 +506,7 @@ mod tests {
                 "enabled": false,
                 "displayName": "Echo",
                 "hiddenModels": ["old"],
-                "launch": { "env": { "REGION": "eu" } },
+                "launch": { "variables": [{ "name": "REGION", "value": "eu" }] },
             }))
             .unwrap(),
         )
@@ -512,7 +526,8 @@ mod tests {
             .expect("an external agent has launch settings");
         assert_eq!(launch.command.as_deref(), Some("/bin/echo"));
         assert_eq!(launch.args, ["acp"]);
-        assert_eq!(launch.env.get("REGION").map(String::as_str), Some("eu"));
+        assert_eq!(launch.variables[0].name, "REGION");
+        assert_eq!(launch.variables[0].value.as_deref(), Some("eu"));
 
         let native = entry(&catalog, atlas_native_agent::ATLAS_AGENT_ID);
         assert!(native.enabled);

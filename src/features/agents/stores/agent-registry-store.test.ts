@@ -72,8 +72,10 @@ function entry(e: Partial<AgentCatalogEntry> & Pick<AgentCatalogEntry, "id">): A
     resolvedPath: null,
     enabled: true,
     displayName: null,
-    launch: { command: null, args: [], env: {} },
+    launch: { command: null, args: [], variables: [] },
     hiddenModels: [],
+    modelOrder: [],
+    customModels: [],
     ...e,
   } as AgentCatalogEntry;
 }
@@ -182,7 +184,7 @@ describe("signature", () => {
       { enabled: false },
       { displayName: "Work Cursor" },
       { hiddenModels: ["gpt-4"] },
-      { launch: { command: null, args: ["--fast"], env: {} } },
+      { launch: { command: null, args: ["--fast"], variables: [] } },
     ];
     for (const over of configured) {
       expect(await signatureFor([entry({ id: "cursor", ...over })])).not.toBe(base);

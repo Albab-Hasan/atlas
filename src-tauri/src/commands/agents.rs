@@ -792,6 +792,7 @@ pub fn install_manager(app: &AppHandle) {
         Arc::new(InheritedProjectEnvironment),
         Some(registry.clone()),
     ));
+    store.set_secret_source(Arc::new(super::agent_secrets::Keychain));
 
     // Inside the Tauri runtime's context: building the manager starts the task
     // that watches the installed map, and `tokio::spawn` panics with no reactor

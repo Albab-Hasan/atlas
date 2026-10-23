@@ -47,6 +47,16 @@ pub enum AgentServerSettings {
         /// Model ids kept out of the model picker.
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         hidden_models: Vec<String>,
+        /// The order the model picker lists models in; ids not here follow,
+        /// in the agent's own order.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        model_order: Vec<String>,
+        /// Models the user added that the agent doesn't advertise.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        custom_models: Vec<CustomModel>,
+        /// Variables whose values live in the OS keychain, not in this file.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        secret_env: Vec<String>,
     },
     /// An agent installed from the registry. The key is its registry id; the
     /// distribution, version and command all come from the registry index, so
@@ -76,6 +86,16 @@ pub enum AgentServerSettings {
         /// Model ids kept out of the model picker.
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         hidden_models: Vec<String>,
+        /// The order the model picker lists models in; ids not here follow,
+        /// in the agent's own order.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        model_order: Vec<String>,
+        /// Models the user added that the agent doesn't advertise.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        custom_models: Vec<CustomModel>,
+        /// Variables whose values live in the OS keychain, not in this file.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        secret_env: Vec<String>,
     },
 }
 
@@ -92,6 +112,9 @@ impl AgentServerSettings {
             enabled: true,
             display_name: None,
             hidden_models: Vec::new(),
+            model_order: Vec::new(),
+            custom_models: Vec::new(),
+            secret_env: Vec::new(),
         }
     }
 
@@ -107,6 +130,9 @@ impl AgentServerSettings {
             enabled: true,
             display_name: None,
             hidden_models: Vec::new(),
+            model_order: Vec::new(),
+            custom_models: Vec::new(),
+            secret_env: Vec::new(),
         }
     }
 
@@ -155,6 +181,28 @@ impl AgentServerSettings {
         }
     }
 
+    pub fn model_order(&self) -> &[String] {
+        match self {
+            Self::Custom { model_order, .. } | Self::Registry { model_order, .. } => model_order,
+        }
+    }
+
+    pub fn custom_models(&self) -> &[CustomModel] {
+        match self {
+            Self::Custom { custom_models, .. } | Self::Registry { custom_models, .. } => {
+                custom_models
+            }
+        }
+    }
+
+    /// The names of the variables kept in the keychain. Their values are
+    /// added at launch by whoever holds the keychain, never stored here.
+    pub fn secret_env(&self) -> &[String] {
+        match self {
+            Self::Custom { secret_env, .. } | Self::Registry { secret_env, .. } => secret_env,
+        }
+    }
+
     /// Everything Settings → Agents may change, borrowed for writing.
     pub fn user_settings_mut(&mut self) -> UserSettingsMut<'_> {
         match self {
@@ -165,6 +213,9 @@ impl AgentServerSettings {
                 enabled,
                 display_name,
                 hidden_models,
+                model_order,
+                custom_models,
+                secret_env,
                 ..
             } => UserSettingsMut {
                 command: Some(path),
@@ -173,6 +224,9 @@ impl AgentServerSettings {
                 enabled,
                 display_name,
                 hidden_models,
+                model_order,
+                custom_models,
+                secret_env,
             },
             Self::Registry {
                 args,
@@ -180,6 +234,9 @@ impl AgentServerSettings {
                 enabled,
                 display_name,
                 hidden_models,
+                model_order,
+                custom_models,
+                secret_env,
                 ..
             } => UserSettingsMut {
                 command: None,
@@ -188,6 +245,9 @@ impl AgentServerSettings {
                 enabled,
                 display_name,
                 hidden_models,
+                model_order,
+                custom_models,
+                secret_env,
             },
         }
     }
@@ -245,6 +305,17 @@ pub struct UserSettingsMut<'a> {
     pub enabled: &'a mut bool,
     pub display_name: &'a mut Option<String>,
     pub hidden_models: &'a mut Vec<String>,
+    pub model_order: &'a mut Vec<String>,
+    pub custom_models: &'a mut Vec<CustomModel>,
+    pub secret_env: &'a mut Vec<String>,
+}
+
+/// A model the user added by id. The agent decides whether it accepts it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CustomModel {
+    pub id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
 }
 
 #[allow(clippy::trivially_copy_pass_by_ref)] // serde's skip_serializing_if takes a reference
