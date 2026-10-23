@@ -316,6 +316,51 @@ export function finishTurn(sessionId?: string): Promise<void> {
   return sendDelta({ kind: "turn_finished", ...at(s), stop_reason: "end_turn", turn_seq: 0 });
 }
 
+// ── The computer sleeping mid-turn ───────────────────────────────────────
+//
+// Rust's `sleep_watch.rs` notices the machine slept under a running turn and
+// sends `slept_mid_turn` before the turn's terminal. A browser cannot sleep on
+// cue, so these replay that sequence: half a reply, the notice, a few seconds
+// of the turn still going after the wake (the composer's "Woke after" pill is
+// only on screen then), then the turn ending — cleanly, or with the transport
+// error a dropped stream reports.
+
+/** How long the turn keeps going after the wake, so the pill can be seen. */
+const AFTER_WAKE_MS = 3_000;
+
+/** A reply cut off by sleep that the agent still finished
+ *  (`__atlasMock.actions.sleepMidTurn`). */
+export async function sleepMidTurn(): Promise<void> {
+  const s = latest();
+  if (!s) return;
+  await setStatus("running");
+  await streamText("Here is the migration plan. First, add the new column with a default of ");
+  await sendDelta({ kind: "slept_mid_turn", ...at(s), turn_seq: 0, slept_secs: 1260 });
+  await new Promise((r) => setTimeout(r, AFTER_WAKE_MS));
+  await streamText("null, then backfill it in batches.");
+  await finishTurn();
+  await setStatus("idle");
+}
+
+/** A turn that failed on waking (`__atlasMock.actions.sleepMidTurnFailed`). */
+export async function sleepMidTurnFailed(): Promise<void> {
+  const s = latest();
+  if (!s) return;
+  await setStatus("running");
+  await streamText("Reading the test suite to see which fixtures depend on the old");
+  await sendDelta({ kind: "slept_mid_turn", ...at(s), turn_seq: 0, slept_secs: 3400 });
+  await new Promise((r) => setTimeout(r, AFTER_WAKE_MS));
+  // The projector's order: the error status, then the failure itself.
+  await setStatus("error");
+  await sendDelta({
+    kind: "turn_failed",
+    ...at(s),
+    error: "error decoding response body",
+    turn_seq: 0,
+    error_kind: "transient",
+  });
+}
+
 // ── Permission requests ──────────────────────────────────────────────────
 //
 // The real backend never raises `permission_request` out of nowhere: the

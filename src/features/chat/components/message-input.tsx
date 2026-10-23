@@ -78,6 +78,7 @@ import { composerPillLabelClass } from "./composer-dropup";
 import { ImageAttachmentStrip } from "./image-attachments";
 import { FeaturedAgentOffers } from "./featured-agent-offers";
 import { RetryPill } from "./retry-pill";
+import { SleepPill } from "./sleep-pill";
 import { AiGrantBar, useAiGrantBarShown } from "./ai-grant-bar";
 import { RemovedAgentBar } from "./removed-agent-bar";
 import { ModeRestoreBar, OPEN_MODE_PICKER_EVENT } from "./mode-restore-bar";
@@ -1850,6 +1851,8 @@ export function MessageInput({
           </div>
         )}
 
+        {/* The turn the computer slept through, while it is still going. */}
+        <SleepPill tabId={tabId} />
         {/* Transient-failure retry countdown (native agent). */}
         <RetryPill tabId={tabId} />
 
