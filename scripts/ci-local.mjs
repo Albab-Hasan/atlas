@@ -11,7 +11,6 @@
  *   bun run ci:local --linux             every one of CI's Linux jobs in a Linux container
  *   bun run ci:local --native            no container, even for the jobs that need Linux
  *   bun run ci:local --shell             a shell in that container
- *   bun run ci:local --no-review         without the CodeRabbit review (below)
  *
  * The jobs and their commands are read out of `.github/workflows/ci.yml` at
  * run time, never copied: every `run:` step of every job, with the crate
@@ -67,18 +66,6 @@
  *     starts it. The app's Linux compile check is in the same set, because
  *     src-tauri's GTK and WebKit headers exist only in a Linux userland.
  *
- * The CodeRabbit review. A planned run (not one given job names) also has
- * CodeRabbit review the branch's commits against what its PR would target:
- * the version branch, or `main` from the version branch itself (`--base`
- * overrides). It is not a CI job, but it is the review the PR gets, and this
- * script is the step before opening one. A review takes minutes on
- * CodeRabbit's side, so it starts with the jobs and its output, kept in a log
- * file, is printed after theirs. Major or critical findings fail the run, as
- * a failing job does; so does a review that could not run (not signed in, out
- * of reviews), named in the summary, since a missing review must not read as
- * a clean one. Without the `coderabbit` CLI the review is skipped and the
- * summary says so; `--no-review` skips it outright.
- *
  * The container is built from scripts/ci-linux/Dockerfile. Its target dir
  * cannot share the host's, so it lives in a volume with the cargo registry;
  * later runs are incremental, and every worktree of a clone shares that one
@@ -120,7 +107,7 @@
 
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { closeSync, openSync, readFileSync, rmSync, writeSync } from "node:fs";
+import { closeSync, openSync, readFileSync, writeSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
@@ -243,83 +230,6 @@ function plannedNames(argv) {
   }
   if (p.engineDialect) names.add(ciYml.jobs["engine-dialect"].name);
   return { names, why: `${p.reason} since ${base.slice(0, 12)}` };
-}
-
-const REVIEW = "coderabbit review";
-
-/** Where the branch's PR would land, as a commit to review from, or null. */
-function reviewBase(argv) {
-  const i = argv.indexOf("--base");
-  let target = i >= 0 ? argv[i + 1] : undefined;
-  if (!target) {
-    const { version } = JSON.parse(readFileSync(path.join(REPO_ROOT, "package.json"), "utf8"));
-    const branch = git(["rev-parse", "--abbrev-ref", "HEAD"]);
-    target = branch === version ? "main" : version;
-  }
-  for (const ref of [`origin/${target}`, target]) {
-    try {
-      return { ref, commit: git(["merge-base", "HEAD", ref]) };
-    } catch {
-      // Not a ref here; try the next spelling.
-    }
-  }
-  return null;
-}
-
-/** Starts the CodeRabbit review in the background (see the docblock). */
-function startReview(argv) {
-  if (argv.includes("--no-review")) return { skipped: "--no-review" };
-  const help = spawnSync("coderabbit", ["review", "--help"], { encoding: "utf8" });
-  if (help.error) return { skipped: "the coderabbit CLI is not installed" };
-  // `--gate` is what turns major findings into exit 2. A CLI from before it
-  // would reject the flag and fail every run with a message about flags.
-  if (!help.stdout.includes("--gate")) {
-    return { skipped: "this coderabbit CLI has no --gate; update it (`coderabbit update`)" };
-  }
-  const base = reviewBase(argv);
-  if (!base) return { skipped: "no version branch or --base to review against" };
-  // Owner-only, and removed once printed: the output quotes source.
-  const log = path.join(tmpdir(), `atlas-ci-local-review-${process.pid}.log`);
-  const out = openSync(log, "w", 0o600);
-  const child = spawn(
-    "coderabbit",
-    ["review", "--committed", "--base-commit", base.commit, "--gate", "major", "-c", "CLAUDE.md"],
-    { cwd: REPO_ROOT, stdio: ["ignore", out, out] },
-  );
-  const status = new Promise((resolve) => {
-    child.on("error", () => resolve(-1));
-    child.on("close", (code) => resolve(code ?? 1));
-  });
-  console.log(
-    `ci-local: CodeRabbit is reviewing the commits since ${base.ref} alongside the jobs; its output goes to ${log}`,
-  );
-  return { base, log, out, status, started: Date.now() };
-}
-
-/** Waits for the review, prints its output, and reports it like a job. */
-async function finishReview(review) {
-  if (review.skipped) {
-    console.log(`\n── ${REVIEW}: skipped (${review.skipped})`);
-    return { job: REVIEW, skipped: true, why: review.skipped, secs: 0 };
-  }
-  const code = await review.status;
-  closeSync(review.out);
-  const secs = Math.round((Date.now() - review.started) / 1000);
-  console.log(`\n── ${REVIEW} (since ${review.base.ref}):\n`);
-  const text = readFileSync(review.log, "utf8");
-  rmSync(review.log, { force: true });
-  console.log(text);
-  // The plan includes a few reviews per window; the commonest non-finding
-  // failure is running out of them, so it is named rather than left as a code.
-  const failed =
-    code === 0
-      ? null
-      : code === 2
-        ? "major or critical findings"
-        : /rate limit/i.test(text)
-          ? "CodeRabbit's rate limit; rerun later, or pass --no-review"
-          : `coderabbit exited ${code}`;
-  return { job: REVIEW, failed, secs };
 }
 
 /** The `[tools]` pins in mise.toml, which CI installs exactly. */
@@ -698,7 +608,6 @@ async function main(argv) {
     env.SDKROOT = execFileSync("xcrun", ["--show-sdk-path"], { encoding: "utf8" }).trim();
   }
 
-  const review = picked.length ? null : startReview(argv);
   collectGarbage(jobs, ctx, env);
 
   // Two lanes when both kinds of job are planned (see the docblock); one
@@ -721,7 +630,6 @@ async function main(argv) {
     }),
   );
   const results = jobs.map((j) => done.get(j));
-  if (review) results.push(await finishReview(review));
   if (log && here.some((j) => done.get(j).failed)) {
     console.log(`\n── output from this machine's lane (${log}):\n`);
     console.log(readFileSync(log, "utf8"));
