@@ -2271,7 +2271,7 @@ function applyDeltaToDraft(s: ChatDraft, env: AgentDelta): void {
       // Auth failures route to the agent's sign-in flow (P15) instead of
       // dying as a generic banner. The composer components listen for this
       // (Claude → login dialog, Codex → sign-in pill); native/BYOK keys are
-      // covered by the error text pointing at Settings → API Keys.
+      // covered by the error text pointing at Settings → Agents → Provider keys.
       if (env.error_kind === "auth") {
         window.dispatchEvent(
           new CustomEvent("atlas:auth-required", {

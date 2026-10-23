@@ -25,6 +25,8 @@ import {
 } from "./agent-install";
 import { AgentEditor, versionOf } from "./agent-editor";
 import { AddAgentDialog } from "./add-agent-dialog";
+import { AllAgentsSection } from "./agent-settings-sections";
+import { ProviderKeysSection } from "./provider-keys";
 
 export function AgentsPage() {
   useRevalidatedListing();
@@ -45,6 +47,7 @@ export function AgentsPage() {
     <SettingsPage
       title="Agents"
       description="Atlas Agent, and the ACP agents you add from the registry or already have on your PATH."
+      scopeable
       wide
     >
       <SettingsSection
@@ -95,6 +98,9 @@ export function AgentsPage() {
           </div>
         </div>
       </SettingsSection>
+
+      <AllAgentsSection />
+      <ProviderKeysSection />
 
       <AddAgentDialog
         open={adding}

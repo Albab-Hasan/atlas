@@ -23,27 +23,29 @@ import {
   PROVIDER_CATEGORIES,
   type ProviderCategory,
   type ProviderDef,
-} from "../lib/providers";
-import { useByokStore } from "../stores/byok-store";
-import { byok, type EnvEntry } from "../lib/byok-api";
+} from "../../lib/providers";
+import { useByokStore } from "../../stores/byok-store";
+import { byok, type EnvEntry } from "../../lib/byok-api";
 import {
   SettingsGroup,
   SettingsNote,
-  SettingsPage,
   SettingsRow,
   SettingsSection,
-} from "./layout/settings-layout";
-import { SettingsSearch } from "./layout/settings-search";
+} from "../layout/settings-layout";
+import { SettingsSearch } from "../layout/settings-search";
 
 /**
- * Settings → API keys: an editor for the provider keys in the user's shell
- * profile.
+ * Settings → Agents → Provider keys: an editor for the provider keys in the
+ * user's shell profile, which agents and Model Chat read.
  *
  * Atlas stores nothing. Every row is an `export VAR=...` line in a real file,
  * and editing one rewrites that line. A key set somewhere Atlas can see but
  * not edit (launchd, `/etc/profile`, a wrapper script) is shown read-only
  * rather than duplicated — there is deliberately no Atlas-owned copy that
  * could drift from the environment the user's other tools read.
+ *
+ * The section opens on the keys that are set, so the page leads with the
+ * agents; All, or a search, lists every provider.
  */
 
 const CATEGORY_NOTE: Record<ProviderCategory, string> = {
@@ -55,13 +57,14 @@ const CATEGORY_NOTE: Record<ProviderCategory, string> = {
 
 type Filter = "all" | "set";
 
-export function ProvidersSettings() {
+export function ProviderKeysSection() {
   const entries = useByokStore.use.entries();
   const profile = useByokStore.use.profile();
   const loaded = useByokStore.use.loaded();
   const { load } = useByokStore.use.actions();
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<Filter>("all");
+  // Unpicked, it follows the keys: Set while any is, else All.
+  const [picked, setPicked] = useState<Filter | null>(null);
 
   useEffect(() => {
     if (!loaded) void load();
@@ -76,15 +79,14 @@ export function ProvidersSettings() {
 
   const setCount = PROVIDERS.filter((p) => byProvider[p.id]).length;
   // The last key removed empties "Set": fall back rather than show nothing.
-  useEffect(() => {
-    if (filter === "set" && setCount === 0) setFilter("all");
-  }, [filter, setCount]);
+  const filter: Filter = setCount === 0 ? "all" : (picked ?? "set");
+  const q = query.trim().toLowerCase();
 
   const groups = useMemo(() => {
-    const q = query.trim().toLowerCase();
     const shown = PROVIDERS.filter(
       (p) =>
-        (filter === "all" || byProvider[p.id]) &&
+        // A search looks through every provider, set or not.
+        (q || filter === "all" || byProvider[p.id]) &&
         (!q ||
           p.name.toLowerCase().includes(q) ||
           p.id.includes(q) ||
@@ -96,17 +98,18 @@ export function ProvidersSettings() {
         .filter((p) => p.category === category)
         .sort((a, b) => a.name.localeCompare(b.name)),
     })).filter((g) => g.providers.length > 0);
-  }, [query, filter, byProvider]);
+  }, [q, filter, byProvider]);
 
   const target = profile?.target ?? null;
   const alsoRead = (profile?.scanned ?? []).filter((f) => f.exists && f.path !== target);
 
   return (
-    <SettingsPage
-      title="API keys"
-      description="Provider keys, read from and written to your shell profile. Atlas keeps no copy of its own."
+    <SettingsSection
+      title="Provider keys"
+      description="API keys in your shell profile, for agents and Model Chat. Atlas reads and writes the file and keeps no copy of its own."
+      anchor="provider-keys"
     >
-      <SettingsSection title="Shell profile">
+      <div className="flex flex-col gap-3">
         <SettingsGroup>
           <SettingsRow
             anchor="shell-profile"
@@ -128,57 +131,53 @@ export function ProvidersSettings() {
             }
           />
         </SettingsGroup>
-      </SettingsSection>
 
-      <div className="flex flex-col gap-3">
-        <div className="sticky top-0 z-10 -mx-1 flex flex-wrap items-center gap-2 bg-background px-1 py-2">
+        <div className="flex flex-wrap items-center gap-2">
           <SettingsSearch
             value={query}
             onValueChange={setQuery}
             label="Search providers"
             placeholder="Search by provider or variable, like “OPENAI”"
           />
-          {setCount > 0 && (
+          {setCount > 0 && !q && (
             <Segmented
               size="sm"
               aria-label="Show"
               value={filter}
-              onValueChange={setFilter}
+              onValueChange={setPicked}
               options={[
-                { value: "all", label: "All" },
                 { value: "set", label: `Set ${setCount}` },
+                { value: "all", label: `All ${PROVIDERS.length}` },
               ]}
             />
           )}
         </div>
 
-        <div className="flex flex-col gap-8">
-          {!loaded ? (
-            <SettingsGroup>
-              <SettingsNote>Reading your shell profile…</SettingsNote>
-            </SettingsGroup>
-          ) : groups.length === 0 ? (
-            <SettingsGroup>
-              <SettingsNote>No provider matches “{query.trim()}”.</SettingsNote>
-            </SettingsGroup>
-          ) : (
-            groups.map((g) => (
-              <SettingsSection
-                key={g.category}
-                title={g.category}
-                description={CATEGORY_NOTE[g.category]}
-              >
-                <SettingsGroup>
-                  {g.providers.map((p) => (
-                    <ProviderKeyRow key={p.id} provider={p} entry={byProvider[p.id]} />
-                  ))}
-                </SettingsGroup>
-              </SettingsSection>
-            ))
-          )}
-        </div>
+        {!loaded ? (
+          <SettingsGroup>
+            <SettingsNote>Reading your shell profile…</SettingsNote>
+          </SettingsGroup>
+        ) : groups.length === 0 ? (
+          <SettingsGroup>
+            <SettingsNote>No provider matches “{query.trim()}”.</SettingsNote>
+          </SettingsGroup>
+        ) : (
+          groups.map((g) => (
+            <div key={g.category} className="flex flex-col gap-1.5">
+              <p className="caption px-1">
+                <span className="font-medium text-secondary-foreground">{g.category}</span>
+                {` · ${CATEGORY_NOTE[g.category]}`}
+              </p>
+              <SettingsGroup>
+                {g.providers.map((p) => (
+                  <ProviderKeyRow key={p.id} provider={p} entry={byProvider[p.id]} />
+                ))}
+              </SettingsGroup>
+            </div>
+          ))
+        )}
       </div>
-    </SettingsPage>
+    </SettingsSection>
   );
 }
 

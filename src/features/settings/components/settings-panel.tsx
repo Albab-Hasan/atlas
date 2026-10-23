@@ -12,11 +12,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/ui/dialog";
-import { ProvidersSettings } from "./providers-settings";
 import { LayoutsSettings } from "./layouts-settings";
 import { SkillsAndPacks } from "./skills-and-packs";
 import { AgentsPage } from "./agents/agents-page";
-import { ModelsManager } from "./models-manager";
 import { KeybindingsSettings } from "./keybindings-settings";
 import { NotificationsSettings } from "./notifications-settings";
 import { GeneralPage } from "./pages/general-page";
@@ -47,8 +45,6 @@ const PAGES: Partial<Record<SettingsSection, () => React.ReactElement>> = {
   keybindings: () => <KeybindingsSettings />,
   agents: () => <AgentsPage />,
   skills: () => <SkillsAndPacks />,
-  providers: () => <ProvidersSettings />,
-  models: () => <ModelsManager />,
   "source-control": () => <SourceControlPage />,
   privacy: () => <PrivacyPage />,
   updates: () => <UpdatesPage />,

@@ -158,7 +158,7 @@ bookkeeping).
 | `uiScale` | number | `1.0` | Appearance › Interface › Interface zoom | finite, `0.5`–`2.0` inclusive |
 | `shareTelemetry` | boolean | `true` | Privacy › Usage data › Share usage data | — |
 | `linkTelemetryToAccount` | boolean | `true` | Privacy › Usage data › Link usage data to my account | — |
-| `embeddingModelId` | string | `"all-MiniLM-L6-v2"` | Settings → Local Models | non-empty |
+| `embeddingModelId` | string | `"all-MiniLM-L6-v2"` | Settings → Memory → Embedding model | non-empty |
 | `themeLight` | string | `"atlas"` | Appearance › Themes › Light theme | known theme id; an unknown id is logged and falls back to `"atlas"` |
 | `themeDark` | string | `"atlas"` | Appearance › Themes › Dark theme | known theme id; an unknown id is logged and falls back to `"atlas"` |
 | `themeMode` | `"system"` \| `"dark"` \| `"light"` | `"system"` | Appearance › Colour scheme › Colour scheme | exactly one of these values; a missing requested variant falls back to the theme's other variant |
@@ -176,9 +176,9 @@ bookkeeping).
 | `instructionSync` | boolean | `false` | Memory › Instructions › Mirror CLAUDE.md and .claude/rules into AGENTS.md | — . See [Mirrored instructions](#mirrored-instructions-instructionsync) |
 | `updaterIgnoredVersion` | string, or absent | absent | managed by Atlas | — |
 | `enterToSend` | boolean | `true` | Chat › Composer › Enter to send | — |
-| `agentUiNavigation` | boolean | `true` | Chat › Atlas Agent permissions › Let Atlas Agent navigate the app (a project can turn it off) | — |
-| `agentOrgAccess` | boolean | `true` | Chat › Atlas Agent permissions › Let Atlas Agent act in your organization (a project can turn it off) | — |
-| `agentCodeTools` | boolean | `true` | Chat › Atlas Agent permissions › Let agents search code with Atlas (a project can turn it off) | — |
+| `agentUiNavigation` | boolean | `true` | Agents › Atlas Agent permissions › Let Atlas Agent navigate the app (a project can turn it off) | — |
+| `agentOrgAccess` | boolean | `true` | Agents › Atlas Agent permissions › Let Atlas Agent act in your organization (a project can turn it off) | — |
+| `agentCodeTools` | boolean | `true` | Agents › All agents › Let agents search code with Atlas (a project can turn it off) | — |
 | `memoryDreams` | boolean | `false` | Memory › Shared memory › Nightly memory review (a project can turn it off) | — |
 | `memoryRepoMirror` | boolean | `false` | Memory › Shared memory › Mirror memory as an Agent Memory Repo (a project can turn it off) | — |
 | `atlasOnlyMemory` | boolean | `true` | Memory › Shared memory › Atlas is the only memory in Atlas sessions | — |

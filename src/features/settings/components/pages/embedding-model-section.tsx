@@ -17,19 +17,18 @@ import {
 } from "@/ui/dialog";
 import { AtlasLoader } from "@/components/atlas-loader";
 import { useAppStore } from "@/features/app/stores/app-store";
-import { useModelsStore } from "../stores/models-store";
-import { models, type DownloadProgress, type ModelStatus } from "../lib/models-api";
+import { useModelsStore } from "../../stores/models-store";
+import { models, type DownloadProgress, type ModelStatus } from "../../lib/models-api";
 import {
   SettingsGroup,
   SettingsNote,
-  SettingsPage,
   SettingsRow,
   SettingsSection,
-} from "./layout/settings-layout";
+} from "../layout/settings-layout";
 
 /**
- * Settings → Local models: the models Atlas runs on this machine, one row
- * each. A row walks Download → Use, and a downloaded model that isn't in use
+ * Settings → Memory → Embedding model: the on-device models memory search can
+ * use, one row each. A row walks Download → Use, and a downloaded model that isn't in use
  * can be removed. Switching the embedding model is confirmed first, because
  * it rebuilds the open project's memory index in a new vector space.
  */
@@ -37,7 +36,7 @@ import {
 const fmtSize = (mb: number) => (mb >= 1000 ? `${(mb / 1000).toFixed(1)} GB` : `${mb} MB`);
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
-export function ModelsManager() {
+export function EmbeddingModelSection() {
   const loaded = useModelsStore.use.loaded();
   const list = useModelsStore.use.list();
   const downloading = useModelsStore.use.downloading();
@@ -82,13 +81,11 @@ export function ModelsManager() {
   };
 
   return (
-    <SettingsPage
-      title="Local models"
-      description="Models that run on this Mac, downloaded once and used offline."
-    >
+    <>
       <SettingsSection
         title="Embedding model"
-        description="Shared memory searches with this model. Switching rebuilds the memory index."
+        description="Shared memory searches with this model, downloaded once and run on this Mac. Switching rebuilds the memory index."
+        anchor="embedding-model"
       >
         <SettingsGroup>
           {!loaded ? (
@@ -124,7 +121,7 @@ export function ModelsManager() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </SettingsPage>
+    </>
   );
 }
 

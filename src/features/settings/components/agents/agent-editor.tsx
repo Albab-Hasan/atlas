@@ -31,6 +31,7 @@ import {
   useInstalls,
   type AgentItem,
 } from "./agent-install";
+import { AtlasAgentPermissions, StarredModels } from "./agent-settings-sections";
 
 /** The version on this machine: what is installed, else what would install. */
 export function versionOf(item: AgentItem): string | null {
@@ -56,6 +57,10 @@ export function AgentEditor({ item }: { item: AgentItem }) {
       </header>
 
       <StatusSection item={item} />
+      {item.state === "native" && <AtlasAgentPermissions />}
+      {(item.state === "native" || item.catalog?.supportsModels) && (
+        <StarredModels agentType={item.agentType} />
+      )}
       <RuntimeSection item={item} />
       <CapabilitiesSection item={item} />
     </div>

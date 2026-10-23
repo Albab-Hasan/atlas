@@ -8,21 +8,19 @@
  *   added to `src-tauri/settings-registry.toml` is findable the moment it has
  *   a row.
  * - **Pages** that manage something else: themes, icon themes, skills, API
- *   keys, local models, keybindings, agents. They are drawn with the same
+ *   keybindings, agents. They are drawn with the same
  *   layout, but their rows are not registry keys, so `EXTRA_SEARCH_ITEMS`
  *   names what can be found on them.
  */
 
 import type { LucideIcon } from "lucide-react";
 import {
-  Boxes,
   Bell,
   Brain,
   DownloadCloud,
   GitBranch,
   Info,
   Keyboard,
-  KeyRound,
   LayoutTemplate,
   MessageSquare,
   Palette,
@@ -78,10 +76,8 @@ export const SIDEBAR: readonly SidebarGroup[] = [
   {
     label: "Library",
     entries: [
-      { id: "agents", label: "Agents", icon: WandSparkles },
+      { id: "agents", label: pageTitle("agents"), icon: WandSparkles },
       { id: "skills", label: "Skills", icon: Zap },
-      { id: "providers", label: "API Keys", icon: KeyRound },
-      { id: "models", label: "Local Models", icon: Boxes },
       { id: "layouts", label: "Layouts", icon: LayoutTemplate },
     ],
   },
@@ -170,8 +166,8 @@ const EXTRA_SEARCH_ITEMS: readonly SearchItem[] = [
   {
     id: "model-pricing",
     title: "Model pricing",
-    where: "Chat › Models",
-    section: "chat",
+    where: "Agents › All agents",
+    section: "agents",
     anchor: "model-pricing",
     terms: "models.dev price cost tokens",
   },
@@ -223,15 +219,17 @@ const EXTRA_SEARCH_ITEMS: readonly SearchItem[] = [
   {
     id: "api-keys",
     title: "API keys",
-    where: "API Keys",
-    section: "providers",
+    where: "Agents › Provider keys",
+    section: "agents",
+    anchor: "provider-keys",
     terms: "byok openai anthropic provider environment shell profile",
   },
   {
     id: "local-models",
     title: "Local models",
-    where: "Local Models",
-    section: "models",
+    where: "Memory › Embedding model",
+    section: "memory",
+    anchor: "embedding-model",
     terms: "embedding on-device download",
   },
   {
