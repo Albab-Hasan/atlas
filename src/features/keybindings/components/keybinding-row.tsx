@@ -69,16 +69,19 @@ export function KeybindingRow({
           <div
             data-action-id={row.id}
             onClick={onSelect}
-            className={cn(
-              "@container/settings-row group/row px-4 py-2.5 select-none",
-              "transition-colors duration-fast ease-out-strong",
-              // The selection is for ↑↓ and Enter: shown only while the list has
-              // focus, so a click doesn't leave a row lit after you move on.
-              "hover:bg-element-hover",
-              selected && "group-focus-within/list:bg-element-selected",
-            )}
+            // The trigger stays layout-only; the row's look is on its child.
+            className="@container/settings-row group/row select-none"
           >
-            <div className="flex items-center justify-between gap-6">
+            <div
+              className={cn(
+                "flex items-center justify-between gap-6 px-4 py-2.5",
+                "transition-colors duration-fast ease-out-strong",
+                // The selection is for ↑↓ and Enter: shown only while the list has
+                // focus, so a click doesn't leave a row lit after you move on.
+                "hover:bg-element-hover",
+                selected && "group-focus-within/list:bg-element-selected",
+              )}
+            >
               <div className="flex min-w-0 flex-col gap-0.5">
                 <div className="flex min-h-5 items-center gap-1">
                   <h3 className="truncate text-sm font-medium text-foreground">{row.def.title}</h3>
