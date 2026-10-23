@@ -120,7 +120,7 @@
 
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { closeSync, openSync, readFileSync, writeSync } from "node:fs";
+import { closeSync, openSync, readFileSync, rmSync, writeSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
@@ -269,13 +269,18 @@ function reviewBase(argv) {
 /** Starts the CodeRabbit review in the background (see the docblock). */
 function startReview(argv) {
   if (argv.includes("--no-review")) return { skipped: "--no-review" };
-  if (spawnSync("coderabbit", ["--version"]).error) {
-    return { skipped: "the coderabbit CLI is not installed" };
+  const help = spawnSync("coderabbit", ["review", "--help"], { encoding: "utf8" });
+  if (help.error) return { skipped: "the coderabbit CLI is not installed" };
+  // `--gate` is what turns major findings into exit 2. A CLI from before it
+  // would reject the flag and fail every run with a message about flags.
+  if (!help.stdout.includes("--gate")) {
+    return { skipped: "this coderabbit CLI has no --gate; update it (`coderabbit update`)" };
   }
   const base = reviewBase(argv);
   if (!base) return { skipped: "no version branch or --base to review against" };
+  // Owner-only, and removed once printed: the output quotes source.
   const log = path.join(tmpdir(), `atlas-ci-local-review-${process.pid}.log`);
-  const out = openSync(log, "w");
+  const out = openSync(log, "w", 0o600);
   const child = spawn(
     "coderabbit",
     ["review", "--committed", "--base-commit", base.commit, "--gate", "major", "-c", "CLAUDE.md"],
@@ -301,9 +306,19 @@ async function finishReview(review) {
   closeSync(review.out);
   const secs = Math.round((Date.now() - review.started) / 1000);
   console.log(`\n── ${REVIEW} (since ${review.base.ref}):\n`);
-  console.log(readFileSync(review.log, "utf8"));
+  const text = readFileSync(review.log, "utf8");
+  rmSync(review.log, { force: true });
+  console.log(text);
+  // The plan includes a few reviews per window; the commonest non-finding
+  // failure is running out of them, so it is named rather than left as a code.
   const failed =
-    code === 0 ? null : code === 2 ? "major or critical findings" : `coderabbit exited ${code}`;
+    code === 0
+      ? null
+      : code === 2
+        ? "major or critical findings"
+        : /rate limit/i.test(text)
+          ? "CodeRabbit's rate limit; rerun later, or pass --no-review"
+          : `coderabbit exited ${code}`;
   return { job: REVIEW, failed, secs };
 }
 
