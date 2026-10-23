@@ -107,6 +107,9 @@ export function InstalledSkills({
   // flips instantly instead of waiting for the disk-reconcile round-trip. Keyed
   // by toolId only (one modal open at a time); cleared once refresh lands.
   const [optimistic, setOptimistic] = useState<Record<string, boolean>>({});
+  // A first load that fails with nothing cached would otherwise read as
+  // loading forever once its toast is gone.
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     if (projectMissing) {
@@ -141,7 +144,11 @@ export function InstalledSkills({
   }, [scope, effectiveProject, projectMissing]);
 
   useEffect(() => {
-    void refresh().catch((e) => toast.error(String(e)));
+    setLoadError(null);
+    void refresh().catch((e) => {
+      setLoadError(String(e));
+      toast.error(String(e));
+    });
   }, [refresh]);
 
   // Reflect installs/mutations happening elsewhere (e.g. Discover).
@@ -291,7 +298,9 @@ export function InstalledSkills({
     >
       <SettingsGroup>
         {view === null ? (
-          <SettingsNote>Loading skills…</SettingsNote>
+          <SettingsNote>
+            {loadError ? `Couldn't read the installed skills: ${loadError}` : "Loading skills…"}
+          </SettingsNote>
         ) : empty ? (
           <SettingsNote>Nothing installed here yet. Find skills below.</SettingsNote>
         ) : (
