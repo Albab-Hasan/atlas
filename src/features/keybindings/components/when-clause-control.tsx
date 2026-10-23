@@ -13,6 +13,12 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/ui/button";
 import { Icon } from "@/ui/icon";
 import { Input } from "@/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/ui/popover";
 import { Select } from "@/ui/select";
 import { Hint } from "@/ui/tooltip";
@@ -80,7 +86,9 @@ function defaultWhenGroup(operator: BooleanOperator = "and"): WhenNode {
   return {
     type: operator,
     left: defaultWhenCondition(),
-    right: { type: "not", node: defaultWhenCondition() },
+    // A second, different variable: the same one negated would make the
+    // group always (or never) true.
+    right: { type: "identifier", name: "inputFocus" },
   };
 }
 
@@ -172,7 +180,7 @@ function NotToggle({
 }) {
   return (
     <Button
-      variant="outline"
+      variant={pressed ? "outline" : "ghost"}
       size="sm"
       aria-pressed={pressed}
       aria-label={label}
@@ -329,14 +337,7 @@ function WhenExpressionNodeEditor({
           aria-label="Operator"
           className="w-24"
         />
-        <Button variant="outline" size="sm" onClick={addCondition}>
-          <Icon icon={Plus} size="xs" />
-          Condition
-        </Button>
-        <Button variant="outline" size="sm" onClick={addGroup}>
-          <Icon icon={Plus} size="xs" />
-          Group
-        </Button>
+        <AddWhenMenu onCondition={addCondition} onGroup={addGroup} />
         {onRemove ? (
           <WhenExpressionRemoveButton
             label={whenNodeRemoveLabel(node, depth)}
@@ -358,6 +359,48 @@ function WhenExpressionNodeEditor({
         ))}
       </div>
     </div>
+  );
+}
+
+/**
+ * The one way to grow an expression: a menu of the two things that can be
+ * added, each saying what it is, rather than a pair of buttons repeated in
+ * the header, the empty state and every group.
+ */
+function AddWhenMenu({
+  label = "Add",
+  onCondition,
+  onGroup,
+}: {
+  label?: string;
+  onCondition: () => void;
+  onGroup: () => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button variant="ghost" size="sm">
+            <Icon icon={Plus} size="xs" />
+            {label}
+          </Button>
+        }
+      />
+      <DropdownMenuContent align="start">
+        <DropdownMenuItem onClick={onCondition}>
+          <span className="flex flex-col">
+            <span>Condition</span>
+            <span className="text-2xs text-muted-foreground">One variable, or its opposite</span>
+          </span>
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={onGroup}>
+          <span className="flex flex-col">
+            <span>Group</span>
+            <span className="text-2xs text-muted-foreground">Conditions joined by and / or</span>
+          </span>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -411,25 +454,12 @@ export function WhenExpressionBuilder({
     updateExpressionValue({ type: "and", left: value, right: group });
   };
 
-  const addButtons = (
-    <>
-      <Button variant="outline" size="sm" onClick={addRootCondition}>
-        <Icon icon={Plus} size="xs" />
-        Condition
-      </Button>
-      <Button variant="outline" size="sm" onClick={addRootGroup}>
-        <Icon icon={Plus} size="xs" />
-        Group
-      </Button>
-    </>
-  );
-
   return (
     <div className="space-y-3">
       <div className="flex min-h-7 items-center justify-between gap-3">
         <div className="text-sm font-medium text-foreground">When</div>
         {/* With nothing to build on yet, the empty state below carries these. */}
-        {value && <div className="flex shrink-0 items-center gap-2">{addButtons}</div>}
+        {value && <AddWhenMenu onCondition={addRootCondition} onGroup={addRootGroup} />}
       </div>
 
       <div className="space-y-1.5">
@@ -471,9 +501,9 @@ export function WhenExpressionBuilder({
                 ? `Runs whenever it can: ${scope.toLowerCase()}. Add a condition to narrow that.`
                 : "Runs everywhere. Add a condition to limit where."}
             </p>
-            {!scope && (
-              <div className="flex flex-wrap gap-1.5">
-                {WHEN_SUGGESTIONS.map((suggestion) => (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {!scope &&
+                WHEN_SUGGESTIONS.map((suggestion) => (
                   <Button
                     key={suggestion.expression}
                     variant="secondary"
@@ -485,9 +515,12 @@ export function WhenExpressionBuilder({
                     {suggestion.label}
                   </Button>
                 ))}
-              </div>
-            )}
-            <div className="flex flex-wrap gap-2">{addButtons}</div>
+              <AddWhenMenu
+                label={scope ? "Add" : "Custom"}
+                onCondition={addRootCondition}
+                onGroup={addRootGroup}
+              />
+            </div>
           </div>
         )}
         {parseError ? (
