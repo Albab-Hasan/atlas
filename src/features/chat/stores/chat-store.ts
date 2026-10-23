@@ -2259,8 +2259,17 @@ function applyDeltaToDraft(s: ChatDraft, env: AgentDelta): void {
       // stream reports "error decoding response body", which names nothing the
       // user did — so the interruption row leads and carries the agent's words
       // folded, instead of a bare "Error:" line.
+      const last = session.messages[session.messages.length - 1];
       if (session.sleptMidTurn) {
         recordInterruption(session, "failed", env.error);
+      } else if (
+        last?.role === "assistant" &&
+        last.interruption?.outcome === "failed" &&
+        !last.interruption.error
+      ) {
+        // The sleep landed between the error status and this delta, and was
+        // recorded then; the error joins that record.
+        last.interruption = { ...last.interruption, error: env.error };
       } else {
         session.messages.push(makeAssistantTextMessage(`Error: ${env.error}`));
       }

@@ -361,15 +361,16 @@ pub async fn acp_registry_uninstall(
     // keychain keeps nothing for an agent that is gone.
     let secrets = removed.secret_env().to_vec();
     let agent = agent_id.clone();
-    let forgotten = tauri::async_runtime::spawn_blocking(move || {
+    // Every one, even after a failure: one stuck item mustn't keep the rest.
+    let failures = tauri::async_runtime::spawn_blocking(move || {
         secrets
             .iter()
-            .try_for_each(|name| super::agent_secrets::delete(&agent, name))
+            .filter_map(|name| super::agent_secrets::delete(&agent, name).err())
+            .collect::<Vec<_>>()
     })
     .await
-    .map_err(|e| e.to_string())
-    .and_then(|done| done);
-    if let Err(e) = forgotten {
+    .unwrap_or_else(|e| vec![e.to_string()]);
+    for e in failures {
         tracing::warn!(target: "atlas::agents", agent = %agent_id, "{e}");
     }
 

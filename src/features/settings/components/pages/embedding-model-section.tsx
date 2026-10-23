@@ -84,7 +84,7 @@ export function EmbeddingModelSection() {
     <>
       <SettingsSection
         title="Embedding model"
-        description="Shared memory searches with this model, downloaded once and run on this Mac. Switching rebuilds the memory index."
+        description="Shared memory searches with this model, downloaded once and run on this computer. Switching rebuilds the memory index."
         anchor="embedding-model"
       >
         <SettingsGroup>

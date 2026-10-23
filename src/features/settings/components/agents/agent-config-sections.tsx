@@ -42,13 +42,15 @@ import {
 } from "./agent-install";
 
 /** A text field that saves on Enter or when it loses focus, not per keystroke:
- *  each save rewrites the installed-agents map. Escape reverts. */
+ *  each save rewrites the installed-agents map. Escape reverts, and so does
+ *  emptying a `required` one. */
 function DraftField({
   value,
   onCommit,
   className,
   mono = false,
   invalid = false,
+  required = false,
   ...props
 }: {
   value: string;
@@ -56,6 +58,7 @@ function DraftField({
   className?: string;
   mono?: boolean;
   invalid?: boolean;
+  required?: boolean;
   placeholder?: string;
   inputMode?: "numeric";
   "aria-label": string;
@@ -71,7 +74,10 @@ function DraftField({
       className={cn(mono && "font-mono", className)}
       value={draft}
       onChange={(event) => setDraft(event.target.value)}
-      onBlur={() => draft !== value && onCommit(draft)}
+      onBlur={() => {
+        if (required && !draft.trim()) setDraft(value);
+        else if (draft !== value) onCommit(draft);
+      }}
       onKeyDown={(event) => {
         if (event.key === "Enter") event.currentTarget.blur();
         if (event.key === "Escape") setDraft(value);
@@ -303,9 +309,8 @@ export function RuntimeSection({ item }: { item: AgentItem }) {
               className="w-full"
               value={launch.command ?? ""}
               aria-label={`${item.name}: binary path`}
-              onCommit={(next) =>
-                next.trim() && void configureAgent(item, { launch: { command: next.trim() } })
-              }
+              required
+              onCommit={(next) => void configureAgent(item, { launch: { command: next.trim() } })}
             />
           </SettingsRow>
         ) : (

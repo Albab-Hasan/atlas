@@ -317,6 +317,7 @@ pub async fn agents_configure(
             .0
             .get_mut(&agent_id)
             .ok_or_else(|| format!("{agent_id} is not installed"))?;
+        let turning_off = patch.enabled == Some(false);
         let keychain = apply_to_entry(entry, patch)?;
         // New values before the map that names them: a name the map lists
         // with no stored value would launch the agent without it. Deletes
@@ -348,6 +349,10 @@ pub async fn agents_configure(
         })
         .await
         .map_err(|e| e.to_string())?;
+        // Off means not running, not just not started next time.
+        if turning_off {
+            host.turn_off(&agent_id).map_err(|e| e.to_string())?;
+        }
     }
     catalog::emit_catalog_changed(&app, "settings");
     catalog::entry_for(&host, &agent_id).ok_or_else(|| format!("{agent_id} is not in the catalog"))

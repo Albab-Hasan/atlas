@@ -150,6 +150,14 @@ impl AgentServerSettings {
         }
     }
 
+    /// [`Self::env`] as the agent's process gets it: a leading `~/` (or a
+    /// lone `~`) is the home directory, as it would be in a shell's
+    /// `NAME=~/path`. Agents read `CLAUDE_CONFIG_DIR`, `CODEX_HOME` and the
+    /// like literally, and Codex requires its home to exist.
+    pub fn launch_env(&self) -> HashMap<String, String> {
+        launch_env(self.env())
+    }
+
     /// The arguments the user set: a custom entry's whole list, or what a
     /// registry entry appends to its distribution's.
     pub fn args(&self) -> &[String] {
@@ -289,7 +297,7 @@ impl AgentServerSettings {
             } => Some(AgentServerCommand {
                 path: expand_tilde(path),
                 args: args.clone(),
-                env: Some(env.clone()),
+                env: Some(launch_env(env)),
             }),
             Self::Registry { .. } => None,
         }
@@ -378,6 +386,19 @@ fn expand_tilde(path: &std::path::Path) -> PathBuf {
     home.join(rest)
 }
 
+fn launch_env(env: &HashMap<String, String>) -> HashMap<String, String> {
+    env.iter()
+        .map(|(name, value)| {
+            let value = match (value.as_str(), home_dir()) {
+                ("~", Some(home)) => home.display().to_string(),
+                (v, Some(home)) if v.starts_with("~/") => home.join(&v[2..]).display().to_string(),
+                _ => value.clone(),
+            };
+            (name.clone(), value)
+        })
+        .collect()
+}
+
 fn home_dir() -> Option<PathBuf> {
     std::env::var_os("HOME")
         .or_else(|| std::env::var_os("USERPROFILE"))
@@ -388,6 +409,22 @@ fn home_dir() -> Option<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_variable_starting_with_tilde_reaches_the_agent_under_home() {
+        let Some(home) = home_dir() else { return };
+        let env = HashMap::from([
+            ("CODEX_HOME".to_string(), "~/.codex".to_string()),
+            ("BARE".to_string(), "~".to_string()),
+            ("MID".to_string(), "a~/b".to_string()),
+            ("USER_TILDE".to_string(), "~other/x".to_string()),
+        ]);
+        let out = launch_env(&env);
+        assert_eq!(out["CODEX_HOME"], home.join(".codex").display().to_string());
+        assert_eq!(out["BARE"], home.display().to_string());
+        assert_eq!(out["MID"], "a~/b");
+        assert_eq!(out["USER_TILDE"], "~other/x");
+    }
 
     /// A map written before Settings → Agents could turn agents off has no
     /// `enabled` key, and every agent in it was on.
