@@ -8,7 +8,7 @@ vi.mock("sonner", () => ({
   toast: Object.assign(() => {}, { error: () => {}, success: () => {} }),
 }));
 
-const { cardState, installKind, marketplaceCards } = await import("./agents-marketplace");
+const { cardState, installKind, marketplaceCards } = await import("./agent-install");
 
 type Entry = import("@/features/agents/lib/agent-registry-api").AcpRegistryEntry;
 type Catalog = import("@/types/agent-catalog").AgentCatalogEntry;

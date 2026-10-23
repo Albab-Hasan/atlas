@@ -40,6 +40,7 @@ export function SettingsPage({
   title,
   description,
   scopeable = false,
+  wide = false,
   header,
   children,
 }: {
@@ -48,6 +49,8 @@ export function SettingsPage({
   /** The page has settings a project can override: show the scope picker,
    *  and let its rows edit the picked project. */
   scopeable?: boolean;
+  /** A wider column, for a page whose content is two panes side by side. */
+  wide?: boolean;
   /** Under the description: a page's own scope sentence, say. */
   header?: ReactNode;
   children: ReactNode;
@@ -55,7 +58,12 @@ export function SettingsPage({
   const scope = useSettingsNav((s) => s.scope);
   return (
     <PageScopeContext.Provider value={scopeable ? scope : null}>
-      <div className="@container mx-auto flex w-full max-w-180 flex-col gap-8 px-5 pt-8 pb-24">
+      <div
+        className={cn(
+          "@container mx-auto flex w-full flex-col gap-8 px-5 pt-8 pb-24",
+          wide ? "max-w-240" : "max-w-180",
+        )}
+      >
         <header className="flex flex-col gap-1">
           <h1 className="text-xl font-medium tracking-tight text-foreground">{title}</h1>
           {description && <p className="caption">{description}</p>}

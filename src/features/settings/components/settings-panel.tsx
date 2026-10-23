@@ -15,7 +15,7 @@ import {
 import { ProvidersSettings } from "./providers-settings";
 import { LayoutsSettings } from "./layouts-settings";
 import { SkillsAndPacks } from "./skills-and-packs";
-import { AgentsMarketplace } from "./agents-marketplace/agents-marketplace";
+import { AgentsPage } from "./agents/agents-page";
 import { ModelsManager } from "./models-manager";
 import { KeybindingsSettings } from "./keybindings-settings";
 import { NotificationsSettings } from "./notifications-settings";
@@ -37,11 +37,6 @@ import { useAgentRegistryStore } from "@/features/agents/stores/agent-registry-s
 
 const NAV_COLLAPSED_KEY = "atlas:settings:navCollapsed";
 
-/** Screens that own their whole layout, toolbar and scrolling included. */
-const SCREENS: Partial<Record<SettingsSection, () => React.ReactElement>> = {
-  agents: () => <AgentsMarketplace />,
-};
-
 /** Pages drawn with the settings layout, inside one scroll area. */
 const PAGES: Partial<Record<SettingsSection, () => React.ReactElement>> = {
   general: () => <GeneralPage />,
@@ -50,6 +45,7 @@ const PAGES: Partial<Record<SettingsSection, () => React.ReactElement>> = {
   memory: () => <MemoryPage />,
   notifications: () => <NotificationsSettings />,
   keybindings: () => <KeybindingsSettings />,
+  agents: () => <AgentsPage />,
   skills: () => <SkillsAndPacks />,
   providers: () => <ProvidersSettings />,
   models: () => <ModelsManager />,
@@ -115,7 +111,6 @@ export function SettingsPanel({ initialSection }: { initialSection?: string } = 
 
   const onSearchPick = (item: SearchItem) => goTo(item.section, item.anchor);
 
-  const screen = SCREENS[active];
   const page = PAGES[active];
 
   return (
@@ -137,11 +132,7 @@ export function SettingsPanel({ initialSection }: { initialSection?: string } = 
           </p>
           <RestoreDefaults section={active} />
         </header>
-        {screen ? (
-          <div className="min-h-0 min-w-0 flex-1">{screen()}</div>
-        ) : (
-          <ScrollArea className="min-h-0 flex-1">{page?.()}</ScrollArea>
-        )}
+        <ScrollArea className="min-h-0 flex-1">{page?.()}</ScrollArea>
       </div>
     </div>
   );

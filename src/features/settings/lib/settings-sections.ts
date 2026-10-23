@@ -8,9 +8,9 @@
  *   added to `src-tauri/settings-registry.toml` is findable the moment it has
  *   a row.
  * - **Pages** that manage something else: themes, icon themes, skills, API
- *   keys, local models, keybindings. They are drawn with the same layout, but
- *   their rows are not registry keys, so `EXTRA_SEARCH_ITEMS` names what can
- *   be found on them. Agents alone is still a full-bleed screen.
+ *   keys, local models, keybindings, agents. They are drawn with the same
+ *   layout, but their rows are not registry keys, so `EXTRA_SEARCH_ITEMS`
+ *   names what can be found on them.
  */
 
 import type { LucideIcon } from "lucide-react";
