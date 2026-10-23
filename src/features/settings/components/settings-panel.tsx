@@ -40,9 +40,6 @@ const NAV_COLLAPSED_KEY = "atlas:settings:navCollapsed";
 /** Screens that own their whole layout, toolbar and scrolling included. */
 const SCREENS: Partial<Record<SettingsSection, () => React.ReactElement>> = {
   agents: () => <AgentsMarketplace />,
-  skills: () => <SkillsAndPacks />,
-  providers: () => <ProvidersSettings />,
-  models: () => <ModelsManager />,
 };
 
 /** Pages drawn with the settings layout, inside one scroll area. */
@@ -53,6 +50,9 @@ const PAGES: Partial<Record<SettingsSection, () => React.ReactElement>> = {
   memory: () => <MemoryPage />,
   notifications: () => <NotificationsSettings />,
   keybindings: () => <KeybindingsSettings />,
+  skills: () => <SkillsAndPacks />,
+  providers: () => <ProvidersSettings />,
+  models: () => <ModelsManager />,
   "source-control": () => <SourceControlPage />,
   privacy: () => <PrivacyPage />,
   updates: () => <UpdatesPage />,

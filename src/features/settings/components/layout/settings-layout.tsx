@@ -40,6 +40,7 @@ export function SettingsPage({
   title,
   description,
   scopeable = false,
+  header,
   children,
 }: {
   title: string;
@@ -47,6 +48,8 @@ export function SettingsPage({
   /** The page has settings a project can override: show the scope picker,
    *  and let its rows edit the picked project. */
   scopeable?: boolean;
+  /** Under the description: a page's own scope sentence, say. */
+  header?: ReactNode;
   children: ReactNode;
 }) {
   const scope = useSettingsNav((s) => s.scope);
@@ -57,6 +60,7 @@ export function SettingsPage({
           <h1 className="text-xl font-medium tracking-tight text-foreground">{title}</h1>
           {description && <p className="caption">{description}</p>}
           {scopeable && <ScopeSentence />}
+          {header}
         </header>
         {children}
       </div>

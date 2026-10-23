@@ -1,4 +1,4 @@
-// Settings → Skills (Discover + My Skills) and Settings → Agents (the ACP
+// Settings → Skills (Installed + Discover) and Settings → Agents (the ACP
 // registry marketplace), plus the agent catalog every other agent surface
 // reads.
 //
@@ -580,7 +580,7 @@ let installedPacks: MockPack[] = [
     behind: true,
   },
   {
-    // Ships no skills at all, so it only appears as its own row in My Skills —
+    // Ships no skills at all, so it only appears as its own row in Installed —
     // the branch that used to drop packs from the list entirely.
     scope: "global",
     pack: RELEASE_ENGINEERING,

@@ -7,10 +7,10 @@
  *   come from the settings registry (`settings-registry.gen.ts`), so a key
  *   added to `src-tauri/settings-registry.toml` is findable the moment it has
  *   a row.
- * - **Screens** that manage something else: themes, icon themes, agents,
- *   skills, API keys, local models, keybindings. They own their layouts; the
- *   sidebar only routes to them, and `EXTRA_SEARCH_ITEMS` names what can be
- *   found on them.
+ * - **Pages** that manage something else: themes, icon themes, skills, API
+ *   keys, local models, keybindings. They are drawn with the same layout, but
+ *   their rows are not registry keys, so `EXTRA_SEARCH_ITEMS` names what can
+ *   be found on them. Agents alone is still a full-bleed screen.
  */
 
 import type { LucideIcon } from "lucide-react";
