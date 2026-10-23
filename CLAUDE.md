@@ -67,6 +67,9 @@ bun run ci:local        # what CI would run for this branch, as CI runs it (clip
   the PR. The app's Windows compile check (`app-windows`) is the one job that
   runs only in CI. `--linux` is the full container replica, for when you
   suspect the Ubuntu userland itself.
+  Alongside the jobs, CodeRabbit reviews the branch's commits against the
+  version branch; major findings fail the run like a red job (`--no-review`
+  skips it).
 
 Rust (`rust-toolchain.toml`), Bun and Node (`mise.toml`) are pinned to what CI
 installs. Bumping Rust brings new clippy lints: fix them in the same change.
@@ -110,6 +113,14 @@ no theme can restate them); bare `z-` at 50 or above; and inline numeric `zIndex
 in the comment block above it — and the reason must be a real argument of 20+
 characters, which the suite also checks. A violation type-checks, lints and renders
 perfectly; this suite is the only thing in the toolchain that can see it.
+
+**`bun run lint` also runs `@shadcn/lint`**, two rules, both errors. `no-unknown-classes`
+catches a class Tailwind can't generate — a typo, or a plugin utility Atlas doesn't ship —
+which otherwise renders as nothing. `no-restyle` stops `className` from overriding a
+`src/ui` primitive's look: when it fires, use the variant its message names, or add one
+to the primitive; don't restyle at the call site. Plain stylesheet classes are
+allowlisted by exact name in `.oxlintrc.json` (`shadcn-lint-allowlist.test.ts` keeps
+that list honest — never add a wildcard).
 
 **Anything reading a _resolved_ colour needs a theme subscription**
 (`theme-subscription-contract.test.ts`). CSS naming `var(--atlas-…)` recolours for

@@ -494,12 +494,7 @@ export function ModelPicker({
           {shownAgent.label}'s models show here once it has connected.
           <span className="mt-0.5 block caption">Switch to it to start on its default.</span>
         </span>
-        <Button
-          size="sm"
-          variant="outline"
-          className="gap-1.5"
-          onClick={() => onPick(shownAgent.agentType, null)}
-        >
+        <Button size="sm" variant="outline" onClick={() => onPick(shownAgent.agentType, null)}>
           <AgentGlyph agent={shownAgent.agentType} size={12} />
           Switch to {shownAgent.label}
         </Button>

@@ -95,7 +95,7 @@ export function ThreadHistoryView({
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <DialogOverlay className="backdrop-blur-sm" />
+        <DialogOverlay blur />
         <Dialog.Popup
           aria-describedby={undefined}
           className={cn(

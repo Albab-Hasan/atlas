@@ -142,7 +142,7 @@ function ZoomControl() {
           size="sm"
           variant="outline"
           label="Zoom out"
-          className="rounded-full"
+          shape="round"
           disabled={uiScale <= MIN_SCALE}
           onClick={() => setScale(uiScale - SCALE_STEP)}
         />
@@ -163,7 +163,7 @@ function ZoomControl() {
           size="sm"
           variant="outline"
           label="Zoom in"
-          className="rounded-full"
+          shape="round"
           disabled={uiScale >= MAX_SCALE}
           onClick={() => setScale(uiScale + SCALE_STEP)}
         />

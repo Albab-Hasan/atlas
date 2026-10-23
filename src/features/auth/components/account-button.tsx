@@ -47,13 +47,13 @@ export function AccountButton({ compact = false }: { compact?: boolean } = {}) {
 
   // In the dock the pill's sliding label already names this control, so only
   // the standalone button carries a tooltip of its own.
-  const Button = compact ? "button" : HintedButton;
+  const Control = compact ? "button" : HintedButton;
 
   const button = (
     // Only the connecting state keeps a click of its own. In the other two the
     // click is Radix's to handle, and one that also ran would fight the trigger
     // it is wrapped in.
-    <Button
+    <Control
       onClick={connecting ? toggleDialog : undefined}
       aria-label={title}
       className={cn(
@@ -78,7 +78,7 @@ export function AccountButton({ compact = false }: { compact?: boolean } = {}) {
       ) : (
         <CircleUser size={compact ? 12 : 14} />
       )}
-    </Button>
+    </Control>
   );
 
   // The menu opens signed out as well as signed in. Settings, Keybindings,
