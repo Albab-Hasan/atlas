@@ -11,10 +11,12 @@ import { Button } from "@/ui/button";
 import { Icon } from "@/ui/icon";
 import { IconButton } from "@/ui/icon-button";
 import { Hint } from "@/ui/tooltip";
+import { Switch } from "@/ui/switch";
 import { AgentMark } from "@/components/agent-mark";
 import { useAgentRegistryStore } from "@/features/agents/stores/agent-registry-store";
 import { SettingsPage, SettingsSection } from "../layout/settings-layout";
 import {
+  configureAgent,
   libraryItems,
   refreshListing,
   useAgentListing,
@@ -89,9 +91,10 @@ export function AgentsPage() {
               </li>
             </ul>
           </div>
-          <div className="min-h-0 min-w-0 overflow-y-auto">
+          {/* Keyed, so picking another agent starts its editor at the top. */}
+          <div key={selected?.id} className="min-h-0 min-w-0 overflow-y-auto">
             {selected ? (
-              <AgentEditor key={selected.id} item={selected} />
+              <AgentEditor item={selected} />
             ) : (
               <p className="p-6 text-sm text-muted-foreground">Loading agents…</p>
             )}
@@ -161,36 +164,62 @@ function AgentListRow({
   const installs = useInstalls();
   const version = versionOf(item);
   const status = listStatus(item, installs.installing(item.id));
+  const enabled = item.catalog?.enabled ?? true;
+  const label = item.catalog?.displayName ?? item.name;
+  // Only an agent the user installed can be turned off: the native one is
+  // always there, and a detection isn't on yet to turn off.
+  const switchable = item.state === "installed" && item.catalog !== undefined;
   return (
-    <button
-      type="button"
-      aria-current={selected || undefined}
-      onClick={onSelect}
+    <div
       className={cn(
-        "flex w-full items-start gap-2.5 px-3 py-2.5 text-left transition-colors duration-fast",
+        "flex items-center gap-2 pr-3 transition-colors duration-fast",
         selected ? "bg-element-selected" : "hover:bg-element-hover",
       )}
     >
-      <span className="flex h-5 shrink-0 items-center text-foreground">
-        <AgentMark agentType={item.agentType} />
-      </span>
-      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="flex min-w-0 items-baseline gap-1.5">
-          <span className="truncate text-sm font-medium text-foreground">{item.name}</span>
-          {version && (
-            <span className="shrink-0 font-mono text-2xs text-muted-foreground">v{version}</span>
-          )}
-        </span>
+      <button
+        type="button"
+        aria-current={selected || undefined}
+        onClick={onSelect}
+        className="flex min-w-0 flex-1 items-start gap-2.5 py-2.5 pl-3 text-left"
+      >
         <span
-          className={cn(
-            "text-2xs",
-            status.tone === "warning" ? "text-warning" : "text-muted-foreground",
-          )}
+          className={cn("flex h-5 shrink-0 items-center text-foreground", !enabled && "opacity-50")}
         >
-          {status.text}
+          <AgentMark agentType={item.agentType} />
         </span>
-      </span>
-    </button>
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="flex min-w-0 items-baseline gap-1.5">
+            <span
+              className={cn(
+                "truncate text-sm font-medium",
+                enabled ? "text-foreground" : "text-muted-foreground",
+              )}
+            >
+              {label}
+            </span>
+            {version && (
+              <span className="shrink-0 font-mono text-2xs text-muted-foreground">v{version}</span>
+            )}
+          </span>
+          <span
+            className={cn(
+              "text-2xs",
+              status.tone === "warning" ? "text-warning" : "text-muted-foreground",
+            )}
+          >
+            {status.text}
+          </span>
+        </span>
+      </button>
+      {switchable && (
+        <Switch
+          size="sm"
+          checked={enabled}
+          aria-label={`${enabled ? "Turn off" : "Turn on"} ${label}`}
+          onCheckedChange={(next) => void configureAgent(item, { enabled: next })}
+        />
+      )}
+    </div>
   );
 }
 
@@ -198,6 +227,7 @@ function listStatus(item: AgentItem, installing: boolean): { text: string; tone?
   if (installing) return { text: "Adding…" };
   if (item.state === "native") return { text: "Built in" };
   if (item.state === "detected") return { text: "On your PATH · not added" };
+  if (item.catalog && !item.catalog.enabled) return { text: "Off" };
   if (item.catalog?.source === "unavailable") return { text: "Can't start", tone: "warning" };
   if (item.entry?.updateAvailable) return { text: `Update available · v${item.entry.version}` };
   if (item.catalog?.source === "npx") return { text: "Installed · runs through npx" };

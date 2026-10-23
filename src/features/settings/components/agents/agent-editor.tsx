@@ -24,6 +24,7 @@ import { useAgentRegistryStore } from "@/features/agents/stores/agent-registry-s
 import { updatePhaseLabel } from "@/features/agents/lib/agent-update";
 import { SettingsGroup, SettingsRow, SettingsSection } from "../layout/settings-layout";
 import {
+  configureAgent,
   installAgent,
   installKind,
   removeAgent,
@@ -31,7 +32,13 @@ import {
   useInstalls,
   type AgentItem,
 } from "./agent-install";
-import { AtlasAgentPermissions, StarredModels } from "./agent-settings-sections";
+import { AtlasAgentPermissions } from "./agent-settings-sections";
+import {
+  EnvironmentSection,
+  GeneralSection,
+  LaunchSection,
+  ModelsSection,
+} from "./agent-config-sections";
 
 /** The version on this machine: what is installed, else what would install. */
 export function versionOf(item: AgentItem): string | null {
@@ -48,7 +55,9 @@ export function AgentEditor({ item }: { item: AgentItem }) {
           <span className="flex shrink-0 items-center text-foreground">
             <AgentMark agentType={item.agentType} size="lg" />
           </span>
-          <h2 className="min-w-0 truncate text-base font-medium text-foreground">{item.name}</h2>
+          <h2 className="min-w-0 truncate text-base font-medium text-foreground">
+            {item.catalog?.displayName ?? item.name}
+          </h2>
           {version && <span className="font-mono text-2xs text-muted-foreground">v{version}</span>}
           <span className="flex-1" />
           <HeaderActions item={item} />
@@ -57,10 +66,11 @@ export function AgentEditor({ item }: { item: AgentItem }) {
       </header>
 
       <StatusSection item={item} />
+      <GeneralSection item={item} />
       {item.state === "native" && <AtlasAgentPermissions />}
-      {(item.state === "native" || item.catalog?.supportsModels) && (
-        <StarredModels agentType={item.agentType} />
-      )}
+      <ModelsSection item={item} />
+      <LaunchSection item={item} />
+      <EnvironmentSection item={item} />
       <RuntimeSection item={item} />
       <CapabilitiesSection item={item} />
     </div>
@@ -109,7 +119,19 @@ function StatusSection({ item }: { item: AgentItem }) {
   const entry = item.entry;
   let row: ReactNode = null;
 
-  if (item.state === "detected" && entry) {
+  if (item.catalog && !item.catalog.enabled) {
+    row = (
+      <SettingsRow
+        title="Turned off"
+        description="It's out of the agent picker, and Atlas won't start it. Its chats stay in your history."
+        control={
+          <Button size="sm" onClick={() => void configureAgent(item, { enabled: true })}>
+            Turn on
+          </Button>
+        }
+      />
+    );
+  } else if (item.state === "detected" && entry) {
     const busy = installs.installing(item.id);
     row = (
       <SettingsRow
@@ -191,6 +213,8 @@ function RuntimeSection({ item }: { item: AgentItem }) {
   }
   const catalog = item.catalog;
   const kind = catalog?.distributionKind || item.entry?.distributionKind;
+  // An installed agent's Launch section already says how it starts.
+  const editable = item.state === "installed" && !!catalog?.launch;
   const launches =
     catalog?.source === "npx"
       ? "Through npx. npm fetches it the first time a chat starts it."
@@ -198,18 +222,20 @@ function RuntimeSection({ item }: { item: AgentItem }) {
         ? undefined
         : "Nothing resolved yet.";
   return (
-    <SettingsSection title="Runtime">
+    <SettingsSection title={editable ? "About" : "Runtime"}>
       <SettingsGroup>
-        <SettingsRow
-          title={item.state === "detected" ? "Found at" : "Launches"}
-          description={
-            catalog?.resolvedPath ? (
-              <span className="font-mono break-all">{tildePath(catalog.resolvedPath)}</span>
-            ) : (
-              launches
-            )
-          }
-        />
+        {!editable && (
+          <SettingsRow
+            title={item.state === "detected" ? "Found at" : "Launches"}
+            description={
+              catalog?.resolvedPath ? (
+                <span className="font-mono break-all">{tildePath(catalog.resolvedPath)}</span>
+              ) : (
+                launches
+              )
+            }
+          />
+        )}
         <SettingsRow
           title="Distribution"
           description={distributionText(kind, item)}

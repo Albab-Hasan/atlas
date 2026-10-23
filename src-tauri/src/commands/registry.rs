@@ -412,7 +412,7 @@ pub fn acp_registry_metadata(
 /// Disk first: the store rebuild is what makes the agent spawnable, and an
 /// agent that is spawnable now but gone after a restart is worse than one that
 /// failed to install at all.
-async fn persist(
+pub(crate) async fn persist(
     host: &Arc<AgentHost>,
     data_dir: &std::path::Path,
     settings: atlas_agent_store::AllAgentServersSettings,

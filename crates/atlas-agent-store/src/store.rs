@@ -371,7 +371,7 @@ impl AgentServerStore {
                             default_mode: entry_settings.default_mode().map(str::to_owned),
                         }
                     }
-                    AgentServerSettings::Registry { env, .. } => {
+                    AgentServerSettings::Registry { .. } => {
                         let Some(agent) = registry_agents.get(name) else {
                             // Installed, but the catalogue has not loaded or no
                             // longer lists it. Not an error: a refresh may
@@ -386,9 +386,8 @@ impl AgentServerStore {
                         match self.registry_entry(
                             name,
                             agent,
-                            env,
+                            entry_settings,
                             byok_env,
-                            entry_settings.default_mode(),
                             agent_channels,
                         ) {
                             Some(entry) => entry,
@@ -435,9 +434,8 @@ impl AgentServerStore {
         &self,
         name: &str,
         agent: &RegistryAgent,
-        settings_env: &HashMap<String, String>,
+        settings: &AgentServerSettings,
         byok_env: &HashMap<String, String>,
-        default_mode: Option<&str>,
         channels: &AgentChannels,
     ) -> Option<ExternalAgentEntry> {
         let metadata = agent.metadata();
@@ -460,7 +458,8 @@ impl AgentServerStore {
                         .join(sanitize_path_component(name)),
                     version: version.clone(),
                     targets: binary.targets.clone(),
-                    settings_env: settings_env.clone(),
+                    settings_args: settings.args().to_vec(),
+                    settings_env: settings.env().clone(),
                     byok_env: byok_env.clone(),
                     loading_status: Some(channels.loading_status.clone()),
                 })
@@ -473,7 +472,8 @@ impl AgentServerStore {
                 package: npx.package.clone(),
                 args: npx.args.clone(),
                 distribution_env: npx.env.clone(),
-                settings_env: settings_env.clone(),
+                settings_args: settings.args().to_vec(),
+                settings_env: settings.env().clone(),
                 byok_env: byok_env.clone(),
                 loading_status: Some(channels.loading_status.clone()),
             }),
@@ -485,7 +485,7 @@ impl AgentServerStore {
             icon_path: metadata.icon_path.clone(),
             display_name: Some(metadata.name.clone()),
             version: Some(version),
-            default_mode: default_mode.map(str::to_owned),
+            default_mode: settings.default_mode().map(str::to_owned),
         })
     }
 }

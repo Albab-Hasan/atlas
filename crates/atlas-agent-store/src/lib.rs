@@ -145,7 +145,7 @@ pub use servers::{
     forget_npx_install_decision, installed_npx_version, npx_install_dir,
     InheritedProjectEnvironment, ProjectEnvironment,
 };
-pub use settings::{AgentServerSettings, AllAgentServersSettings};
+pub use settings::{AgentServerSettings, AllAgentServersSettings, UserSettingsMut};
 pub use store::{AgentServerStore, ExternalAgentEntry, ExternalAgentSource};
 
 use std::path::{Path, PathBuf};

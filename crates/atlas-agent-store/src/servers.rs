@@ -140,6 +140,8 @@ pub struct LocalRegistryArchiveAgent {
     pub(crate) installation_dir: PathBuf,
     pub(crate) version: Arc<str>,
     pub(crate) targets: HashMap<String, RegistryTargetConfig>,
+    /// The user's arguments, after the distribution's own.
+    pub(crate) settings_args: Vec<String>,
     pub(crate) settings_env: HashMap<String, String>,
     pub(crate) byok_env: HashMap<String, String>,
     pub(crate) loading_status: Option<watch::Sender<Option<String>>>,
@@ -183,6 +185,7 @@ impl ExternalAgentServer for LocalRegistryArchiveAgent {
         let installation_dir = self.installation_dir.clone();
         let version = self.version.clone();
         let targets = self.targets.clone();
+        let settings_args = self.settings_args.clone();
         let settings_env = self.settings_env.clone();
         let byok_env = self.byok_env.clone();
         let loading_status = self.loading_status.clone();
@@ -241,6 +244,7 @@ impl ExternalAgentServer for LocalRegistryArchiveAgent {
                 });
 
                 let mut args = target.args.clone();
+                args.extend(settings_args);
                 args.extend(extra_args);
 
                 Ok(AgentServerCommand {
@@ -414,6 +418,8 @@ pub struct LocalRegistryNpxAgent {
     pub(crate) package: String,
     pub(crate) args: Vec<String>,
     pub(crate) distribution_env: HashMap<String, String>,
+    /// The user's arguments, after the distribution's own.
+    pub(crate) settings_args: Vec<String>,
     pub(crate) settings_env: HashMap<String, String>,
     pub(crate) byok_env: HashMap<String, String>,
     pub(crate) loading_status: Option<watch::Sender<Option<String>>>,
@@ -467,6 +473,7 @@ impl ExternalAgentServer for LocalRegistryNpxAgent {
         let version = self.version.clone();
         let package = self.package.clone();
         let args = self.args.clone();
+        let settings_args = self.settings_args.clone();
         let distribution_env = self.distribution_env.clone();
         let settings_env = self.settings_env.clone();
         let byok_env = self.byok_env.clone();
@@ -521,6 +528,7 @@ impl ExternalAgentServer for LocalRegistryNpxAgent {
                     .to_string_lossy()
                     .into_owned()];
                 command_args.extend(args);
+                command_args.extend(settings_args);
                 command_args.extend(extra_args);
 
                 Ok(AgentServerCommand {

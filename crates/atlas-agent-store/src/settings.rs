@@ -38,6 +38,15 @@ pub enum AgentServerSettings {
         default_config_options: HashMap<String, serde_json::Value>,
         #[serde(default, skip_serializing_if = "HashMap::is_empty")]
         favorite_config_option_values: HashMap<String, Vec<String>>,
+        /// Off: kept installed, but out of the picker and never started.
+        #[serde(default = "on", skip_serializing_if = "is_on")]
+        enabled: bool,
+        /// The user's name for it, over the registry's or the detection's.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        display_name: Option<String>,
+        /// Model ids kept out of the model picker.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        hidden_models: Vec<String>,
     },
     /// An agent installed from the registry. The key is its registry id; the
     /// distribution, version and command all come from the registry index, so
@@ -47,6 +56,9 @@ pub enum AgentServerSettings {
     /// written by an ACP-extension migration still reads.
     #[serde(alias = "extension")]
     Registry {
+        /// Appended after the arguments the registry's distribution gives.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        args: Vec<String>,
         #[serde(default, skip_serializing_if = "HashMap::is_empty")]
         env: HashMap<String, String>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -55,6 +67,15 @@ pub enum AgentServerSettings {
         default_config_options: HashMap<String, serde_json::Value>,
         #[serde(default, skip_serializing_if = "HashMap::is_empty")]
         favorite_config_option_values: HashMap<String, Vec<String>>,
+        /// Off: kept installed, but out of the picker and never started.
+        #[serde(default = "on", skip_serializing_if = "is_on")]
+        enabled: bool,
+        /// The user's name for it, over the registry's or the detection's.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        display_name: Option<String>,
+        /// Model ids kept out of the model picker.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        hidden_models: Vec<String>,
     },
 }
 
@@ -63,10 +84,14 @@ impl AgentServerSettings {
     /// "Install" button writes.
     pub fn registry() -> Self {
         Self::Registry {
+            args: Vec::new(),
             env: HashMap::new(),
             default_mode: None,
             default_config_options: HashMap::new(),
             favorite_config_option_values: HashMap::new(),
+            enabled: true,
+            display_name: None,
+            hidden_models: Vec::new(),
         }
     }
 
@@ -79,6 +104,9 @@ impl AgentServerSettings {
             default_mode: None,
             default_config_options: HashMap::new(),
             favorite_config_option_values: HashMap::new(),
+            enabled: true,
+            display_name: None,
+            hidden_models: Vec::new(),
         }
     }
 
@@ -93,6 +121,74 @@ impl AgentServerSettings {
     pub fn env(&self) -> &HashMap<String, String> {
         match self {
             Self::Custom { env, .. } | Self::Registry { env, .. } => env,
+        }
+    }
+
+    /// The arguments the user set: a custom entry's whole list, or what a
+    /// registry entry appends to its distribution's.
+    pub fn args(&self) -> &[String] {
+        match self {
+            Self::Custom { args, .. } | Self::Registry { args, .. } => args,
+        }
+    }
+
+    /// Whether the agent is on. An entry that never said is.
+    pub fn enabled(&self) -> bool {
+        match self {
+            Self::Custom { enabled, .. } | Self::Registry { enabled, .. } => *enabled,
+        }
+    }
+
+    pub fn display_name(&self) -> Option<&str> {
+        match self {
+            Self::Custom { display_name, .. } | Self::Registry { display_name, .. } => {
+                display_name.as_deref()
+            }
+        }
+    }
+
+    pub fn hidden_models(&self) -> &[String] {
+        match self {
+            Self::Custom { hidden_models, .. } | Self::Registry { hidden_models, .. } => {
+                hidden_models
+            }
+        }
+    }
+
+    /// Everything Settings → Agents may change, borrowed for writing.
+    pub fn user_settings_mut(&mut self) -> UserSettingsMut<'_> {
+        match self {
+            Self::Custom {
+                path,
+                args,
+                env,
+                enabled,
+                display_name,
+                hidden_models,
+                ..
+            } => UserSettingsMut {
+                command: Some(path),
+                args,
+                env,
+                enabled,
+                display_name,
+                hidden_models,
+            },
+            Self::Registry {
+                args,
+                env,
+                enabled,
+                display_name,
+                hidden_models,
+                ..
+            } => UserSettingsMut {
+                command: None,
+                args,
+                env,
+                enabled,
+                display_name,
+                hidden_models,
+            },
         }
     }
 
@@ -138,6 +234,26 @@ impl AgentServerSettings {
             Self::Registry { .. } => None,
         }
     }
+}
+
+/// The fields of one entry the user edits in Settings → Agents.
+pub struct UserSettingsMut<'a> {
+    /// `None` for a registry entry: its command comes from the registry.
+    pub command: Option<&'a mut PathBuf>,
+    pub args: &'a mut Vec<String>,
+    pub env: &'a mut HashMap<String, String>,
+    pub enabled: &'a mut bool,
+    pub display_name: &'a mut Option<String>,
+    pub hidden_models: &'a mut Vec<String>,
+}
+
+#[allow(clippy::trivially_copy_pass_by_ref)] // serde's skip_serializing_if takes a reference
+fn is_on(value: &bool) -> bool {
+    *value
+}
+
+fn on() -> bool {
+    true
 }
 
 /// The whole installed map.
@@ -196,4 +312,55 @@ fn home_dir() -> Option<PathBuf> {
         .or_else(|| std::env::var_os("USERPROFILE"))
         .filter(|home| !home.is_empty())
         .map(PathBuf::from)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A map written before Settings → Agents could turn agents off has no
+    /// `enabled` key, and every agent in it was on.
+    #[test]
+    fn an_entry_that_never_said_is_on() {
+        let entry: AgentServerSettings =
+            serde_json::from_value(serde_json::json!({ "type": "registry" })).unwrap();
+        assert!(entry.enabled());
+        assert_eq!(entry.display_name(), None);
+        assert!(entry.args().is_empty());
+        assert!(entry.hidden_models().is_empty());
+    }
+
+    /// Defaults stay out of the file, so an untouched install still writes
+    /// `{ "type": "registry" }` and a hand edit stays readable.
+    #[test]
+    fn defaults_are_not_written() {
+        let json = serde_json::to_value(AgentServerSettings::registry()).unwrap();
+        assert_eq!(json, serde_json::json!({ "type": "registry" }));
+    }
+
+    #[test]
+    fn what_the_user_set_round_trips() {
+        let mut entry = AgentServerSettings::custom("/opt/agent", vec!["--acp".into()]);
+        {
+            let user = entry.user_settings_mut();
+            *user.enabled = false;
+            *user.display_name = Some("Work agent".into());
+            user.hidden_models.push("old-model".into());
+            user.env.insert("REGION".into(), "eu".into());
+        }
+        let json = serde_json::to_value(&entry).unwrap();
+        assert_eq!(json["enabled"], false);
+        assert_eq!(json["display_name"], "Work agent");
+        let back: AgentServerSettings = serde_json::from_value(json).unwrap();
+        assert_eq!(back, entry);
+    }
+
+    #[test]
+    fn a_registry_entry_has_no_command_to_edit() {
+        let mut entry = AgentServerSettings::registry();
+        let user = entry.user_settings_mut();
+        assert!(user.command.is_none());
+        user.args.push("--fast".into());
+        assert_eq!(entry.args(), ["--fast"]);
+    }
 }

@@ -39,6 +39,19 @@ export interface AgentLoginSpec {
   args: string[];
 }
 
+/** How the user set an external agent to launch: its entry in the installed
+ *  agents map. The registry decides the rest. */
+export interface AgentLaunch {
+  /** The executable, for an agent the user added by hand or from their PATH.
+   *  `null` for a registry install, whose command the registry index names. */
+  command: string | null;
+  /** Arguments after the command. For a registry install, appended to the
+   *  ones the registry gives. */
+  args: string[];
+  /** Extra environment for the agent's process, over the inherited one. */
+  env: Record<string, string>;
+}
+
 export interface AgentCatalogEntry {
   /** Plugin/spec id — what every agent command takes. */
   id: string;
@@ -70,6 +83,15 @@ export interface AgentCatalogEntry {
   supportsModes: boolean;
   supportsModels: boolean;
   transcript: AgentTranscript;
+  /** Off: still listed in Settings, but out of the agent picker and never
+   *  started. Always true for the native agent. */
+  enabled: boolean;
+  /** The user's name for it, shown in place of `name`. */
+  displayName: string | null;
+  /** `null` for the native agent, which runs in-process. */
+  launch: AgentLaunch | null;
+  /** Model ids the user hid from the model picker. */
+  hiddenModels: string[];
   login: AgentLoginSpec | null;
   iconDataUrl: string | null;
   helpUrl: string | null;

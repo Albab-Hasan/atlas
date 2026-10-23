@@ -44,6 +44,7 @@ import {
 } from "@/features/keybindings/lib/use-scoped-hotkeys";
 import { useKeybindingsStore } from "@/features/keybindings/stores/keybindings-store";
 import { cn } from "@/lib/utils";
+import { catalogEntry } from "@/features/agents/lib/agent-meta";
 import { Button } from "@/ui/button";
 import { Kbd } from "@/ui/kbd";
 import { Hint } from "@/ui/tooltip";
@@ -140,9 +141,13 @@ function agentEntries(
   legacyOpen: boolean,
 ): Entry[] {
   const isFav = (m: SessionModeInfo) => favorites.has(favoriteKey(agent.agentType, m.id));
-  const pinned = agent.models.filter(isFav);
-  const rest = agent.models.filter((m) => !isFav(m) && !m.legacy);
-  const legacy = agent.models.filter((m) => !isFav(m) && m.legacy);
+  // Hidden in Settings → Agents. A starred model stays: starring is the later,
+  // more specific ask.
+  const hidden = new Set(catalogEntry(agent.agentType)?.hiddenModels);
+  const models = agent.models.filter((m) => !hidden.has(m.id) || isFav(m));
+  const pinned = models.filter(isFav);
+  const rest = models.filter((m) => !isFav(m) && !m.legacy);
+  const legacy = models.filter((m) => !isFav(m) && m.legacy);
 
   const out: Entry[] = [];
   const pinnedSection: Section = { key: "pinned", label: "Pinned", mark: { kind: "pin" } };

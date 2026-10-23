@@ -1,23 +1,14 @@
 // The settings on the Agents page that are registry keys: Atlas Agent's
-// permissions and starred models in its editor, and the ones that apply to
-// every agent under the card.
+// permissions in its editor, and the ones that apply to every agent under
+// the card.
 
 import { useEffect } from "react";
 import { toast } from "sonner";
-import { Star } from "lucide-react";
 import { Button } from "@/ui/button";
-import { IconButton } from "@/ui/icon-button";
-import { Hint } from "@/ui/tooltip";
-import { useModelFavorites } from "@/features/chat/lib/model-favorites";
 import { useSettingsStore } from "../../stores/settings-store";
 import { useModelPricingStore } from "../../stores/model-pricing-store";
 import { SettingSwitch } from "../layout/setting-controls";
-import {
-  SettingsGroup,
-  SettingsNote,
-  SettingsRow,
-  SettingsSection,
-} from "../layout/settings-layout";
+import { SettingsGroup, SettingsRow, SettingsSection } from "../layout/settings-layout";
 
 /** In Atlas Agent's editor: what it may do beyond chatting. */
 export function AtlasAgentPermissions() {
@@ -37,44 +28,6 @@ export function AtlasAgentPermissions() {
           description="In a cloud-bound project, read your organization's sessions, comments and conversations, and act there as you. Anything that reaches another person asks first."
           control={<SettingSwitch setting="agentOrgAccess" />}
         />
-      </SettingsGroup>
-    </SettingsSection>
-  );
-}
-
-/** In an agent's editor: the models starred for it in the composer's picker. */
-export function StarredModels({ agentType }: { agentType: string }) {
-  const { favorites, toggle } = useModelFavorites();
-  const prefix = `${agentType}:`;
-  const starred = [...favorites]
-    .filter((key) => key.startsWith(prefix))
-    .map((key) => key.slice(prefix.length));
-  return (
-    <SettingsSection
-      title="Models"
-      description="Starred in the composer's model picker, which opens on them."
-    >
-      <SettingsGroup>
-        {starred.length === 0 ? (
-          <SettingsNote>None starred. Star a model in the composer's model picker.</SettingsNote>
-        ) : (
-          starred.map((model) => (
-            <SettingsRow
-              key={model}
-              title={<span className="font-mono">{model}</span>}
-              control={
-                <Hint label="Unstar">
-                  <IconButton
-                    icon={Star}
-                    size="sm"
-                    label={`Unstar ${model}`}
-                    onClick={() => toggle(agentType, model)}
-                  />
-                </Hint>
-              }
-            />
-          ))
-        )}
       </SettingsGroup>
     </SettingsSection>
   );

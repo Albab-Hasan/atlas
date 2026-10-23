@@ -47,6 +47,7 @@ import type {
   ToolInfo,
 } from "@/features/skills/lib/types";
 import type { AgentCatalog, AgentCatalogEntry } from "@/types/agent-catalog";
+import type { AgentConfigPatch } from "@/features/agents/lib/agent-config-api";
 import type { TypedHandlers, Unit, Unread } from "../types";
 import { MOCK_PROJECT } from "../project";
 
@@ -1029,6 +1030,10 @@ let catalog: AgentCatalogEntry[] = [
     supportsModes: true,
     supportsModels: true,
     transcript: "native",
+    enabled: true,
+    displayName: null,
+    launch: null,
+    hiddenModels: [],
     login: null,
     authKinds: ["env_var"],
     supportsLogout: false,
@@ -1058,6 +1063,10 @@ let catalog: AgentCatalogEntry[] = [
     supportsModes: true,
     supportsModels: true,
     transcript: "none",
+    enabled: true,
+    displayName: null,
+    launch: { command: null, args: ["--verbose"], env: { CLAUDE_CODE_MAX_OUTPUT_TOKENS: "32000" } },
+    hiddenModels: [],
     login: { program: "claude", args: ["setup-token"] },
     authKinds: ["agent", "terminal"],
     supportsLogout: true,
@@ -1087,6 +1096,10 @@ let catalog: AgentCatalogEntry[] = [
     supportsModes: false,
     supportsModels: true,
     transcript: "none",
+    enabled: true,
+    displayName: null,
+    launch: { command: null, args: [], env: {} },
+    hiddenModels: [],
     login: null,
     authKinds: [],
     supportsLogout: false,
@@ -1116,6 +1129,10 @@ let catalog: AgentCatalogEntry[] = [
     supportsModes: false,
     supportsModels: false,
     transcript: "none",
+    enabled: true,
+    displayName: null,
+    launch: { command: "/opt/homebrew/bin/codex-acp", args: [], env: {} },
+    hiddenModels: [],
     login: null,
     authKinds: [],
     supportsLogout: false,
@@ -1145,6 +1162,14 @@ let catalog: AgentCatalogEntry[] = [
     supportsModes: false,
     supportsModels: false,
     transcript: "none",
+    enabled: true,
+    displayName: null,
+    launch: {
+      command: "/usr/local/bin/acme-agent",
+      args: ["--acp"],
+      env: { ACME_REGION: "eu-west-1" },
+    },
+    hiddenModels: [],
     login: null,
     authKinds: ["env_var"],
     supportsLogout: false,
@@ -1174,6 +1199,10 @@ let catalog: AgentCatalogEntry[] = [
     supportsModes: false,
     supportsModels: false,
     transcript: "none",
+    enabled: true,
+    displayName: null,
+    launch: { command: null, args: [], env: {} },
+    hiddenModels: [],
     login: null,
     authKinds: [],
     supportsLogout: false,
@@ -1226,6 +1255,10 @@ function catalogFromRegistry(
     supportsModes: false,
     supportsModels: false,
     transcript: "none",
+    enabled: true,
+    displayName: null,
+    launch: { command: null, args: [], env: {} },
+    hiddenModels: [],
     login: null,
     // Empty until the agent has connected once: capabilities only exist after
     // the handshake, and a fresh install has never handshaken.
@@ -1242,6 +1275,26 @@ function catalogFromRegistry(
     unverified: entry.unverified,
     unsupportedReason: entry.unsupportedReason,
   };
+}
+
+/** `agents_configure`'s write, on a catalog entry. Shared with the Northwind
+ *  scenario, which keeps a catalog of its own. */
+export function applyAgentConfig(entry: AgentCatalogEntry, p: AgentConfigPatch): AgentCatalogEntry {
+  if (p.enabled !== undefined) {
+    if (entry.kind === "native" && !p.enabled) throw new Error("Atlas Agent can't be turned off");
+    entry.enabled = p.enabled;
+  }
+  if (p.displayName !== undefined) entry.displayName = p.displayName?.trim() || null;
+  if (p.hiddenModels !== undefined) entry.hiddenModels = p.hiddenModels;
+  if (p.launch !== undefined) {
+    if (!entry.launch) throw new Error(`${entry.name} runs in-process; it has no launch settings`);
+    if (p.launch.command !== undefined && entry.launch.command === null && p.launch.command) {
+      throw new Error(`${entry.name}'s command comes from the registry`);
+    }
+    entry.launch = { ...entry.launch, ...p.launch };
+    if (p.launch.command) entry.resolvedPath = p.launch.command;
+  }
+  return entry;
 }
 
 // ── Handlers ────────────────────────────────────────────────────────────────
@@ -1285,6 +1338,7 @@ export interface SkillsResponses {
   acp_registry_update: Unit;
   agents_catalog: AgentCatalog;
   agents_catalog_refresh: AgentCatalog;
+  agents_configure: AgentCatalogEntry;
 }
 
 export const skillsHandlers: TypedHandlers<SkillsResponses> = {
@@ -1619,6 +1673,7 @@ export const skillsHandlers: TypedHandlers<SkillsResponses> = {
       existing.installed = true;
       existing.source = "installed";
       existing.resolvedPath = found;
+      existing.launch = { command: found, args: [], env: {} };
     }
     return null;
   },
@@ -1655,4 +1710,11 @@ export const skillsHandlers: TypedHandlers<SkillsResponses> = {
     lastDiscoveredAt: new Date().toISOString(),
     lastError: null,
   }),
+  /** What the real command writes to the installed map (or, for the native
+   *  agent, Atlas's own config), applied to the catalog entry it answers. */
+  agents_configure: ({ agentId, patch }): AgentCatalogEntry => {
+    const entry = catalogEntryFor(String(agentId));
+    if (!entry) throw new Error(`'${String(agentId)}' is not an agent Atlas knows`);
+    return applyAgentConfig(entry, patch as AgentConfigPatch);
+  },
 };

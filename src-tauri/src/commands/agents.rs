@@ -2329,7 +2329,7 @@ mod cmd_error_tests {
     fn a_missing_agent_is_fatal_rather_than_auth() {
         let v = wire(
             HostError::new(
-                "some-agent is not installed. Install it from the Agent Marketplace.",
+                "some-agent is not installed. Add it in Settings → Agents.",
                 ErrorClass::Fatal,
             )
             .into(),

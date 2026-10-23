@@ -25,6 +25,7 @@ import {
   useAgentRegistryStore,
 } from "@/features/agents/stores/agent-registry-store";
 import { updateAgent } from "@/features/agents/lib/agent-update";
+import { agentConfig, type AgentConfigPatch } from "@/features/agents/lib/agent-config-api";
 import { useRemoveAgentConfirmStore } from "@/features/agents/lib/remove-agent-confirm";
 import type { AgentCatalogEntry } from "@/types/agent-catalog";
 
@@ -288,4 +289,61 @@ export function useAgentListing() {
     const { registryEntries, catalogById } = useAgentRegistryStore.getState();
     return { registryEntries, catalogById, signature };
   }, [signature]);
+}
+
+// ── Configuring an agent ─────────────────────────────────────────────────────
+
+/** Write one agent's settings, then re-read the catalog so every surface (the
+ *  picker, labels, this page) sees it. Resolves false when it failed, after
+ *  saying so. */
+export async function configureAgent(
+  item: { id: string; name: string },
+  patch: AgentConfigPatch,
+): Promise<boolean> {
+  try {
+    await agentConfig.configure(item.id, patch);
+    return true;
+  } catch (e) {
+    toast.error(`Couldn't save ${item.name}'s settings: ${String(e)}`);
+    return false;
+  } finally {
+    await hydrateAgentRegistry();
+  }
+}
+
+/** Split an arguments field the way a shell would split simple input:
+ *  whitespace separates, and single or double quotes keep a space inside one
+ *  argument. No escapes or expansion: this is a list, not a script. */
+export function parseArgs(text: string): string[] {
+  const args: string[] = [];
+  let current = "";
+  let quote: string | null = null;
+  let started = false;
+  for (const ch of text) {
+    if (quote) {
+      if (ch === quote) quote = null;
+      else current += ch;
+    } else if (ch === '"' || ch === "'") {
+      quote = ch;
+      started = true;
+    } else if (/\s/.test(ch)) {
+      if (started) args.push(current);
+      current = "";
+      started = false;
+    } else {
+      current += ch;
+      started = true;
+    }
+  }
+  if (started) args.push(current);
+  return args;
+}
+
+/** The inverse of [`parseArgs`]: one line, quoting what needs it. */
+export function formatArgs(args: string[]): string {
+  return args
+    .map((arg) =>
+      arg === "" || /[\s"']/.test(arg) ? (arg.includes('"') ? `'${arg}'` : `"${arg}"`) : arg,
+    )
+    .join(" ");
 }

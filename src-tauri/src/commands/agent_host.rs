@@ -686,6 +686,11 @@ impl AgentHost {
         &self.registry
     }
 
+    /// Atlas's config directory, where the native agent's own settings live.
+    pub fn config_dir(&self) -> &Path {
+        &self.config_dir
+    }
+
     // `native_sessions` and `native_delete_session` are gone with the previous native
     // runtime that owned those files (#54). They read a second, engine-private
     // session store; the engine keeps its own under a different shape,
@@ -758,7 +763,19 @@ impl AgentHost {
         let id = atlas_acp_thread::AgentId::new(plugin_id);
         if self.store.entry(&id).is_none() {
             return Err(HostError::new(
-                format!("{plugin_id} is not installed. Install it from the Agent Marketplace."),
+                format!("{plugin_id} is not installed. Add it in Settings → Agents."),
+                ErrorClass::Fatal,
+            ));
+        }
+        // Turned off in Settings → Agents: still installed, never started.
+        if self
+            .store
+            .settings()
+            .get(plugin_id)
+            .is_some_and(|entry| !entry.enabled())
+        {
+            return Err(HostError::new(
+                format!("{plugin_id} is turned off. Turn it on in Settings → Agents."),
                 ErrorClass::Fatal,
             ));
         }

@@ -834,6 +834,7 @@ pub fn run() {
             // release so a stale frontend keeps working.
             commands::catalog::agents_catalog,
             commands::catalog::agents_catalog_refresh,
+            commands::agent_config::agents_configure,
             commands::agents::agents_list_running,
             commands::agents::agents_spawn,
             commands::agents::agents_kill,

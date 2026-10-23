@@ -68,11 +68,13 @@ import type {
 import type { DailyBucket, SessionRow, UsageDashboard } from "@/features/usage/types";
 import type { UpdaterSnapshot, UpdateStatus } from "@/features/updater/lib/updater-api";
 import type { AgentCatalog, AgentCatalogEntry } from "@/types/agent-catalog";
+import type { AgentConfigPatch } from "@/features/agents/lib/agent-config-api";
 import type { NativeModelsRefresh } from "@/types/agents";
 import type { MockHandlers, MockResponses, TypedHandlers } from "../types";
 import type { AgentKey, MemoryContent } from "./northwind-content-types";
 import { adoptSession } from "../fake-agent";
 import { NORTHWIND_FILES } from "../fixtures/northwind-repo";
+import { applyAgentConfig } from "../fixtures/skills";
 import { CONTENT } from "./northwind-content";
 import { transcriptOf } from "./northwind-agent";
 import { NORTHWIND_NATIVE_MODELS } from "./northwind-models";
@@ -635,6 +637,10 @@ const catalogEntry = (
   supportsModes: false,
   supportsModels: false,
   transcript: "none",
+  enabled: true,
+  displayName: null,
+  launch: { command: null, args: [], env: {} },
+  hiddenModels: [],
   login: null,
   authKinds: [],
   supportsLogout: false,
@@ -664,6 +670,10 @@ let catalog: AgentCatalogEntry[] = [
     supportsModes: true,
     supportsModels: true,
     transcript: "native",
+    enabled: true,
+    displayName: null,
+    launch: null,
+    hiddenModels: [],
     authKinds: ["env_var"],
     supportsRewind: true,
   }),
@@ -1406,6 +1416,11 @@ export const northwindMiscCommands: Partial<TypedHandlers<MockResponses>> = {
   acp_registry_update: (): null => null,
   agents_catalog: agentCatalog,
   agents_catalog_refresh: agentCatalog,
+  agents_configure: ({ agentId, patch }): AgentCatalogEntry => {
+    const entry = catalog.find((candidate) => candidate.id === String(agentId));
+    if (!entry) throw new Error(`'${String(agentId)}' is not an agent Atlas knows`);
+    return applyAgentConfig(entry, patch as AgentConfigPatch);
+  },
 
   // ── memory ─────────────────────────────────────────────────────────────
   memory_embed_status: (): EmbedStatus => ({
