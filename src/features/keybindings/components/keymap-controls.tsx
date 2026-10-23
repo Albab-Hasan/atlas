@@ -22,7 +22,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/ui/dropdown-menu";
-import { openKeybindingsFile } from "../lib/keybindings-api";
 import { PRESETS, type PresetId } from "../lib/presets";
 import { exportProfile } from "../lib/profile-transfer";
 import { useKeybindingsStore } from "../stores/keybindings-store";
@@ -138,9 +137,6 @@ export function ProfileControls() {
             Copy as JSON
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setImporting(true)}>Import a profile…</DropdownMenuItem>
-          <DropdownMenuItem onClick={() => void openKeybindingsFile()}>
-            Open keybindings.json
-          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
             disabled={locked || changes === 0}

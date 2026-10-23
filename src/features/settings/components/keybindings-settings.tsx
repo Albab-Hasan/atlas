@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Keyboard, Search, X } from "lucide-react";
+import { AlertTriangle, FileJson, Keyboard, Plus, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/ui/button";
 import { Icon } from "@/ui/icon";
 import { IconButton } from "@/ui/icon-button";
 import { KbdKeys } from "@/ui/kbd";
@@ -28,6 +29,8 @@ import {
   copyRow,
 } from "@/features/keybindings/components/keybinding-row";
 import { KeymapSelect, ProfileControls } from "@/features/keybindings/components/keymap-controls";
+import { NewKeybindingRow } from "@/features/keybindings/components/new-keybinding-row";
+import { openKeybindingsFile } from "@/features/keybindings/lib/keybindings-api";
 import {
   SettingsGroup,
   SettingsNote,
@@ -55,6 +58,7 @@ export function KeybindingsSettings() {
   const [filter, setFilter] = useState<RowFilter>("all");
   const [selectedId, setSelectedId] = useState<ActionId | null>(null);
   const [recording, setRecording] = useState<{ id: ActionId; which: Recording } | null>(null);
+  const [adding, setAdding] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
 
@@ -184,6 +188,19 @@ export function KeybindingsSettings() {
               ]}
             />
           )}
+          <Button variant="outline" disabled={adding} onClick={() => setAdding(true)}>
+            <Icon icon={Plus} size="xs" />
+            Add keybinding
+          </Button>
+          <Hint label="Open keybindings.json">
+            <IconButton
+              icon={FileJson}
+              variant="outline"
+              size="md"
+              label="Open keybindings.json"
+              onClick={() => void openKeybindingsFile()}
+            />
+          </Hint>
         </div>
 
         {warnings.length > 0 && (
@@ -205,6 +222,21 @@ export function KeybindingsSettings() {
           onKeyDown={onListKeyDown}
           className="group/list flex flex-col gap-8 outline-none"
         >
+          {adding && (
+            <SettingsGroup>
+              <NewKeybindingRow
+                onDone={(saved) => {
+                  setAdding(false);
+                  if (!saved) return;
+                  // Show where it landed.
+                  setFilter("all");
+                  setQuery("");
+                  setPressing(false);
+                  setSelectedId(saved);
+                }}
+              />
+            </SettingsGroup>
+          )}
           {groups.length === 0 && (
             <SettingsGroup>
               <SettingsNote>{emptyHint}</SettingsNote>

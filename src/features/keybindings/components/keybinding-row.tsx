@@ -28,6 +28,8 @@ import { WHEN_PHRASES, type KeybindingRow as Row, rowClash } from "../lib/keybin
 import { reservedReason } from "../lib/reserved";
 import { bindingsForCombo, type Conflict } from "../lib/resolve";
 import { useKeybindingsStore } from "../stores/keybindings-store";
+import { defaultWhenExpression, neverMatches, parseWhen, whenToExpression } from "../lib/when";
+import { WhenClauseControl } from "./when-clause-control";
 
 /** Which of a row's shortcuts is being recorded: an index into its bindings,
  *  or "add" for a new one next to them. */
@@ -57,10 +59,16 @@ export function KeybindingRow({
   onRecord: (which: Recording | null) => void;
   onShowSame: (combo: Combo) => void;
 }) {
-  const { resetBinding, removeBinding } = useKeybindingsStore.use.actions();
+  const { resetBinding, removeBinding, setWhen } = useKeybindingsStore.use.actions();
   const clash = rowClash(row, conflicts);
   const phrase = WHEN_PHRASES[row.def.when];
   const first = row.bindings[0]?.combo ?? null;
+  const whenAst = parseWhen(row.whenExpr) ?? undefined;
+  const whenWarning = neverMatches(whenAst, row.def.when)
+    ? phrase
+      ? `This shortcut only runs ${phrase.toLowerCase()}, and this condition is never true there.`
+      : "This condition is never true, so the shortcut never runs."
+    : null;
 
   return (
     <ContextMenu onOpenChange={(open) => open && onSelect()}>
@@ -99,7 +107,25 @@ export function KeybindingRow({
                     </Hint>
                   )}
                 </div>
-                {phrase && <p className="text-xs text-muted-foreground">{phrase}</p>}
+                <WhenClauseControl
+                  label={row.def.title}
+                  expression={row.whenExpr}
+                  value={whenAst}
+                  warning={whenWarning}
+                  scope={phrase}
+                  onChange={(next) => {
+                    const expression = whenToExpression(next);
+                    const own = whenToExpression(
+                      parseWhen(defaultWhenExpression(row.def.when)) ?? undefined,
+                    );
+                    setWhen(row.id, expression === own ? null : expression);
+                  }}
+                />
+                {row.invalidWhen && (
+                  <p className="text-xs text-error">
+                    Not understood in keybindings.json: {row.invalidWhen}
+                  </p>
+                )}
                 {row.invalid.length > 0 && (
                   <p className="text-xs text-error">
                     Not understood in keybindings.json: {row.invalid.join(", ")}
@@ -255,7 +281,7 @@ function ShortcutCapture({
   replace?: string;
   onDone: () => void;
 }) {
-  const { setRecording, setBinding, addBinding, removeBinding, resetBinding } =
+  const { setRecording, setBinding, addBinding, removeBinding, resetChords } =
     useKeybindingsStore.use.actions();
   const [held, setHeld] = useState<string[]>([]);
   const ref = useRef<HTMLSpanElement>(null);
@@ -313,7 +339,7 @@ function ShortcutCapture({
     const def = ACTION_BY_ID[actionId];
     const undo = {
       label: "Undo",
-      onClick: () => (wasChanged ? setBinding(actionId, previous) : resetBinding(actionId)),
+      onClick: () => (wasChanged ? setBinding(actionId, previous) : resetChords(actionId)),
     };
     const reserved = reservedReason(combo);
     if (reserved) {
@@ -328,8 +354,9 @@ function ShortcutCapture({
       combo,
       actionId,
     ).filter((b) => b.when === def.when || b.when === "global" || def.when === "global");
+    const ownWhen = useKeybindingsStore.getState().resolved.perAction.get(actionId)?.whenExpr;
     if (others.length) {
-      const sameContext = others.some((b) => b.when === def.when);
+      const sameContext = others.some((b) => b.whenExpr === ownWhen);
       const more = others.length > 1 ? ` (and ${others.length - 1} more)` : "";
       toast.warning(
         `${displayLabel(combo)} is also ${ACTION_BY_ID[others[0]!.actionId].title}${more}`,

@@ -191,6 +191,7 @@ export function TerminalPanel({ tabId, projectId }: TerminalPanelProps) {
     <div className="h-full min-h-0 bg-[var(--card)]" style={{ padding: CARD_INSET }}>
       <div
         ref={rootRef}
+        data-when-scope="terminalFocus"
         className="relative h-full min-h-0 overflow-hidden rounded-lg bg-[var(--atlas-terminal-background)] shadow-lg ring-1 ring-[var(--border)]"
       >
         {zoomed ? (
