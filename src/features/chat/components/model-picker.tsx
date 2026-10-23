@@ -529,6 +529,7 @@ export function ModelPicker({
     // app's own background, its edge carried by a hairline ring and a shadow.
     <div
       ref={rootRef}
+      data-when-scope="modelPickerOpen"
       className={cn("flex h-110 bg-foreground/[6.3%] py-1.5 pr-1.5", !showRail && "pl-1.5")}
     >
       {showRail && (

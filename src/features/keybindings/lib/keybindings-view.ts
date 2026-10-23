@@ -22,6 +22,9 @@ export interface KeybindingRow {
   /** The active profile overrides this action — what the reset button undoes. */
   changed: boolean;
   invalid: string[];
+  /** The condition it fires under ("" = always), as the editor shows it. */
+  whenExpr: string;
+  invalidWhen: string | null;
 }
 
 export interface RowGroup {
@@ -53,8 +56,10 @@ export function buildRows(resolved: ResolvedState): KeybindingRow[] {
       def,
       id,
       bindings: resolved.byAction.get(id) ?? [],
-      changed: state?.overridden ?? false,
+      changed: (state?.overridden || state?.whenOverridden) ?? false,
       invalid: state?.invalid ?? [],
+      whenExpr: state?.whenExpr ?? "",
+      invalidWhen: state?.invalidWhen ?? null,
     };
   });
 }
@@ -75,10 +80,11 @@ export function rowClash(
       .filter((o) => o.actionId !== row.id)
       .map((o) => ({ other: o, combo: b.combo })),
   );
-  const hard = others.filter(({ other }) => other.when === row.def.when);
+  const own = row.whenExpr;
+  const hard = others.filter(({ other }) => other.whenExpr === own);
   const soft = others.filter(
     ({ other }) =>
-      other.when !== row.def.when &&
+      other.whenExpr !== own &&
       (row.changed ||
         row.bindings.some((b) => b.source !== "default") ||
         other.source !== "default"),
@@ -121,6 +127,7 @@ export function filterRows(
       r.id,
       r.def.category,
       WHEN_PHRASES[r.def.when],
+      r.whenExpr,
       ...r.bindings.flatMap((b) => [b.serialized, displayLabel(b.combo)]),
     ]
       .join(" ")

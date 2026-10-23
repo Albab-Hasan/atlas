@@ -20,6 +20,10 @@ with a warning and an Undo. Search takes a name or a shortcut written out
 (`cmd k`, `cmd+shift+p`); the keyboard button in the field searches by pressing
 the shortcut instead.
 
+**Add keybinding**, beside the search, adds a row where you pick a command,
+press its shortcut, optionally set its condition, and Save; the page then
+scrolls to that command.
+
 ## Presets and the first-run question
 
 A profile can be **based on** another editor's keys: `vscode`, `cursor`,
@@ -43,7 +47,7 @@ profile's preset later with **Keys from** in Settings → Keybindings.
 
 A sibling of `config.toml`, for the same reason: it is a document you may edit
 by hand. Atlas re-reads it whenever the window regains focus, so edits land
-without a relaunch. "Open keybindings.json" in the editor's toolbar opens it.
+without a relaunch. The file button beside **Add keybinding** opens it.
 
 ## Format
 
@@ -95,17 +99,66 @@ macOS every modifier must match exactly, so `cmd+b` does not fire on ⌃B. Off
 macOS `cmd+x` and `ctrl+x` are the same key; the editor treats two commands
 bound that way as conflicting. `cmd+ctrl+x` means Ctrl+Super/Win there.
 
-### When contexts
+### When conditions
 
-Most actions are global. Some only fire while a surface has focus — for a
-surface that lives in a tab, while that tab is the active tab of the focused
-split — and the editor says where under the command's title ("In the terminal").
-Their ids are `terminalFocus`, `chatFocus`, `knowledgePanel`, `knowledgeFocus`,
-`pdfFocus`, `canvasFocus`, `modelPicker`. Scoped actions
-may share a chord with a global one (the terminal's ⌘W shadows close-tab while
-the terminal is focused); the editor flags that amber only once a profile or keymap has changed one side. Two actions in the
-_same_ context sharing a chord is a real conflict (red): the first in registry
-order wins.
+Every action fires under a **when** condition, shown under its title in the
+editor ("When Always", "When terminalFocus"). Click it to edit: type an
+expression, or build it with **+ Add** (a condition, or a group joined by
+and / or), flip **Not**, and pick the variable. An action set to Always offers
+one-click picks such as "Not in the terminal". A valid expression saves as you
+type, like every other setting.
+
+A condition belongs to the action, not to one of its chords: every shortcut an
+action has fires under the same condition. The parser and evaluator are `src/features/keybindings/lib/when.ts`.
+
+An expression joins variables with `!`, `&&`, `||` and parentheses; `!` binds
+tightest and `||` loosest. Empty means always.
+
+| variable                        | true while                                            |
+| ------------------------------- | ----------------------------------------------------- |
+| `terminalFocus`                 | the terminal has the keyboard                         |
+| `chatFocus`                     | the focused split's active tab is a chat              |
+| `editorFocus`                   | … is the code editor                                  |
+| `knowledgeFocus`                | … is Knowledge                                        |
+| `pdfFocus`                      | … is a PDF                                            |
+| `canvasFocus`                   | … is a canvas or a space                              |
+| `browserFocus`                  | … is the browser                                      |
+| `inputFocus`                    | a text field, text area or rich-text editor has focus |
+| `knowledgeOpen`                 | the focused split's active tab is Knowledge           |
+| `modelPickerOpen`               | the composer's model picker has focus                 |
+| `isMac`, `isWindows`, `isLinux` | Atlas is running on that system                       |
+| `true`, `false`                 | always / never                                        |
+
+At most one of the `…Focus` variables is true at a time. A variable Atlas
+doesn't provide is always false, and the editor marks it.
+
+Most actions default to always. Some only exist inside one panel — terminal
+find, saving in Knowledge — and default to that panel's variable. Their
+handler lives in that panel, so a condition can only **narrow** where they
+fire: `terminalFocus && !inputFocus` works; `chatFocus` on terminal find
+means it never fires, and the editor warns. Global actions take any
+condition: `!terminalFocus` on the command palette keeps ⌘K from opening it
+while the terminal has focus.
+
+Scoped actions may share a chord with a global one (the terminal's ⌘W shadows
+close-tab while the terminal is focused); the editor flags that amber only once
+a profile or keymap has changed one side. Two actions under the _same_
+condition sharing a chord is a real conflict (red): the first in registry order
+wins.
+
+A profile stores conditions it changed under `when`, beside `bindings`:
+
+```json
+{
+  "id": "profile-abc",
+  "name": "My keybindings",
+  "bindings": {},
+  "when": { "nav.commandPalette": "!terminalFocus" }
+}
+```
+
+An absent key keeps the action's own condition; `""` means always. Reset to
+default clears both the chords and the condition.
 
 ## Sharing a profile
 
@@ -121,8 +174,8 @@ active profile in a stable, versioned form:
 }
 ```
 
-It carries the preset and the overrides, never the resolved chords, so the
-recipient stays on Atlas's moving defaults for everything else. **Import a
+It carries the preset, the overrides and any `when` conditions, never the
+resolved chords, so the recipient stays on Atlas's moving defaults for everything else. **Import a
 profile…** takes that JSON and adds it as a new, active profile. A newer
 `atlasKeybindings` version is rejected; commands and presets this Atlas
 doesn't know are kept.
@@ -145,7 +198,8 @@ without one.
 
 Atlas checks the file's shape when loading and before every save: unique
 profile ids, non-empty names, a present and empty `default` profile, an
-`activeProfileId` that exists, and syntactically valid chords. A file that
+`activeProfileId` that exists, and syntactically valid chords and `when`
+expressions. A file that
 fails to parse is **left untouched** — Atlas runs on the Default profile and
 shows the error at the top of Settings → Keybindings. Action ids Atlas doesn't
 recognise are preserved verbatim and listed under "Unknown commands".
