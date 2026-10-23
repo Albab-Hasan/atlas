@@ -1375,6 +1375,7 @@ export interface SkillsResponses {
   agents_catalog: AgentCatalog;
   agents_catalog_refresh: AgentCatalog;
   agents_configure: AgentCatalogEntry;
+  agents_open_config_file: string;
 }
 
 export const skillsHandlers: TypedHandlers<SkillsResponses> = {
@@ -1753,4 +1754,6 @@ export const skillsHandlers: TypedHandlers<SkillsResponses> = {
     if (!entry) throw new Error(`'${String(agentId)}' is not an agent Atlas knows`);
     return applyAgentConfig(entry, patch as AgentConfigPatch);
   },
+  /** The real command creates the file; the mock only expands `~`. */
+  agents_open_config_file: ({ path }): string => String(path).replace(/^~(?=\/|$)/, "/Users/dev"),
 };

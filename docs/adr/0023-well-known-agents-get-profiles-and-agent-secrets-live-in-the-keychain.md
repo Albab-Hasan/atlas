@@ -13,7 +13,9 @@
 ## Decision
 
 - **A profile is data, keyed by ACP registry id.** It lists named fields, each a view onto one environment variable or one key inside a JSON variable (Codex's `CODEX_CONFIG`). A profile never changes how Atlas starts or talks to an agent. An agent without a profile is configured through the same Variables list, and the Variables list hides the variables a profile's fields show. Profiles exist for the most-used agents: Claude, Codex, Gemini, GitHub Copilot, opencode and Cursor. Each field comes from that agent's official docs, checked against its adapter's source.
+- **A profile keeps to what the agent needs to start.** Sign-in, its binary and its home directory. It doesn't restate the agent's own config file. Instead it points at that file (Claude's `settings.json`, Codex's `config.toml`, Gemini's `.gemini/settings.json`, under whatever home the profile's directory variable names), and Atlas opens it as a tab, creating it empty first. Effort, compaction and proxies are set there, in the agent's own words. Codex's `CODEX_CONFIG` fields stay, because that variable is how its adapter takes settings.
 - A profile can also say that launch arguments do nothing for its agent, which hides that field.
+- **Defaults are inferred, not profiled.** The Defaults section offers the modes and config options the agent advertised over ACP in its last chat, for every agent alike. Its values are the per-agent picks the composer already remembers, so the last pick in a chat is the default, and changing it in either place changes both.
 - **A variable marked sensitive keeps only its name in the installed map.** Its value goes to the OS keychain: service `Atlas agent variables`, account `<agent id>/<NAME>`. The value is read when the agent starts, off the async runtime, and is never sent to the webview. Removing an agent deletes its entries. New variables start sensitive.
 - Provider keys stay in the shell profile. They are shared by every agent and by the user's other tools, which is a different job.
 
@@ -26,4 +28,5 @@
 ## Consequences
 
 - A profile can go stale when an agent renames a variable. The docs are cited at the top of the profiles file, so that is where to look first.
+- Defaults show nothing for an agent until it has run one chat, and they live in the webview's storage, not in the installed map.
 - On macOS, a debug build signed differently from the one that stored an item may prompt for keychain access.

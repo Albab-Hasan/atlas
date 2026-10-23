@@ -7,8 +7,10 @@
 // Variables list below them shows only what no field claims.
 
 import { useEffect, useRef, useState } from "react";
-import { Lock, LockOpen, Plus, X } from "lucide-react";
+import { FileText, Lock, LockOpen, Plus, X } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { openFileAs } from "@/lib/open-file";
 import { tildePath } from "@/lib/paths";
 import { Button } from "@/ui/button";
 import { Icon } from "@/ui/icon";
@@ -20,12 +22,15 @@ import { Switch } from "@/ui/switch";
 import { Hint } from "@/ui/tooltip";
 import {
   claimedVariables,
+  configFilePath,
   numberProblem,
   profileFor,
   readField,
   writeField,
+  type ConfigFile,
   type ProfileField,
 } from "@/features/agents/lib/agent-profiles";
+import { agentConfig } from "@/features/agents/lib/agent-config-api";
 import type { AgentVariable } from "@/types/agent-catalog";
 import { SettingsGroup, SettingsRow, SettingsSection } from "../layout/settings-layout";
 import {
@@ -209,6 +214,44 @@ export function SetupSection({ item }: { item: AgentItem }) {
 
 /** How Atlas starts it: the executable, the agent's own fields, and the
  *  arguments after the command. */
+/** The agent's own settings file, opened as a tab — where everything Atlas
+ *  doesn't restate as a field is set. Created empty the first time. */
+function ConfigFileRow({
+  item,
+  file,
+  variables,
+}: {
+  item: AgentItem;
+  file: ConfigFile;
+  variables: readonly AgentVariable[];
+}) {
+  const path = configFilePath(file, variables);
+  const name = file.name.split("/").pop() ?? file.name;
+  const open = async () => {
+    try {
+      openFileAs(await agentConfig.openConfigFile(path, file.empty), "text");
+    } catch (e) {
+      toast.error(`Couldn't open ${name}: ${String(e)}`);
+    }
+  };
+  return (
+    <SettingsRow
+      title={file.label}
+      description={
+        <>
+          Effort, compaction, proxies and the rest of {item.name}&apos;s own options, read when a
+          chat starts. <span className="font-mono break-all">{path}</span>
+        </>
+      }
+    >
+      <Button type="button" variant="outline" size="sm" onClick={() => void open()}>
+        <Icon icon={FileText} size="xs" />
+        Open {name}
+      </Button>
+    </SettingsRow>
+  );
+}
+
 export function RuntimeSection({ item }: { item: AgentItem }) {
   const catalog = item.catalog;
   if (item.state === "native") {
@@ -283,6 +326,9 @@ export function RuntimeSection({ item }: { item: AgentItem }) {
         {fields.map((field) => (
           <ProfileFieldRow key={field.label} item={item} field={field} />
         ))}
+        {profile?.configFile && (
+          <ConfigFileRow item={item} file={profile.configFile} variables={launch.variables} />
+        )}
         {profile?.launchArgs !== false && (
           <SettingsRow
             title="Launch arguments"

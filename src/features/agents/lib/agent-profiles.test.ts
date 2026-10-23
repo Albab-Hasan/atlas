@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { AgentVariable } from "@/types/agent-catalog";
 import {
   claimedVariables,
+  configFilePath,
   numberProblem,
   profileFor,
   readField,
@@ -71,11 +72,25 @@ describe("agent profiles", () => {
   });
 
   it("number fields check their range", () => {
-    const window = field("Auto-compact after");
+    const window: ProfileField = {
+      ...field("Auto-compact after", "codex-acp"),
+      kind: "number",
+      min: 100_000,
+      max: 1_000_000,
+    };
     expect(numberProblem(window, "")).toBeNull();
     expect(numberProblem(window, "300000")).toBeNull();
     expect(numberProblem(window, "50")).toMatch(/At least/);
     expect(numberProblem(window, "2000000")).toMatch(/At most/);
     expect(numberProblem(window, "1.5")).toMatch(/whole/);
+  });
+
+  it("a settings file follows the variable that moves the agent's home", () => {
+    const file = profileFor("claude-acp")!.configFile!;
+    expect(configFilePath(file, [])).toBe("~/.claude/settings.json");
+    expect(
+      configFilePath(file, [{ name: "CLAUDE_CONFIG_DIR", value: "/w/claude/", sensitive: false }]),
+    ).toBe("/w/claude/settings.json");
+    expect(configFilePath(profileFor("gemini")!.configFile!, [])).toBe("~/.gemini/settings.json");
   });
 });

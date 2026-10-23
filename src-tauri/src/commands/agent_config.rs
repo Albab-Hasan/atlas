@@ -342,6 +342,42 @@ pub async fn agents_configure(
     catalog::entry_for(&host, &agent_id).ok_or_else(|| format!("{agent_id} is not in the catalog"))
 }
 
+/// `~/…` against the home directory; anything else as given.
+fn expand_home(path: &str, home: Option<&Path>) -> PathBuf {
+    match (
+        path.strip_prefix("~/").or((path == "~").then_some("")),
+        home,
+    ) {
+        (Some(rest), Some(home)) => home.join(rest),
+        _ => PathBuf::from(path),
+    }
+}
+
+/// Where an agent's own config file is, made to exist so it can open as a
+/// tab: `empty` is written to it when it is missing, along with any missing
+/// folders. Settings → Agents uses it for "Open settings.json" and the like;
+/// what the file says is the agent's business, read by the agent at launch.
+#[tauri::command]
+pub async fn agents_open_config_file(path: String, empty: String) -> Result<String, String> {
+    let home = std::env::var_os("HOME").map(PathBuf::from);
+    let path = expand_home(path.trim(), home.as_deref());
+    if !path.is_absolute() {
+        return Err(format!("{} isn't an absolute path", path.display()));
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        if !path.exists() {
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            std::fs::write(&path, empty)?;
+        }
+        Ok::<_, std::io::Error>(path.display().to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| format!("opening the config file: {e}"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -562,6 +598,18 @@ mod tests {
             patch(serde_json::json!({ "launch": { "args": [] } })),
         )
         .is_err());
+    }
+
+    #[test]
+    fn a_config_path_expands_home_only_at_the_start() {
+        let home = Path::new("/home/u");
+        assert_eq!(
+            expand_home("~/.claude/settings.json", Some(home)),
+            home.join(".claude/settings.json")
+        );
+        assert_eq!(expand_home("~", Some(home)), home.join(""));
+        assert_eq!(expand_home("/etc/x", Some(home)), PathBuf::from("/etc/x"));
+        assert_eq!(expand_home("~/x", None), PathBuf::from("~/x"));
     }
 
     #[test]

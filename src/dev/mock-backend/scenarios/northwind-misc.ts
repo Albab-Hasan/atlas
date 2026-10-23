@@ -1425,6 +1425,8 @@ export const northwindMiscCommands: Partial<TypedHandlers<MockResponses>> = {
     if (!entry) throw new Error(`'${String(agentId)}' is not an agent Atlas knows`);
     return applyAgentConfig(entry, patch as AgentConfigPatch);
   },
+  /** The real command creates the file; the mock only expands `~`. */
+  agents_open_config_file: ({ path }): string => String(path).replace(/^~(?=\/|$)/, "/Users/dev"),
 
   // ── memory ─────────────────────────────────────────────────────────────
   memory_embed_status: (): EmbedStatus => ({

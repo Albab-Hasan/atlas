@@ -1,7 +1,7 @@
 // The right pane of Settings → Agents: one agent's settings, laid out as T3
 // Code's provider editor. A header with its name, version and Remove; its
-// display name over how it stands; then Setup, Runtime, Environment and
-// Models, and Atlas's own About at the end.
+// display name over how it stands; then Setup, Defaults, Runtime,
+// Environment and Models, and Atlas's own About at the end.
 
 import type { ReactNode } from "react";
 import { ArrowUpCircle, Globe, MoreHorizontal, Trash2 } from "lucide-react";
@@ -39,6 +39,7 @@ import {
   RuntimeSection,
   SetupSection,
 } from "./agent-config-sections";
+import { AgentDefaultsSection } from "./agent-defaults-section";
 import { AgentModelsSection } from "./agent-models-section";
 
 /** The version on this machine: what is installed, else what would install. */
@@ -80,6 +81,7 @@ export function AgentEditor({ item }: { item: AgentItem }) {
 
       <SetupSection item={item} />
       {item.state === "native" && <AtlasAgentPermissions />}
+      <AgentDefaultsSection key={item.id} item={item} />
       <RuntimeSection item={item} />
       <EnvironmentSection item={item} />
       <AgentModelsSection item={item} />

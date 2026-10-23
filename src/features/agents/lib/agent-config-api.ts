@@ -30,4 +30,8 @@ export interface AgentConfigPatch {
 export const agentConfig = {
   configure: (agentId: string, patch: AgentConfigPatch) =>
     invoke<AgentCatalogEntry>("agents_configure", { agentId, patch }),
+  /** The absolute path of an agent's own config file (`~` allowed), written
+   *  with `empty` first if it doesn't exist yet. */
+  openConfigFile: (path: string, empty: string) =>
+    invoke<string>("agents_open_config_file", { path, empty }),
 };

@@ -38,8 +38,24 @@ export type ProfileField = FieldBase &
     | { kind: "secret"; placeholder?: string }
   );
 
+/** The agent's own settings file, which Atlas opens rather than restates:
+ *  everything a profile leaves out (effort, compaction, proxies…) lives here. */
+export interface ConfigFile {
+  /** What the row is called, e.g. "Claude's settings". */
+  label: string;
+  /** The variable that moves the agent's home, when it's set. */
+  dirVar: string;
+  /** The home when `dirVar` isn't set. */
+  defaultDir: string;
+  /** The file, relative to the home. */
+  name: string;
+  /** Written to a file that doesn't exist yet. */
+  empty: string;
+}
+
 export interface AgentProfile {
   fields: ProfileField[];
+  configFile?: ConfigFile;
   /** False when the agent's ACP entry point ignores extra arguments, so the
    *  Launch arguments field would do nothing. */
   launchArgs: boolean;
@@ -55,6 +71,15 @@ const PROFILES: Record<string, AgentProfile> = {
     // The adapter reads only `--cli` and `--version`; everything else is env.
     launchArgs: false,
     customModelPlaceholder: "claude-sonnet-5",
+    // https://code.claude.com/docs/en/settings — the adapter loads user,
+    // project and local settings, so this file reaches every session.
+    configFile: {
+      label: "Claude's settings",
+      dirVar: "CLAUDE_CONFIG_DIR",
+      defaultDir: "~/.claude",
+      name: "settings.json",
+      empty: "{}\n",
+    },
     fields: [
       {
         section: "setup",
@@ -81,45 +106,6 @@ const PROFILES: Record<string, AgentProfile> = {
         target: env("CLAUDE_CONFIG_DIR"),
         placeholder: "~/.claude",
       },
-      {
-        section: "runtime",
-        kind: "number",
-        label: "Auto-compact after",
-        description:
-          "Compact after 100,000 to 1,000,000 tokens. Leave empty to use Claude's default.",
-        target: env("CLAUDE_CODE_AUTO_COMPACT_WINDOW"),
-        placeholder: "e.g. 300000",
-        min: 100_000,
-        max: 1_000_000,
-      },
-      {
-        section: "runtime",
-        kind: "select",
-        label: "Effort",
-        description: "Fixes the effort level, over the one picked in a chat.",
-        target: env("CLAUDE_CODE_EFFORT_LEVEL"),
-        options: ["low", "medium", "high", "xhigh", "max"].map((v) => ({
-          value: v,
-          label: cap(v),
-        })),
-      },
-      {
-        section: "runtime",
-        kind: "number",
-        label: "Max output tokens",
-        description: "The most one reply may write. Capped by each model's own limit.",
-        target: env("CLAUDE_CODE_MAX_OUTPUT_TOKENS"),
-        placeholder: "Model default",
-        min: 1,
-      },
-      {
-        section: "runtime",
-        kind: "text",
-        label: "API base URL",
-        description: "Send requests through a proxy or gateway.",
-        target: env("ANTHROPIC_BASE_URL"),
-        placeholder: "https://api.anthropic.com",
-      },
     ],
   },
   "codex-acp": {
@@ -127,6 +113,13 @@ const PROFILES: Record<string, AgentProfile> = {
     // travel as one JSON object in `CODEX_CONFIG`.
     launchArgs: false,
     customModelPlaceholder: "gpt-6-codex",
+    configFile: {
+      label: "Codex's config",
+      dirVar: "CODEX_HOME",
+      defaultDir: "~/.codex",
+      name: "config.toml",
+      empty: "",
+    },
     fields: [
       {
         section: "setup",
@@ -182,6 +175,13 @@ const PROFILES: Record<string, AgentProfile> = {
   gemini: {
     launchArgs: true,
     customModelPlaceholder: "gemini-3-pro",
+    configFile: {
+      label: "Gemini's settings",
+      dirVar: "GEMINI_CLI_HOME",
+      defaultDir: "~",
+      name: ".gemini/settings.json",
+      empty: "{}\n",
+    },
     fields: [
       {
         section: "setup",
@@ -307,6 +307,13 @@ function cap(word: string): string {
 /** The profile for an agent, or undefined for one Atlas has no fields for. */
 export function profileFor(agentId: string): AgentProfile | undefined {
   return PROFILES[agentId];
+}
+
+/** Where an agent's settings file is, given its variables: under the home
+ *  `dirVar` names, or the default one. May start with `~`. */
+export function configFilePath(file: ConfigFile, variables: readonly AgentVariable[]): string {
+  const dir = variables.find((v) => v.name === file.dirVar && !v.sensitive)?.value?.trim();
+  return `${(dir || file.defaultDir).replace(/\/+$/, "")}/${file.name}`;
 }
 
 /** The variable a field lives in. */
