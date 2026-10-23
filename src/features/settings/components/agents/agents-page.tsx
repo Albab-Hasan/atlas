@@ -2,7 +2,7 @@
 // user has on the left and the picked one's settings on the right. Browsing
 // the ACP registry for more is the Add agent dialog.
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import { Plus, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/time-ago";
@@ -96,9 +96,7 @@ export function AgentsPage() {
           {/* Keyed, so picking another agent starts its editor at the top. */}
           <div key={selected?.id} className="min-h-0 min-w-0 overflow-y-auto">
             {selected ? (
-              <GlobalOnly>
-                <AgentEditor item={selected} />
-              </GlobalOnly>
+              <AgentEditor item={selected} />
             ) : (
               <p className="p-6 text-sm text-muted-foreground">Loading agents…</p>
             )}
@@ -115,23 +113,6 @@ export function AgentsPage() {
         onAdded={(id) => setSelectedId(id)}
       />
     </SettingsPage>
-  );
-}
-
-/** An agent's settings are the same in every project: with one picked, the
- *  editor is shown but can't be changed, as a global-only row would be. */
-function GlobalOnly({ children }: { children: ReactNode }) {
-  const scope = usePageScope();
-  if (scope === null) return children;
-  return (
-    <>
-      <p className="px-5 pt-4 text-xs text-muted-foreground">
-        Agents apply to all projects. Pick All projects above to change them.
-      </p>
-      <div inert className="disabled-look">
-        {children}
-      </div>
-    </>
   );
 }
 

@@ -882,6 +882,22 @@ describe("applyAgentDelta: slept_mid_turn", () => {
     });
   });
 
+  it("a sleep that arrives after the failure replaces its error line", () => {
+    boundTab();
+    apply(
+      d("status", { status: "running", turn_seq: 1 }),
+      d("text_chunk", { message_id: "a", delta: "partial" }),
+      d("turn_failed", { error: "error decoding response body", turn_seq: 1 }),
+      d("status", { status: "error", turn_seq: 1 }),
+      d("slept_mid_turn", { turn_seq: 1, slept_secs: 600 }),
+    );
+    expect(messages().some((m) => m.content.startsWith("Error:"))).toBe(false);
+    expect(last()).toMatchObject({
+      content: "partial",
+      interruption: { outcome: "failed", error: "error decoding response body" },
+    });
+  });
+
   it("a turn cut off before any output gets an empty message to hold the record", () => {
     boundTab();
     apply(
