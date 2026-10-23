@@ -318,15 +318,15 @@ pub async fn agents_configure(
             .get_mut(&agent_id)
             .ok_or_else(|| format!("{agent_id} is not installed"))?;
         let keychain = apply_to_entry(entry, patch)?;
-        // The keychain first: a name the map lists with no stored value would
-        // launch the agent without it.
+        // New values before the map that names them: a name the map lists
+        // with no stored value would launch the agent without it. Deletes
+        // after it, so a failed save can't lose a value the map still names;
+        // a failed delete only leaves an item nothing reads.
         let agent = agent_id.clone();
+        let set = keychain.set;
         tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
-            for (name, value) in &keychain.set {
+            for (name, value) in &set {
                 super::agent_secrets::write(&agent, name, value)?;
-            }
-            for name in &keychain.delete {
-                super::agent_secrets::delete(&agent, name)?;
             }
             Ok(())
         })
@@ -337,6 +337,17 @@ pub async fn agents_configure(
             .app_data_dir()
             .unwrap_or_else(|_| std::env::temp_dir());
         super::registry::persist(&host, &data_dir, settings).await?;
+        let agent = agent_id.clone();
+        let delete = keychain.delete;
+        tauri::async_runtime::spawn_blocking(move || {
+            for name in &delete {
+                if let Err(e) = super::agent_secrets::delete(&agent, name) {
+                    tracing::warn!("couldn't remove {agent}/{name} from the keychain: {e}");
+                }
+            }
+        })
+        .await
+        .map_err(|e| e.to_string())?;
     }
     catalog::emit_catalog_changed(&app, "settings");
     catalog::entry_for(&host, &agent_id).ok_or_else(|| format!("{agent_id} is not in the catalog"))
@@ -359,7 +370,9 @@ fn expand_home(path: &str, home: Option<&Path>) -> PathBuf {
 /// what the file says is the agent's business, read by the agent at launch.
 #[tauri::command]
 pub async fn agents_open_config_file(path: String, empty: String) -> Result<String, String> {
-    let home = std::env::var_os("HOME").map(PathBuf::from);
+    let home = std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(PathBuf::from);
     let path = expand_home(path.trim(), home.as_deref());
     if !path.is_absolute() {
         return Err(format!("{} isn't an absolute path", path.display()));

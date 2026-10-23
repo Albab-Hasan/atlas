@@ -2312,6 +2312,12 @@ function applyDeltaToDraft(s: ChatDraft, env: AgentDelta): void {
         wokeAt: Date.now(),
       };
       if (!isBusyAgentStatus(session.status)) {
+        // The next prompt is already sent: there is no reply left to sit
+        // after, and a record here would land in the next turn.
+        if (session.messages[session.messages.length - 1]?.role === "user") {
+          session.sleptMidTurn = undefined;
+          return;
+        }
         recordInterruption(session, session.status === "error" ? "failed" : "finished");
       }
       return;

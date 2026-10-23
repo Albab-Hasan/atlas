@@ -75,7 +75,8 @@ function signatureOf(entries: AcpRegistryEntry[], catalog: AgentCatalogEntry[]):
     .map(
       (s) =>
         `${s.id}:${s.source}:${s.installed ? 1 : 0}:${s.enabled ? 1 : 0}:${s.displayName ?? ""}:` +
-        `${s.hiddenModels.join("+")}:${JSON.stringify(s.launch)}`,
+        `${s.hiddenModels.join("+")}:${s.modelOrder.join("+")}:` +
+        `${JSON.stringify(s.customModels)}:${JSON.stringify(s.launch)}`,
     )
     .join(",");
   return `${e}|${c}`;

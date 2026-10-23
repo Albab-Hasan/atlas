@@ -184,6 +184,8 @@ describe("signature", () => {
       { enabled: false },
       { displayName: "Work Cursor" },
       { hiddenModels: ["gpt-4"] },
+      { modelOrder: ["gpt-5", "gpt-4"] },
+      { customModels: [{ id: "gpt-x", name: "GPT X" }] },
       { launch: { command: null, args: ["--fast"], variables: [] } },
     ];
     for (const over of configured) {

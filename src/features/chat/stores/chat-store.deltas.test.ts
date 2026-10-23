@@ -920,6 +920,22 @@ describe("applyAgentDelta: slept_mid_turn", () => {
     expect(messages().some((m) => m.interruption)).toBe(false);
   });
 
+  it("a late sleep after the next prompt was sent records nothing", () => {
+    boundTab();
+    apply(
+      d("status", { status: "running", turn_seq: 1 }),
+      d("text_chunk", { message_id: "a", delta: "done" }),
+      d("turn_finished", { stop_reason: "end_turn", turn_seq: 1 }),
+      d("status", { status: "idle", turn_seq: 1 }),
+    );
+    // Sent before turn 2's running status arrives.
+    useChatStore.getState().actions.addMessage(TAB, "user", "next");
+    apply(d("slept_mid_turn", { turn_seq: 1, slept_secs: 60 }));
+    expect(last()).toMatchObject({ role: "user", content: "next" });
+    expect(messages().some((m) => m.interruption)).toBe(false);
+    expect(session().sleptMidTurn).toBeUndefined();
+  });
+
   it("an agent dying after the sleep still records it", () => {
     boundTab();
     apply(

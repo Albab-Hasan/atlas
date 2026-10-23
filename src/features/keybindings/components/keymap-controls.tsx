@@ -89,6 +89,7 @@ export function ProfileControls() {
   const [draft, setDraft] = useState("");
   const [importing, setImporting] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const startNaming = (mode: NonNullable<Naming>["mode"]) => {
     setDraft(mode === "rename" ? active.name : mode === "duplicate" ? `${active.name} copy` : "");
@@ -150,9 +151,9 @@ export function ProfileControls() {
           <DropdownMenuItem
             variant="destructive"
             disabled={locked}
-            onClick={() => deleteProfile(active.id)}
+            onClick={() => setConfirmDelete(true)}
           >
-            Delete profile
+            Delete profile…
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -209,6 +210,29 @@ export function ProfileControls() {
               }}
             >
               Reset shortcuts
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete “{active.name}”?</DialogTitle>
+            <DialogDescription>
+              The profile and every shortcut in it are removed. This can&apos;t be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose render={<Button variant="ghost">Cancel</Button>} />
+            <Button
+              variant="destructive"
+              onClick={() => {
+                deleteProfile(active.id);
+                setConfirmDelete(false);
+              }}
+            >
+              Delete profile
             </Button>
           </DialogFooter>
         </DialogContent>
