@@ -49,7 +49,7 @@ export interface CatalogEntry {
 }
 
 /** The Settings sections a notification can open. */
-export const NOTIFICATION_SETTINGS_SECTIONS = ["models", "agents"] as const;
+export const NOTIFICATION_SETTINGS_SECTIONS = ["memory", "agents"] as const;
 export type NotificationSettingsSection = (typeof NOTIFICATION_SETTINGS_SECTIONS)[number];
 export const isNotificationSettingsSection = (s: unknown): s is NotificationSettingsSection =>
   (NOTIFICATION_SETTINGS_SECTIONS as readonly unknown[]).includes(s);

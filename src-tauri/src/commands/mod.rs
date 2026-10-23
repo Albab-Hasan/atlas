@@ -1,7 +1,9 @@
 pub mod agent_analytics;
+pub mod agent_config;
 pub mod agent_entitlement;
 pub mod agent_host;
 pub mod agent_memory;
+pub mod agent_secrets;
 pub mod agent_transcript;
 pub mod agents;
 pub mod app_state;

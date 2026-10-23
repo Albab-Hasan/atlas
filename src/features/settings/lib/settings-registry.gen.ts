@@ -402,12 +402,19 @@ export const SETTINGS_PAGES = [
   {
     id: "chat",
     title: "Chat",
-    description: "New chats, the composer, layout, switching agents, and what Atlas Agent may do.",
+    description: "New chats, the composer, layout, and switching agents.",
+  },
+  {
+    id: "agents",
+    title: "Agents",
+    description:
+      "Atlas Agent, and the ACP agents you add from the registry or already have on your PATH.",
   },
   {
     id: "memory",
     title: "Memory",
-    description: "Shared memory across agents, and instructions mirrored for them.",
+    description:
+      "Shared memory across agents, instructions mirrored for them, and the model memory search runs on.",
   },
   {
     id: "notifications",
@@ -518,10 +525,10 @@ export const SETTINGS_REGISTRY: readonly SettingMeta[] = [
     type: "string",
     status: "elsewhere",
     page: "memory",
-    section: "Models",
+    section: "Embedding model",
     title: "Embedding model",
     summary: "The on-device model that embeds memory for search by meaning.",
-    setIn: "Settings → Local Models",
+    setIn: "Settings → Memory → Embedding model",
   },
   {
     key: "themeLight",
@@ -691,7 +698,7 @@ export const SETTINGS_REGISTRY: readonly SettingMeta[] = [
     key: "agentUiNavigation",
     type: "boolean",
     status: "live",
-    page: "chat",
+    page: "agents",
     section: "Atlas Agent permissions",
     title: "Let Atlas Agent navigate the app",
     summary:
@@ -702,7 +709,7 @@ export const SETTINGS_REGISTRY: readonly SettingMeta[] = [
     key: "agentOrgAccess",
     type: "boolean",
     status: "live",
-    page: "chat",
+    page: "agents",
     section: "Atlas Agent permissions",
     title: "Let Atlas Agent act in your organization",
     summary: "Read your organization's sessions, comments and conversations, and act there as you.",
@@ -712,8 +719,8 @@ export const SETTINGS_REGISTRY: readonly SettingMeta[] = [
     key: "agentCodeTools",
     type: "boolean",
     status: "live",
-    page: "chat",
-    section: "Atlas Agent permissions",
+    page: "agents",
+    section: "All agents",
     title: "Let agents search code with Atlas",
     summary:
       "Give agents Atlas's in-process grep and find-files, which respect .gitignore and skip secrets.",
@@ -878,8 +885,8 @@ export const SETTINGS_REGISTRY: readonly SettingMeta[] = [
     key: "favoriteModels",
     type: "string-list",
     status: "elsewhere",
-    page: "chat",
-    section: "Models",
+    page: "agents",
+    section: "All agents",
     title: "Favorite models",
     summary: "Models you starred in the composer's model picker.",
     setIn: "the star in the composer's model picker",

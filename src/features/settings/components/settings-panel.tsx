@@ -12,11 +12,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/ui/dialog";
-import { ProvidersSettings } from "./providers-settings";
 import { LayoutsSettings } from "./layouts-settings";
 import { SkillsAndPacks } from "./skills-and-packs";
-import { AgentsMarketplace } from "./agents-marketplace/agents-marketplace";
-import { ModelsManager } from "./models-manager";
+import { AgentsPage } from "./agents/agents-page";
 import { KeybindingsSettings } from "./keybindings-settings";
 import { NotificationsSettings } from "./notifications-settings";
 import { GeneralPage } from "./pages/general-page";
@@ -34,20 +32,8 @@ import { useSettingsStore } from "../stores/settings-store";
 import { DEFAULT_SETTINGS, type AppSettings } from "../lib/app-settings";
 import { changedOnPage, sectionLabel, type SearchItem } from "../lib/settings-sections";
 import { useAgentRegistryStore } from "@/features/agents/stores/agent-registry-store";
-import { Toggle } from "./settings-controls";
-
-export { Toggle };
 
 const NAV_COLLAPSED_KEY = "atlas:settings:navCollapsed";
-
-/** Screens that own their whole layout, toolbar and scrolling included. */
-const SCREENS: Partial<Record<SettingsSection, () => React.ReactElement>> = {
-  keybindings: () => <KeybindingsSettings />,
-  agents: () => <AgentsMarketplace />,
-  skills: () => <SkillsAndPacks />,
-  providers: () => <ProvidersSettings />,
-  models: () => <ModelsManager />,
-};
 
 /** Pages drawn with the settings layout, inside one scroll area. */
 const PAGES: Partial<Record<SettingsSection, () => React.ReactElement>> = {
@@ -56,6 +42,9 @@ const PAGES: Partial<Record<SettingsSection, () => React.ReactElement>> = {
   chat: () => <ChatPage />,
   memory: () => <MemoryPage />,
   notifications: () => <NotificationsSettings />,
+  keybindings: () => <KeybindingsSettings />,
+  agents: () => <AgentsPage />,
+  skills: () => <SkillsAndPacks />,
   "source-control": () => <SourceControlPage />,
   privacy: () => <PrivacyPage />,
   updates: () => <UpdatesPage />,
@@ -118,7 +107,6 @@ export function SettingsPanel({ initialSection }: { initialSection?: string } = 
 
   const onSearchPick = (item: SearchItem) => goTo(item.section, item.anchor);
 
-  const screen = SCREENS[active];
   const page = PAGES[active];
 
   return (
@@ -140,11 +128,7 @@ export function SettingsPanel({ initialSection }: { initialSection?: string } = 
           </p>
           <RestoreDefaults section={active} />
         </header>
-        {screen ? (
-          <div className="min-h-0 min-w-0 flex-1">{screen()}</div>
-        ) : (
-          <ScrollArea className="min-h-0 flex-1">{page?.()}</ScrollArea>
-        )}
+        <ScrollArea className="min-h-0 flex-1">{page?.()}</ScrollArea>
       </div>
     </div>
   );

@@ -71,11 +71,28 @@ use uuid::Uuid;
 /// before reaching this sink, so a cloud streamer can tap the same stream
 /// without touching any of this.
 pub struct TauriDeltaSink {
+    inner: Arc<SinkInner>,
+}
+
+struct SinkInner {
     pipeline: OutboundPipeline<SessionDeltaEnvelope>,
+    /// Names the turns a sleep of the computer interrupted. Read on every
+    /// delta, BEFORE it travels, so the notice reaches every stage ahead of
+    /// the failure it explains; and on a tick, for a turn that wakes silent.
+    sleep: Arc<crate::sleep_watch::SleepWatch>,
+}
+
+impl SinkInner {
+    fn run(&self, envelope: &SessionDeltaEnvelope) {
+        for notice in self.sleep.observe(envelope) {
+            self.pipeline.run(&notice);
+        }
+        self.pipeline.run(envelope);
+    }
 }
 
 impl TauriDeltaSink {
-    pub fn new(app: AppHandle) -> Self {
+    pub fn new(app: AppHandle, sleep: Arc<crate::sleep_watch::SleepWatch>) -> Self {
         let pipeline = OutboundPipeline::new()
             // Broadcast first so the UI updates before any heavier work.
             .with(Arc::new(BroadcastMiddleware { app: app.clone() }))
@@ -97,13 +114,28 @@ impl TauriDeltaSink {
                 app,
                 queue: super::memory_delta::IngestQueue::new("atlas-memory-ingest"),
             }));
-        Self { pipeline }
+        let inner = Arc::new(SinkInner { pipeline, sleep });
+        // The tick holds only a weak reference, so it ends with the sink.
+        let weak = Arc::downgrade(&inner);
+        if let Err(e) = std::thread::Builder::new()
+            .name("atlas-sleep-watch".into())
+            .spawn(move || loop {
+                std::thread::sleep(crate::sleep_watch::TICK_INTERVAL);
+                let Some(inner) = weak.upgrade() else { return };
+                for notice in inner.sleep.tick() {
+                    inner.pipeline.run(&notice);
+                }
+            })
+        {
+            tracing::warn!(target: "atlas::sleep_watch", "the sleep-watch tick did not start: {e}");
+        }
+        Self { inner }
     }
 }
 
 impl DeltaSink for TauriDeltaSink {
     fn emit(&self, envelope: SessionDeltaEnvelope) {
-        self.pipeline.run(&envelope);
+        self.inner.run(&envelope);
     }
 }
 
@@ -599,6 +631,8 @@ struct SharingGatedLifecycle {
     /// Released here rather than from deltas: a session can end without a
     /// terminal status (sign-out, killing an agent, quitting).
     keep_awake: Option<Arc<crate::keep_awake::KeepAwakeManager>>,
+    /// Same reason: a session that ends mid-turn is no longer in flight.
+    sleep_watch: Option<Arc<crate::sleep_watch::SleepWatch>>,
 }
 
 enum LifecycleWrite {
@@ -620,6 +654,9 @@ impl SharingGatedLifecycle {
     ) -> Self {
         let keep_awake = app
             .try_state::<Arc<crate::keep_awake::KeepAwakeManager>>()
+            .map(|state| state.inner().clone());
+        let sleep_watch = app
+            .try_state::<Arc<crate::sleep_watch::SleepWatch>>()
             .map(|state| state.inner().clone());
         let (tx, rx) = std::sync::mpsc::channel::<LifecycleWrite>();
         std::thread::Builder::new()
@@ -674,6 +711,7 @@ impl SharingGatedLifecycle {
             writes: tx,
             server,
             keep_awake,
+            sleep_watch,
         }
     }
 
@@ -702,6 +740,9 @@ impl super::agent_host::SessionLifecycle for SharingGatedLifecycle {
         if let Some(keep_awake) = &self.keep_awake {
             keep_awake.session_ended(session_id);
         }
+        if let Some(sleep_watch) = &self.sleep_watch {
+            sleep_watch.session_ended(session_id);
+        }
         self.server.clocks().forget(session_id);
         self.queue(LifecycleWrite::Ended {
             session_id: session_id.to_string(),
@@ -729,7 +770,11 @@ pub fn install_manager(app: &AppHandle) {
     app.manage(Arc::new(super::agent_transcript::TranscriptState::new(
         config_dir.clone(),
     )));
-    let sink: Arc<dyn DeltaSink> = Arc::new(TauriDeltaSink::new(app.clone()));
+    // Managed so the session lifecycle can forget a session that ends
+    // without a terminal status.
+    let sleep_watch = Arc::new(crate::sleep_watch::SleepWatch::new());
+    app.manage(sleep_watch.clone());
+    let sink: Arc<dyn DeltaSink> = Arc::new(TauriDeltaSink::new(app.clone(), sleep_watch));
     let data_dir = app
         .path()
         .app_data_dir()
@@ -747,6 +792,7 @@ pub fn install_manager(app: &AppHandle) {
         Arc::new(InheritedProjectEnvironment),
         Some(registry.clone()),
     ));
+    store.set_secret_source(Arc::new(super::agent_secrets::Keychain));
 
     // Inside the Tauri runtime's context: building the manager starts the task
     // that watches the installed map, and `tokio::spawn` panics with no reactor
@@ -2284,7 +2330,7 @@ mod cmd_error_tests {
     fn a_missing_agent_is_fatal_rather_than_auth() {
         let v = wire(
             HostError::new(
-                "some-agent is not installed. Install it from the Agent Marketplace.",
+                "some-agent is not installed. Add it in Settings → Agents.",
                 ErrorClass::Fatal,
             )
             .into(),

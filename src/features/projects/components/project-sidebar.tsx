@@ -4,6 +4,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { Menu as DropdownMenu } from "@base-ui/react/menu";
 import { HintGroup, HintItem } from "@/ui/hint-group";
 import { Hint } from "@/ui/tooltip";
+import { IconButton } from "@/ui/icon-button";
 import { recentsForOrg } from "@/features/app/lib/recent-projects";
 import {
   FolderPlus,
@@ -1463,13 +1464,13 @@ function HelpMenu() {
       <Hint label="Help & community" side="top">
         <DropdownMenu.Trigger
           render={
-            <button
-              type="button"
-              aria-label="Help and community"
-              className="flex size-[22px] items-center justify-center rounded-full border border-border-subtle text-[var(--muted-foreground)] outline-none transition-colors hover:bg-[var(--atlas-element-hover)] hover:text-[var(--foreground)] cursor-pointer"
-            >
-              <HelpCircle size={12} />
-            </button>
+            <IconButton
+              icon={HelpCircle}
+              label="Help and community"
+              size="sm"
+              variant="hairline"
+              shape="round"
+            />
           }
         />
       </Hint>

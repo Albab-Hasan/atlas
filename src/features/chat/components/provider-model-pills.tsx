@@ -163,14 +163,18 @@ export function ProviderModelPills({
   );
 
   const openApiKeys = useCallback(() => {
-    void import("@/features/layout/stores/layout-store").then(({ useLayoutStore }) => {
+    void Promise.all([
+      import("@/features/layout/stores/layout-store"),
+      import("@/features/settings/stores/settings-nav-store"),
+    ]).then(([{ useLayoutStore }, { useSettingsNav }]) => {
+      useSettingsNav.getState().goTo("agents", "provider-keys");
       useLayoutStore.getState().actions.addTab({
         id: "settings",
         type: "settings",
         title: "Settings",
         closable: true,
         dirty: false,
-        data: { section: "providers" },
+        data: { section: "agents" },
       });
     });
     setOpen(false);

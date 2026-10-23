@@ -7,6 +7,7 @@ mod logging;
 mod menu;
 mod notifier;
 mod open_vsx;
+mod sleep_watch;
 mod state;
 mod telemetry;
 mod window_background;
@@ -833,6 +834,8 @@ pub fn run() {
             // release so a stale frontend keeps working.
             commands::catalog::agents_catalog,
             commands::catalog::agents_catalog_refresh,
+            commands::agent_config::agents_configure,
+            commands::agent_config::agents_open_config_file,
             commands::agents::agents_list_running,
             commands::agents::agents_spawn,
             commands::agents::agents_kill,

@@ -36,7 +36,7 @@ describe("banner payload round trip", () => {
       { type: "agent-sign-in", agentType: "cursor" },
       { type: "chat-conversation", convId: "c1", orgId: "o" },
       { type: "app-update" },
-      { type: "settings", section: "models" },
+      { type: "settings", section: "memory" },
       { type: "settings", section: "agents" },
       { type: "config-file" },
       { type: "git-panel", projectId: "p1", projectName: "Atlas" },

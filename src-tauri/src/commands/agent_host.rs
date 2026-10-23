@@ -686,6 +686,11 @@ impl AgentHost {
         &self.registry
     }
 
+    /// Atlas's config directory, where the native agent's own settings live.
+    pub fn config_dir(&self) -> &Path {
+        &self.config_dir
+    }
+
     // `native_sessions` and `native_delete_session` are gone with the previous native
     // runtime that owned those files (#54). They read a second, engine-private
     // session store; the engine keeps its own under a different shape,
@@ -752,13 +757,32 @@ impl AgentHost {
     /// always available because it is in-process, and any other id must appear
     /// in the installed map. Nothing is downloaded, discovered or guessed here.
     pub fn agent_for(&self, plugin_id: &str) -> Result<Agent> {
+        let agent = self.installed_agent(plugin_id)?;
+        // Turned off in Settings → Agents: still installed, never started.
+        if self
+            .store
+            .settings()
+            .get(plugin_id)
+            .is_some_and(|entry| !entry.enabled())
+        {
+            return Err(HostError::new(
+                format!("{plugin_id} is turned off. Turn it on in Settings → Agents."),
+                ErrorClass::Fatal,
+            ));
+        }
+        Ok(agent)
+    }
+
+    /// [`Self::agent_for`] without the on/off check: for what stops, inspects
+    /// or restarts an agent, which a turned-off one still needs.
+    fn installed_agent(&self, plugin_id: &str) -> Result<Agent> {
         if plugin_id == ATLAS_AGENT_ID {
             return Ok(Agent::Native);
         }
         let id = atlas_acp_thread::AgentId::new(plugin_id);
         if self.store.entry(&id).is_none() {
             return Err(HostError::new(
-                format!("{plugin_id} is not installed. Install it from the Agent Marketplace."),
+                format!("{plugin_id} is not installed. Add it in Settings → Agents."),
                 ErrorClass::Fatal,
             ));
         }
@@ -887,7 +911,7 @@ impl AgentHost {
     /// false until the agent has been connected at least once. The catalog
     /// documents that; the frontend falls back to other fields in that window.
     pub fn capabilities(&self, plugin_id: &str) -> PluginCapabilities {
-        let Ok(agent) = self.agent_for(plugin_id) else {
+        let Ok(agent) = self.installed_agent(plugin_id) else {
             return PluginCapabilities::default();
         };
         let Some(connection) = self.connected(&agent) else {
@@ -959,7 +983,7 @@ impl AgentHost {
     /// "cancel" button only has the plugin id it asked for. Works whether the
     /// connection is up, still connecting, or already gone.
     pub fn kill_plugin(&self, plugin_id: &str) -> Result<()> {
-        let agent = self.agent_for(plugin_id)?;
+        let agent = self.installed_agent(plugin_id)?;
         self.kill_agent(plugin_id, &agent);
         Ok(())
     }
@@ -973,7 +997,7 @@ impl AgentHost {
     /// Whether any open session on `plugin_id` has a turn running. `false` for
     /// an agent that is not installed.
     pub fn agent_turn_running(&self, plugin_id: &str) -> bool {
-        let Ok(agent) = self.agent_for(plugin_id) else {
+        let Ok(agent) = self.installed_agent(plugin_id) else {
             return false;
         };
         let sessions: Vec<String> = lock(&self.sessions)
@@ -998,11 +1022,21 @@ impl AgentHost {
     /// session nothing knew any more — its next message failed with "unknown
     /// session id".
     pub fn restart_for_update(&self, plugin_id: &str, version: &str) -> Result<()> {
-        let agent = self.agent_for(plugin_id)?;
+        let agent = self.installed_agent(plugin_id)?;
         self.disconnect_chats(
             &agent,
             &format!("updated to v{version}; the next message reconnects"),
         );
+        self.kill_agent(plugin_id, &agent);
+        Ok(())
+    }
+
+    /// Stop an agent that was just turned off in Settings → Agents: its open
+    /// chats are told why, and its process ends. Turning it back on lets the
+    /// next message reconnect.
+    pub fn turn_off(&self, plugin_id: &str) -> Result<()> {
+        let agent = self.installed_agent(plugin_id)?;
+        self.disconnect_chats(&agent, "turned off in Settings → Agents");
         self.kill_agent(plugin_id, &agent);
         Ok(())
     }
@@ -2527,7 +2561,7 @@ impl AgentHost {
     /// this is usually a brief window — but it is exactly the window the boot
     /// backfill runs in, one agent after another.
     fn connect_has_failed(&self, plugin_id: &str) -> bool {
-        let Ok(agent) = self.agent_for(plugin_id) else {
+        let Ok(agent) = self.installed_agent(plugin_id) else {
             return false;
         };
         self.manager

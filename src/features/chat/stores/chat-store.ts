@@ -42,7 +42,7 @@ import { toast } from "sonner";
 import { extractPlanMarkdown, type PlanRecord } from "../lib/plans";
 import { extractNextSteps } from "../lib/next-steps";
 import { turnFileOfToolCall } from "../lib/tool-files";
-import type { TurnFile } from "@/types/agent";
+import type { TurnFile, TurnInterruption } from "@/types/agent";
 
 /** `firstUserContent` is a preview field, never the full text — see the note
  *  at its appendMessage write. 200 chars covers every consumer (they slice to
@@ -787,6 +787,40 @@ export function stopReasonNotice(stopReason: string): string | null {
     default:
       return null;
   }
+}
+
+/**
+ * Freeze a held sleep (`sleptMidTurn`) onto the turn's trailing assistant
+ * message as its `interruption` — the way `usage` and `turnSummary` are frozen
+ * at turn end, so the transcript draws it after the reply it may have cut
+ * short. A turn the sleep cut off before any output has no such message, so
+ * one is added with no content: it renders nothing but the record.
+ */
+function recordInterruption(
+  session: ChatSession,
+  outcome: TurnInterruption["outcome"],
+  error?: string,
+): void {
+  const slept = session.sleptMidTurn;
+  if (!slept) return;
+  session.sleptMidTurn = undefined;
+  const interruption: TurnInterruption = {
+    cause: "sleep",
+    sleptSecs: slept.sleptSecs,
+    outcome,
+    ...(error ? { error } : {}),
+  };
+  for (let i = session.messages.length - 1; i >= 0; i--) {
+    const m = session.messages[i];
+    if (m.role === "user") break;
+    if (m.role === "assistant") {
+      m.interruption = interruption;
+      return;
+    }
+  }
+  const host = makeAssistantTextMessage("");
+  host.interruption = interruption;
+  session.messages.push(host);
 }
 
 export const useChatStore = createSelectors(
@@ -2008,6 +2042,11 @@ function applyDeltaToDraft(s: ChatDraft, env: AgentDelta): void {
           session.livePlan = undefined;
           // Start a fresh per-turn files-touched scratch for the adaptive card.
           session.turnScratch = { seq, tools: {} };
+          // A sleep notice still held for an older turn missed its place —
+          // the new user message is already below it.
+          if (session.sleptMidTurn && session.sleptMidTurn.turnSeq < seq) {
+            session.sleptMidTurn = undefined;
+          }
         }
         session.status = env.status;
         return;
@@ -2197,6 +2236,7 @@ function applyDeltaToDraft(s: ChatDraft, env: AgentDelta): void {
         }
         break;
       }
+      recordInterruption(session, env.stop_reason === "cancelled" ? "stopped" : "finished");
       return;
     }
     case "turn_failed": {
@@ -2215,7 +2255,24 @@ function applyDeltaToDraft(s: ChatDraft, env: AgentDelta): void {
       // in-process and shares this error delta, so its provider errors (e.g. a
       // Gemini HTTP 400) were being mislabeled as ACP failures. Use a neutral
       // prefix.
-      session.messages.push(makeAssistantTextMessage(`Error: ${env.error}`));
+      // After a sleep the failure is almost always the sleep's doing — a dropped
+      // stream reports "error decoding response body", which names nothing the
+      // user did — so the interruption row leads and carries the agent's words
+      // folded, instead of a bare "Error:" line.
+      const last = session.messages[session.messages.length - 1];
+      if (session.sleptMidTurn) {
+        recordInterruption(session, "failed", env.error);
+      } else if (
+        last?.role === "assistant" &&
+        last.interruption?.outcome === "failed" &&
+        !last.interruption.error
+      ) {
+        // The sleep landed between the error status and this delta, and was
+        // recorded then; the error joins that record.
+        last.interruption = { ...last.interruption, error: env.error };
+      } else {
+        session.messages.push(makeAssistantTextMessage(`Error: ${env.error}`));
+      }
       session.status = "error";
       session.stopping = undefined;
       session.retryStatus = undefined;
@@ -2223,7 +2280,7 @@ function applyDeltaToDraft(s: ChatDraft, env: AgentDelta): void {
       // Auth failures route to the agent's sign-in flow (P15) instead of
       // dying as a generic banner. The composer components listen for this
       // (Claude → login dialog, Codex → sign-in pill); native/BYOK keys are
-      // covered by the error text pointing at Settings → API Keys.
+      // covered by the error text pointing at Settings → Agents → Provider keys.
       if (env.error_kind === "auth") {
         window.dispatchEvent(
           new CustomEvent("atlas:auth-required", {
@@ -2249,6 +2306,29 @@ function applyDeltaToDraft(s: ChatDraft, env: AgentDelta): void {
       session.disconnected = true;
       session.stopping = undefined;
       session.retryStatus = undefined;
+      recordInterruption(session, "disconnected");
+      return;
+    }
+    case "slept_mid_turn": {
+      if (isStaleTurn(session, env.turn_seq)) return;
+      // Live while the turn runs (the composer pill), frozen onto the turn when
+      // it ends. Rust delivers it ahead of the turn's terminal, but the
+      // background tick can lose that race — then the turn is already over and
+      // the record goes straight on.
+      session.sleptMidTurn = {
+        turnSeq: env.turn_seq,
+        sleptSecs: env.slept_secs,
+        wokeAt: Date.now(),
+      };
+      if (!isBusyAgentStatus(session.status)) {
+        // The next prompt is already sent: there is no reply left to sit
+        // after, and a record here would land in the next turn.
+        if (session.messages[session.messages.length - 1]?.role === "user") {
+          session.sleptMidTurn = undefined;
+          return;
+        }
+        recordInterruption(session, session.status === "error" ? "failed" : "finished");
+      }
       return;
     }
     case "retry_status": {

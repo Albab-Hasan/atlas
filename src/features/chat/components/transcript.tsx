@@ -34,7 +34,7 @@ import {
   useRef,
   useState,
 } from "react";
-import type { ChatMessage } from "@/types/agent";
+import { isBusyAgentStatus, type ChatMessage } from "@/types/agent";
 import {
   agentMeta,
   catalogEntry as agentCatalogEntry,
@@ -64,6 +64,7 @@ import {
   SeparatorRowView,
   TurnFooterRowView,
 } from "./transcript-rows";
+import { InterruptionRowView } from "./interruption-row";
 
 /**
  * How many rows are added each time the window grows.
@@ -350,6 +351,13 @@ export const Transcript = forwardRef<TranscriptHandle, TranscriptProps>(function
   // flag `supportsFork` uses, computed from the live connection.
   const supportsRewind = agentCatalogEntry(agent)?.supportsRewind === true;
   const canRetry = useChatStore((s) => sessionCanRetry(s.sessions[tabId], supportsRewind));
+  // Whether a new message could go out now — an interrupted turn's Continue.
+  // Same O(1) bargain as `canRetry`. A disconnected session counts: sending
+  // is what respawns it.
+  const canContinue = useChatStore((s) => {
+    const session = s.sessions[tabId];
+    return !!session && !isBusyAgentStatus(session.status) && !session.stopping;
+  });
 
   // Delegated children, keyed by their launching call. A stable reference —
   // immer re-identifies it only when a child changes — so this subscription
@@ -937,6 +945,7 @@ export const Transcript = forwardRef<TranscriptHandle, TranscriptProps>(function
             priority={safeStart + i}
             onToggleExpand={toggleExpand}
             canRetryRowId={canRetryRowId}
+            canContinue={canContinue}
             pinScopeKey={pinScopeKey}
           />
         </div>
@@ -948,6 +957,7 @@ export const Transcript = forwardRef<TranscriptHandle, TranscriptProps>(function
       agentLabel,
       entranceMessageId,
       canRetryRowId,
+      canContinue,
       pinScopeKey,
       toggleTurn,
       toggleExpand,
@@ -959,7 +969,7 @@ export const Transcript = forwardRef<TranscriptHandle, TranscriptProps>(function
       <div
         ref={scrollRef}
         onScroll={onScroll}
-        className="atlas-transcript h-full overflow-y-auto hide-scrollbar [overflow-anchor:none]"
+        className="h-full overflow-y-auto hide-scrollbar [overflow-anchor:none]"
       >
         {/* Pad past the ENTIRE blur band, not just the bar. Padding by the
               header height alone left the first message sitting inside the
@@ -1047,6 +1057,7 @@ function RowView({
   onToggleExpand,
   onExpandTurn,
   canRetryRowId,
+  canContinue,
   pinScopeKey,
 }: {
   row: Row;
@@ -1060,6 +1071,8 @@ function RowView({
    *  retry is possible. An id compare here keeps `UserRowView`'s prop a plain
    *  boolean. */
   canRetryRowId?: string;
+  /** Whether a message could be sent now (an interrupted turn's Continue). */
+  canContinue: boolean;
   /** Pin scope for this thread — resolved once here rather than per row, so a
    *  row never reads the chat store. */
   pinScopeKey: string;
@@ -1104,6 +1117,15 @@ function RowView({
       return <WorkHeaderRowView row={row} onToggle={onExpandTurn} />;
     case RowKind.TurnFooter:
       return <TurnFooterRowView row={row} />;
+    case RowKind.Interruption:
+      return (
+        <InterruptionRowView
+          row={row}
+          tabId={tabId}
+          canRetry={canRetryRowId !== undefined}
+          canContinue={canContinue}
+        />
+      );
     default:
       return null;
   }

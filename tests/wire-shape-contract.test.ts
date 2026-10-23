@@ -398,3 +398,26 @@ describe("subagents: Rust Subagent ↔ the renderer's Subagent (#8)", () => {
     expect(store).toMatch(/parentToolCallId:\s*tc\.parent_tool_call_id/);
   });
 });
+
+describe("slept_mid_turn: Rust SleptMidTurn ↔ the renderer's delta (#9)", () => {
+  // The host names a turn the computer slept through (`sleep_watch.rs`). Both
+  // fields are read by the chat store — `turn_seq` is its stale guard — so a
+  // rename on either side compiles and the notice silently attaches to
+  // nothing (or to a superseded turn).
+  const delta = read("crates", "atlas-agent-wire", "src", "delta.rs");
+  const wireTs = read("src", "types", "agents.ts");
+  const store = read("src", "features", "chat", "stores", "chat-store.ts");
+
+  it("the variant carries the same fields on both sides", () => {
+    expect(delta).toMatch(/SleptMidTurn\s*\{\s*turn_seq: u64,\s*slept_secs: u64,\s*\}/);
+    const ts = /kind: "slept_mid_turn";([\s\S]*?)\}/.exec(wireTs);
+    expect(ts, "the slept_mid_turn member of AgentDelta").not.toBeNull();
+    expect(ts![1]).toMatch(/\bturn_seq: number;/);
+    expect(ts![1]).toMatch(/\bslept_secs: number;/);
+  });
+
+  it("the chat store applies it", () => {
+    expect(store).toMatch(/case "slept_mid_turn":/);
+    expect(store).toMatch(/env\.turn_seq/);
+  });
+});

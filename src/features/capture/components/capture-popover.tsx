@@ -1685,7 +1685,7 @@ function ConnectTab({
                 <DropdownMenuItem
                   key={remote.id}
                   onClick={() => setSelected(remote.id)}
-                  className="items-start gap-2"
+                  className="items-start"
                 >
                   <Check
                     size={11}

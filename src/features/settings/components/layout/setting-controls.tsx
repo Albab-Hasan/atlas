@@ -112,7 +112,7 @@ export function SettingStepper({
         size="sm"
         variant="outline"
         label={`${name}: smaller`}
-        className="rounded-full"
+        shape="round"
         disabled={off || value <= min}
         onClick={() => step(-1)}
       />
@@ -125,7 +125,7 @@ export function SettingStepper({
         size="sm"
         variant="outline"
         label={`${name}: larger`}
-        className="rounded-full"
+        shape="round"
         disabled={off || value >= max}
         onClick={() => step(1)}
       />

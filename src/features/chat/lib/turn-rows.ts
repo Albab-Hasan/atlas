@@ -19,6 +19,7 @@ import type {
   SubagentStatus,
   ToolCallDisplay,
   TurnFile,
+  TurnInterruption,
 } from "@/types/agent";
 import type { ImageAttachment } from "@/types/agents";
 
@@ -49,6 +50,7 @@ export const RowKind = {
   TurnFooter: 6,
   WorkHeader: 7,
   Subagent: 8,
+  Interruption: 9,
 } as const;
 
 /** Marker execution state — drives the leading glyph, nothing else. */
@@ -281,8 +283,20 @@ export interface TurnFooterRow extends RowBase {
   contextChip: boolean;
 }
 
+/** Something outside the conversation cut into this turn (`TurnInterruption`).
+ *  Its own row, after the footer, so it reads as Atlas speaking about the turn
+ *  rather than as more of the reply. */
+export interface InterruptionRow extends RowBase {
+  kind: typeof RowKind.Interruption;
+  interruption: TurnInterruption;
+  /** True when this is the thread's last turn — the only one whose Retry and
+   *  Continue would act on the reply the row is about. */
+  latest: boolean;
+}
+
 export type Row =
   | UserRow
+  | InterruptionRow
   | ProseRow
   | ThinkingRow
   | MarkerRow
@@ -797,7 +811,10 @@ function isEmptyMessage(m: ChatMessage): boolean {
     !(m.thinking && m.thinking.trim()) &&
     m.toolCalls.length === 0 &&
     m.fileChanges.length === 0 &&
-    !(m.plan && m.plan.length > 0)
+    !(m.plan && m.plan.length > 0) &&
+    // A turn cut off before any output keeps an otherwise empty message just
+    // to carry its interruption record (`recordInterruption`).
+    !m.interruption
   );
 }
 
@@ -1006,6 +1023,8 @@ export function projectRows(
     /** Children this turn delegated to, flushed after its last row. */
     const delegated: SubagentRow[] = [];
     let footerMsg: ChatMessage | null = null;
+    let interruption: TurnInterruption | null = null;
+    let interruptedMsgId = "";
     let headerShown = false;
     let sawError = false;
 
@@ -1100,6 +1119,11 @@ export function projectRows(
       // The footer data is frozen onto the trailing message at turn_finished.
       if (msg.turnSummary || msg.suggestions || msg.contextUsage) footerMsg = msg;
       if (msg.workedMs !== undefined) workedMs = msg.workedMs;
+      if (msg.interruption) {
+        interruption = msg.interruption;
+        interruptedMsgId = msg.id;
+        if (msg.interruption.outcome === "failed") sawError = true;
+      }
       i += 1;
     }
     flushMarkers();
@@ -1163,6 +1187,17 @@ export function projectRows(
         messageId: footerMsg.id,
         hasSuggestions: (footerMsg.suggestions?.chips.length ?? 0) > 0,
         contextChip: !!footerMsg.contextUsage || !!footerMsg.usage,
+      });
+    }
+
+    if (interruption) {
+      rows.push({
+        kind: RowKind.Interruption,
+        id: `x:${interruptedMsgId}`,
+        turnId,
+        firstInTurn: rows.length === rowStart,
+        interruption,
+        latest: i >= messages.length,
       });
     }
 

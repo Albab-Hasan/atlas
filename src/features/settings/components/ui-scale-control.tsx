@@ -38,13 +38,13 @@ export function UiScaleControl() {
       <Hint label={`Interface scale, ${pct}%`} side="top">
         <PopoverTrigger
           render={
-            <button
-              type="button"
-              aria-label={`Interface scale, ${pct}%`}
-              className="flex size-[22px] items-center justify-center rounded-full border border-border-subtle text-[var(--muted-foreground)] outline-none transition-colors hover:bg-[var(--atlas-element-hover)] hover:text-[var(--foreground)] data-[popup-open]:bg-[var(--atlas-element-hover)] data-[popup-open]:text-[var(--foreground)] cursor-pointer"
-            >
-              <Type size={12} />
-            </button>
+            <IconButton
+              icon={Type}
+              label={`Interface scale, ${pct}%`}
+              size="sm"
+              variant="hairline"
+              shape="round"
+            />
           }
         />
       </Hint>
@@ -55,7 +55,8 @@ export function UiScaleControl() {
         // The popover token is a grey slab beside the inset card; the surround
         // is the foreground at 4% over the background instead, under the
         // raised-rung shadow — the menu rung was all halo on it.
-        className="w-[232px] bg-[color-mix(in_srgb,var(--foreground)_4%,var(--background))] p-1.5 shadow-sm select-none"
+        surface="tinted"
+        className="w-[232px] select-none"
       >
         {/* Two surfaces, the agent/model picker's recipe: the popover is the
             tinted surround carrying the title and Reset, and the controls sit
@@ -76,7 +77,7 @@ export function UiScaleControl() {
                 label="Smaller"
                 size="sm"
                 variant="outline"
-                className="rounded-full"
+                shape="round"
                 disabled={uiScale <= MIN_SCALE}
                 onClick={() => setScale(uiScale - SCALE_STEP)}
               />
@@ -90,7 +91,7 @@ export function UiScaleControl() {
                 label="Larger"
                 size="sm"
                 variant="outline"
-                className="rounded-full"
+                shape="round"
                 disabled={uiScale >= MAX_SCALE}
                 onClick={() => setScale(uiScale + SCALE_STEP)}
               />

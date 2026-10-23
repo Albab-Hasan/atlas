@@ -17,7 +17,7 @@ interface Props {
  */
 export const ReadmeView = memo(function ReadmeView({ source }: Props) {
   return (
-    <div className="atlas-readme text-md leading-relaxed text-[var(--foreground)] break-words select-text">
+    <div className="text-md leading-relaxed text-[var(--foreground)] break-words select-text">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeRaw, rehypeHighlight]}

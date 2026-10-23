@@ -237,6 +237,10 @@ rmcp = { workspace = true, features = ["client", "transport-streamable-http-clie
 tempfile = "3"
 
 [target.'cfg(target_os = "windows")'.dependencies]
+# The OS credential store for agent variables marked sensitive
+# (`crate::commands::agent_secrets`). The workspace's keyring, already in the
+# tree for the engine, with each platform's native backend.
+keyring = { workspace = true, features = ["windows-native"] }
 # Read the Windows Installer's uninstall entry for Atlas: the auto-updater
 # relaunches from (and only upgrades) the MSI's `InstallLocation`. See
 # `crate::commands::updater`. Already in the tree transitively.
@@ -251,6 +255,7 @@ windows = { version = "0.61", features = [
 ] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
+keyring = { workspace = true, features = ["linux-native-async-persistent"] }
 # Native notifications over the freedesktop D-Bus interface
 # (`crate::notifier::freedesktop`). 5.14 is the zbus `notify-rust` already
 # resolves (the lockfile also holds a 4.x for other crates), default features
@@ -258,6 +263,7 @@ windows = { version = "0.61", features = [
 zbus = "5"
 
 [target.'cfg(target_os = "macos")'.dependencies]
+keyring = { workspace = true, features = ["apple-native"] }
 # Native NSWindow access for the titlebar double-click "zoom" (AppKit
 # performZoom:), which Tauri's cross-platform maximize API doesn't cover.
 # Already in the tree transitively; pinned here for the direct msg_send.

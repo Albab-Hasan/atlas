@@ -380,18 +380,22 @@ function ThreadPicker({
 
 // ── Empty states ─────────────────────────────────────────────────────────────
 
-/** Open Settings on the provider-keys section — the same deep link Memory ▸ Chat
+/** Open Settings on Agents › Provider keys — the same deep link Memory ▸ Chat
  *  uses. Dynamically imported so the artifacts panel does not pull the layout
- *  store into its own chunk. */
+ *  and settings stores into its own chunk. */
 function openProviderSettings(): void {
-  void import("@/features/layout/stores/layout-store").then(({ useLayoutStore }) => {
+  void Promise.all([
+    import("@/features/layout/stores/layout-store"),
+    import("@/features/settings/stores/settings-nav-store"),
+  ]).then(([{ useLayoutStore }, { useSettingsNav }]) => {
+    useSettingsNav.getState().goTo("agents", "provider-keys");
     useLayoutStore.getState().actions.addTab({
       id: "settings",
       type: "settings",
       title: "Settings",
       closable: true,
       dirty: false,
-      data: { section: "providers" },
+      data: { section: "agents" },
     });
   });
 }

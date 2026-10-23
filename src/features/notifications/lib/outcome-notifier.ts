@@ -81,7 +81,7 @@ export function notifyModelDownload(done: {
 }): void {
   try {
     const name = useModelsStore.getState().list.find((m) => m.id === done.id)?.name ?? done.id;
-    const settingsShowsModels = useSettingsNav.getState().shown === "models" && settingsTabActive();
+    const settingsShowsModels = useSettingsNav.getState().shown === "memory" && settingsTabActive();
     const decision = decideModelDownload(
       { ...done, name, seq: ++modelSeq },
       envFor(settingsShowsModels),

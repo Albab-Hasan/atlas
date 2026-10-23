@@ -8,7 +8,8 @@ vi.mock("sonner", () => ({
   toast: Object.assign(() => {}, { error: () => {}, success: () => {} }),
 }));
 
-const { cardState, installKind, marketplaceCards } = await import("./agents-marketplace");
+const { cardState, formatArgs, installKind, marketplaceCards, parseArgs } =
+  await import("./agent-install");
 
 type Entry = import("@/features/agents/lib/agent-registry-api").AcpRegistryEntry;
 type Catalog = import("@/types/agent-catalog").AgentCatalogEntry;
@@ -142,5 +143,30 @@ describe("marketplaceCards", () => {
       index([{ id: "atlas-agent", kind: "native", source: "in-process" }]),
     );
     expect(cards).toEqual([]);
+  });
+});
+
+describe("parseArgs", () => {
+  it("splits on whitespace and keeps quoted spaces together", () => {
+    expect(parseArgs(`--acp  --model "gpt 5" --tag 'a b'`)).toEqual([
+      "--acp",
+      "--model",
+      "gpt 5",
+      "--tag",
+      "a b",
+    ]);
+  });
+
+  it("keeps an empty quoted argument", () => {
+    expect(parseArgs(`--name ""`)).toEqual(["--name", ""]);
+  });
+
+  it("reads nothing from a blank field", () => {
+    expect(parseArgs("   ")).toEqual([]);
+  });
+
+  it("round-trips through formatArgs", () => {
+    const args = ["--acp", "gpt 5", "", `say "hi"`, "plain"];
+    expect(parseArgs(formatArgs(args))).toEqual(args);
   });
 });

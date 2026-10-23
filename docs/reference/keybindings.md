@@ -6,9 +6,19 @@ their titles, default chords and the focus context they fire in lives in
 `src/features/keybindings/lib/actions.ts`; Settings → Keybindings renders that
 registry and lets you rebind each row.
 
-Bindings are grouped into **profiles**. The built-in `Default` profile is
-locked and always reflects Atlas's shipped defaults; duplicate it (or create an
-empty profile) to customise. Only one profile is active at a time.
+Bindings are grouped into **profiles**. The built-in `Default` profile never
+changes and always reflects Atlas's shipped defaults: the first edit made while
+it is active (a rebind, or a different keymap under "Start from") forks it into
+an active **My keybindings** profile and lands there. Only one profile is
+active at a time; the Keymap section's menu creates, renames, deletes, copies
+and imports them.
+
+In the editor, click a shortcut and press the new keys; it saves as soon as a
+complete chord lands. Esc, Tab or a click elsewhere cancels, and ⌫ removes the
+shortcut. A chord that clashes, or that macOS keeps for itself, still saves,
+with a warning and an Undo. Search takes a name or a shortcut written out
+(`cmd k`, `cmd+shift+p`); the keyboard button in the field searches by pressing
+the shortcut instead.
 
 ## Presets and the first-run question
 
@@ -89,11 +99,12 @@ bound that way as conflicting. `cmd+ctrl+x` means Ctrl+Super/Win there.
 
 Most actions are global. Some only fire while a surface has focus — for a
 surface that lives in a tab, while that tab is the active tab of the focused
-split — and are shown in the editor's When column: `terminalFocus`, `chatFocus`,
-`knowledgeOpen`, `knowledgeFocus`, `pdfFocus`, `canvasFocus`. Scoped actions
+split — and the editor says where under the command's title ("In the terminal").
+Their ids are `terminalFocus`, `chatFocus`, `knowledgePanel`, `knowledgeFocus`,
+`pdfFocus`, `canvasFocus`, `modelPicker`. Scoped actions
 may share a chord with a global one (the terminal's ⌘W shadows close-tab while
-the terminal is focused); the editor marks that amber. Two actions in the
-*same* context sharing a chord is a real conflict (red): the first in registry
+the terminal is focused); the editor flags that amber only once a profile or keymap has changed one side. Two actions in the
+_same_ context sharing a chord is a real conflict (red): the first in registry
 order wins.
 
 ## Sharing a profile
